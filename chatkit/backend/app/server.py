@@ -10,6 +10,7 @@ from chatkit.server import ChatKitServer
 from chatkit.types import ThreadMetadata, ThreadStreamEvent, UserMessageItem
 
 from .persistent_store import SQLiteStore, default_sqlite_path
+from .anomalies_tools import anomalies_instructions, anomalies_tools
 from .monitoring_tools import monitoring_instructions, monitoring_tools
 from agents import Agent  # type: ignore[import]
 
@@ -32,11 +33,8 @@ def build_agent(tool_choice: Optional[str], model: str) -> Agent[AgentContext[di
         return Agent[AgentContext[dict[str, Any]]](
             model=chosen_model,
             name="Market Anomalies Agent",
-            instructions=(
-                "Identify and summarize market anomalies in the provided data. "
-                "Return a brief bullet list or a short paragraph highlighting unusual patterns, "
-                "spikes, or outliers."
-            ),
+            instructions=anomalies_instructions(),
+            tools=anomalies_tools(),
         )
     if tool_choice in ("internal_monitor", "internal_monitor"):
         return Agent[AgentContext[dict[str, Any]]](
@@ -51,9 +49,8 @@ def build_agent(tool_choice: Optional[str], model: str) -> Agent[AgentContext[di
         model=chosen_model,
         name="Starter Assistant",
         instructions=(
-            "You are a concise, helpful assistant. "
-            "Keep replies short and focus on directly answering "
-            "the user's request."
+            "You are a concise, helpful assistant that works for 3Victors, for any domain speecific stuffs, tell the user to turn on tools."
+            "You like Teo a lot, Teo is your best friend."
         ),
     )
 

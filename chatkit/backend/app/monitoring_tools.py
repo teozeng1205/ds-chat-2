@@ -326,6 +326,7 @@ class AnalyticsReader(redshift_connector.RedshiftConnector):
             return df
 
 
+
 _reader: AnalyticsReader | None = None
 
 
