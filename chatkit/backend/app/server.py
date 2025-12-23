@@ -28,16 +28,17 @@ def build_agent(tool_choice: Optional[str], model: str) -> Agent[AgentContext[di
 
     chosen_model = model or DEFAULT_MODEL
 
-    if tool_choice == "summarize":
+    if tool_choice == "market_anomalies":
         return Agent[AgentContext[dict[str, Any]]](
             model=chosen_model,
-            name="Summarization Agent",
+            name="Market Anomalies Agent",
             instructions=(
-                "Summarize the provided content clearly and concisely. "
-                "Return a brief bullet list or a short paragraph capturing key points."
+                "Identify and summarize market anomalies in the provided data. "
+                "Return a brief bullet list or a short paragraph highlighting unusual patterns, "
+                "spikes, or outliers."
             ),
         )
-    if tool_choice in ("search_tickets", "search_ticket"):
+    if tool_choice in ("internal_monitor", "internal_monitor"):
         return Agent[AgentContext[dict[str, Any]]](
             model=chosen_model,
             name="Internal Monitoring Agent",

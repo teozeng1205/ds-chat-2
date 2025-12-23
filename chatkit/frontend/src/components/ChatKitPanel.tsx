@@ -9,23 +9,23 @@ export function ChatKitPanel() {
       attachments: { enabled: false },
       tools: [
       {
-        id: "summarize",
+        id: "market_anomalies",
         icon: "book-open",
-        label: "Summarize",
-        placeholderOverride: "Summarize the current page or document.",
+        label: "Market Anomalies",
+        placeholderOverride: "Market Anomalies Tool: Summarize market anomalies for a customer",
       },
       {
-        id: "search_ticket",
+        id: "internal_monitor",
         icon: "search",
         label: "Internal Monitoring",
-        shortLabel: "Monitor",
+        shortLabel: "Monitoring",
         placeholderOverride:
           "Teo's Monitoring Tool: Ask questions about site monitoring issues.",
       },
     ],
     models: [
       {
-        id: "GPT-5.2",
+        id: "gpt-5.2",
         label: "Default",
         description: "Default gpt-5.2",
         default: true,
@@ -33,7 +33,7 @@ export function ChatKitPanel() {
       {
         id: "GPT-5-mini",
         label: "Fast",
-        description: "For speed optimized gpt-5-mini",
+        description: "for speed optimized gpt-5-mini",
       },
     ],
     },

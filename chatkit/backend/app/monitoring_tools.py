@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import datetime
+import json
 import logging
 from typing import Any
 
 import pandas as pd
-from agents import function_tool
+from agents import RunContextWrapper, function_tool
+from chatkit.agents import AgentContext
+from chatkit.types import ProgressUpdateEvent
 from threevictors.dao import redshift_connector
 
 log = logging.getLogger(__name__)
@@ -337,6 +340,21 @@ def _df_records(df: pd.DataFrame) -> list[dict[str, Any]]:
     return df.to_dict(orient="records")
 
 
+def _short_json(value: Any, limit: int = 500) -> str:
+    text = json.dumps(value, ensure_ascii=True, default=str)
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit]}...(truncated)"
+
+
+async def _stream_progress(
+    ctx: RunContextWrapper[AgentContext],
+    icon: str,
+    text: str,
+) -> None:
+    await ctx.context.stream(ProgressUpdateEvent(icon=icon, text=text))
+
+
 def monitoring_instructions() -> str:
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     return (
@@ -361,37 +379,70 @@ def monitoring_instructions() -> str:
 
 
 @function_tool
-def describe_table(table_name: str) -> dict:
+async def describe_table(ctx: RunContextWrapper[AgentContext], table_name: str) -> dict:
     """Return table metadata from information_schema."""
+    await _stream_progress(ctx, "search", f"describe_table: {_short_json({'table_name': table_name})}")
     return _get_reader().describe_table(table_name)
 
 
 @function_tool
-def read_table_head(table_name: str, limit: int = 50) -> list[dict[str, Any]]:
+async def read_table_head(
+    ctx: RunContextWrapper[AgentContext],
+    table_name: str,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
     """Return a preview of table rows."""
+    await _stream_progress(
+        ctx,
+        "search",
+        f"read_table_head: {_short_json({'table_name': table_name, 'limit': limit})}",
+    )
     return _df_records(_get_reader().read_table_head(table_name, limit=limit))
 
 
 @function_tool
-def query_table(query: str, limit: int = 1000) -> list[dict[str, Any]]:
+async def query_table(
+    ctx: RunContextWrapper[AgentContext],
+    query: str,
+    limit: int = 1000,
+) -> list[dict[str, Any]]:
     """Run a SELECT/WITH query and return rows."""
+    await _stream_progress(
+        ctx,
+        "search",
+        f"query_table: {_short_json({'query': query, 'limit': limit})}",
+    )
     return _df_records(_get_reader().query_table(query, limit=limit))
 
 
 @function_tool
-def get_top_site_issues(target_date: str | None = None) -> list[dict[str, Any]]:
+async def get_top_site_issues(
+    ctx: RunContextWrapper[AgentContext],
+    target_date: str | None = None,
+) -> list[dict[str, Any]]:
     """Return top site issues and trend deltas."""
+    await _stream_progress(
+        ctx,
+        "search",
+        f"get_top_site_issues: {_short_json({'target_date': target_date})}",
+    )
     return _df_records(_get_reader().get_top_site_issues(target_date))
 
 
 @function_tool
-def analyze_issue_scope(
+async def analyze_issue_scope(
+    ctx: RunContextWrapper[AgentContext],
     providercode: str | None = None,
     sitecode: str | None = None,
     target_date: str | None = None,
     lookback_days: int = 7,
 ) -> list[dict[str, Any]]:
     """Return issue scope breakdowns by multiple dimensions."""
+    await _stream_progress(
+        ctx,
+        "search",
+        f"analyze_issue_scope: {_short_json({'providercode': providercode, 'sitecode': sitecode, 'target_date': target_date, 'lookback_days': lookback_days})}",
+    )
     return _df_records(
         _get_reader().analyze_issue_scope(
             providercode=providercode,
