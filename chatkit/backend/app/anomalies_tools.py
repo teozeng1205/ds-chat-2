@@ -58,12 +58,12 @@ class AnalyticsReader(redshift_connector.RedshiftConnector):
             sales_date = datetime.date.today().strftime("%Y%m%d")
 
         query = f"""
-        SELECT observation_date, mkt, seg, top_offenders, impact_dates, cp, dow
+        SELECT observation_date, mkt, seg, top_offenders, cp, dow
         FROM prod.analytics.market_level_anomalies_v3
         WHERE sales_date = {sales_date}
           AND customer = '{customer}'
           AND any_anomaly = 1
-        ORDER BY impact_score;
+        ORDER BY impact_score limit 20;
         """
 
         log.info("Getting anomalies overview for customer=%s date=%s", customer, sales_date)
@@ -111,7 +111,7 @@ def anomalies_instructions() -> str:
         f"You are a market anomalies assistant. Today is {current_date}.\n"
         "Use get_anomalies_overiew(sales_date, customer) to fetch anomalies.\n"
         "customer is required (e.g., 'B6', 'AA'); sales_date defaults to today (YYYYMMDD).\n"
-        "Never modify data and cite which tool produced each insight."
+        "report their impact score"
     )
 
 

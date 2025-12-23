@@ -13,6 +13,7 @@ export function ChatKitPanel() {
         icon: "book-open",
         label: "Market Anomalies",
         placeholderOverride: "Market Anomalies Tool: Summarize market anomalies for a customer",
+
       },
       {
         id: "internal_monitor",
