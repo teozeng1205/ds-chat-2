@@ -25,15 +25,15 @@ export function ChatKitPanel() {
     ],
     models: [
       {
-        id: "gpt-5.2",
+        id: "GPT-5.2",
         label: "Default",
         description: "Default gpt-5.2",
+        default: true,
       },
       {
-        id: "gpt-5.2-thinking",
-        label: "Thinking",
-        description: "All rounder",
-        default: true,
+        id: "GPT-5-mini",
+        label: "Fast",
+        description: "For speed optimized gpt-5-mini",
       },
     ],
     },

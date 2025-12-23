@@ -10,7 +10,7 @@ import sqlite3
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, get_args, get_origin
 
 from chatkit.store import NotFoundError, Store
 from chatkit.types import Attachment, Page, ThreadItem, ThreadMetadata
@@ -38,6 +38,14 @@ def _serialize(obj: Any) -> str:
 
 def _deserialize(payload: str, model_cls: type[Any]) -> Any:
     data = json.loads(payload)
+    origin = get_origin(model_cls)
+    if origin is not None:
+        for candidate in get_args(model_cls):
+            try:
+                return _deserialize(payload, candidate)
+            except Exception:
+                continue
+        raise ValueError(f"Unable to deserialize payload into {model_cls}")
     if hasattr(model_cls, "model_validate"):
         return model_cls.model_validate(data)
     if hasattr(model_cls, "parse_obj"):
