@@ -1,0 +1,47 @@
+import { ChatKit, useChatKit } from "@openai/chatkit-react";
+import { CHATKIT_API_DOMAIN_KEY, CHATKIT_API_URL } from "../lib/config";
+
+export function ChatKitPanel() {
+  const chatkit = useChatKit({
+    api: { url: CHATKIT_API_URL, domainKey: CHATKIT_API_DOMAIN_KEY },
+    composer: {
+      // File uploads are disabled for the demo backend.
+      attachments: { enabled: false },
+      tools: [
+      {
+        id: "summarize",
+        icon: "book-open",
+        label: "Summarize",
+        placeholderOverride: "Summarize the current page or document.",
+      },
+      {
+        id: "search_ticket",
+        icon: "search",
+        label: "Internal Monitoring",
+        shortLabel: "Monitor",
+        placeholderOverride:
+          "Our monitoring agent capapable of checking today's status",
+      },
+    ],
+    models: [
+      {
+        id: "gpt-4.1-mini",
+        label: "Fast",
+        description: "Answers right away",
+      },
+      {
+        id: "gpt-4.1",
+        label: "Quality",
+        description: "All rounder",
+        default: true,
+      },
+    ],
+    },
+  });
+
+  return (
+    <div className="relative pb-8 flex h-[90vh] w-full rounded-2xl flex-col overflow-hidden bg-white shadow-sm transition-colors dark:bg-slate-900">
+      <ChatKit control={chatkit.control} className="block h-full w-full" />
+    </div>
+  );
+}
