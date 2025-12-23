@@ -9,7 +9,8 @@ from chatkit.agents import AgentContext, simple_to_agent_input, stream_agent_res
 from chatkit.server import ChatKitServer
 from chatkit.types import ThreadMetadata, ThreadStreamEvent, UserMessageItem
 
-from .memory_store import MemoryStore
+from .persistent_store import SQLiteStore, default_sqlite_path
+from .monitoring_tools import monitoring_instructions, monitoring_tools
 from agents import Agent  # type: ignore[import]
 
 
@@ -40,10 +41,8 @@ def build_agent(tool_choice: Optional[str], model: str) -> Agent[AgentContext[di
         return Agent[AgentContext[dict[str, Any]]](
             model=chosen_model,
             name="Internal Monitoring Agent",
-            instructions=(
-                "Interpret the user's query as an internal monitoring request (status, alerts, or ticket overview). "
-                "Ask for missing filters if needed (service, time window, severity) and provide a concise summary with key indicators and recommended next actions."
-            ),
+            instructions=monitoring_instructions(),
+            tools=monitoring_tools(),
         )
 
     # Default assistant agent
@@ -59,10 +58,10 @@ def build_agent(tool_choice: Optional[str], model: str) -> Agent[AgentContext[di
 
 
 class StarterChatServer(ChatKitServer[dict[str, Any]]):
-    """Server implementation that keeps conversation state in memory."""
+    """Server implementation that keeps conversation state in SQLite."""
 
     def __init__(self) -> None:
-        self.store: MemoryStore = MemoryStore()
+        self.store: SQLiteStore = SQLiteStore(default_sqlite_path())
         super().__init__(self.store)
 
     async def respond(

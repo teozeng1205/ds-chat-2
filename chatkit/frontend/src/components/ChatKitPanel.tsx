@@ -20,18 +20,18 @@ export function ChatKitPanel() {
         label: "Internal Monitoring",
         shortLabel: "Monitor",
         placeholderOverride:
-          "Our monitoring agent capapable of checking today's status",
+          "Teo's Monitoring Tool: Ask questions about site monitoring issues.",
       },
     ],
     models: [
       {
-        id: "gpt-4.1-mini",
-        label: "Fast",
-        description: "Answers right away",
+        id: "gpt-5.2",
+        label: "Default",
+        description: "Default gpt-5.2",
       },
       {
-        id: "gpt-4.1",
-        label: "Quality",
+        id: "gpt-5.2-thinking",
+        label: "Thinking",
         description: "All rounder",
         default: true,
       },
