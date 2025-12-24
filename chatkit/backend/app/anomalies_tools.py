@@ -75,6 +75,32 @@ class AnalyticsReader(redshift_connector.RedshiftConnector):
             log.info("Found %s anomalies", len(df))
             return df
 
+    def read_table_head(self, table_name: str, limit: int = 50) -> pd.DataFrame:
+        """Return a preview of table rows."""
+        query = f"""
+        SELECT *
+        FROM {table_name}
+        LIMIT {limit};
+        """
+        with self.get_connection().cursor() as cursor:
+            cursor.execute(query)
+            colnames = [desc[0] for desc in cursor.description]
+            records = cursor.fetchall()
+            return pd.DataFrame(records, columns=colnames)
+
+    def query_table(self, query: str, limit: int = 1000) -> pd.DataFrame:
+        """Run a SELECT/WITH query and return rows."""
+        normalized = query.strip().upper()
+        if not (normalized.startswith("SELECT") or normalized.startswith("WITH")):
+            raise ValueError("Only SELECT or WITH queries are allowed")
+        if "LIMIT" not in normalized:
+            query = query.rstrip(";") + f" LIMIT {limit};"
+        with self.get_connection().cursor() as cursor:
+            cursor.execute(query)
+            colnames = [desc[0] for desc in cursor.description]
+            records = cursor.fetchall()
+            return pd.DataFrame(records, columns=colnames)
+
 
 _reader: AnalyticsReader | None = None
 
@@ -109,6 +135,9 @@ def anomalies_instructions() -> str:
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     return (
         f"You are a market anomalies assistant. Today is {current_date}.\n"
+        "Prioritize using tools for answers. If the user asks something else, "
+        "start with read_table_head() then follow with query_table() using your own SQL.\n"
+        "Primary table: prod.analytics.market_level_anomalies_v3.\n"
         "Use get_anomalies_overiew(sales_date, customer) to fetch anomalies.\n"
         "customer is required (e.g., 'B6', 'AA'); sales_date defaults to today (YYYYMMDD).\n"
         "report their impact score"
@@ -130,5 +159,35 @@ async def get_anomalies_overiew(
     return _df_records(_get_reader().get_anomalies_overiew(sales_date, customer))
 
 
+@function_tool
+async def read_table_head(
+    ctx: RunContextWrapper[AgentContext],
+    table_name: str,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Return a preview of table rows."""
+    await _stream_progress(
+        ctx,
+        "search",
+        f"read_table_head: {_short_json({'table_name': table_name, 'limit': limit})}",
+    )
+    return _df_records(_get_reader().read_table_head(table_name, limit=limit))
+
+
+@function_tool
+async def query_table(
+    ctx: RunContextWrapper[AgentContext],
+    query: str,
+    limit: int = 1000,
+) -> list[dict[str, Any]]:
+    """Run a SELECT/WITH query and return rows."""
+    await _stream_progress(
+        ctx,
+        "search",
+        f"query_table: {_short_json({'query': query, 'limit': limit})}",
+    )
+    return _df_records(_get_reader().query_table(query, limit=limit))
+
+
 def anomalies_tools() -> list[Any]:
-    return [get_anomalies_overiew]
+    return [get_anomalies_overiew, read_table_head, query_table]

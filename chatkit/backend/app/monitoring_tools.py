@@ -38,56 +38,6 @@ class AnalyticsReader(redshift_connector.RedshiftConnector):
         """Properties file for Redshift connection configuration."""
         return "database-analytics-redshift-serverless-reader.properties"
 
-    def describe_table(self, table_name: str) -> dict:
-        """
-        Get metadata and key information about a table.
-
-        Args:
-            table_name: Full table name (e.g., 'price_anomalies.anomaly_table').
-                       For cross-database queries (e.g., 'prod.monitoring.table'),
-                       note that information_schema only shows tables in the current database.
-                       Use read_table_head() or query_table() for cross-database access.
-
-        Returns:
-            dict with table metadata
-        """
-        parts = table_name.split(".")
-        if len(parts) == 3:
-            schema = parts[1]
-            table = parts[2]
-        elif len(parts) == 2:
-            schema = parts[0]
-            table = parts[1]
-        else:
-            return {
-                "error": (
-                    f"Invalid table name format: {table_name}. "
-                    "Use 'schema.table' or 'database.schema.table'"
-                )
-            }
-
-        query = f"""
-        SELECT
-            table_schema,
-            table_name,
-            table_type
-        FROM information_schema.tables
-        WHERE table_schema = '{schema}'
-          AND table_name = '{table}'
-        LIMIT 1;
-        """
-
-        with self.get_connection().cursor() as cursor:
-            cursor.execute(query)
-            colnames = [desc[0] for desc in cursor.description]
-            records = cursor.fetchall()
-
-            if not records:
-                return {"error": f"Table {table_name} not found"}
-
-            df = pd.DataFrame(records, columns=colnames)
-            return df.to_dict(orient="records")[0]
-
     def read_table_head(self, table_name: str, limit: int = 50) -> pd.DataFrame:
         """
         Get data preview (first N rows) from a table.
@@ -360,30 +310,25 @@ def monitoring_instructions() -> str:
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     return (
         f"You are a database exploration and monitoring agent. Today is {current_date}.\n"
-        "Available tables: use describe_table() to verify tables as needed.\n\n"
+        "Prioritize using tools for answers. If the user asks something else, "
+        "start with read_table_head() then follow with query_table() using your own SQL.\n"
+        "Primary table: prod.monitoring.provider_combined_audit.\n"
+        "\n"
         "GENERAL DATABASE EXPLORATION:\n"
-        "1. Start with describe_table() to understand key columns and table metadata.\n"
-        "2. Use read_table_head(limit=...) for quick previews.\n"
-        "3. When invoking query_table(), write SELECT/WITH statements only, keep LIMIT clauses, and include partition filters.\n\n"
+        "1. Use read_table_head(limit=...) for quick previews.\n"
+        "2. When invoking query_table(), write SELECT/WITH statements only, keep LIMIT clauses, and include partition filters.\n\n"
         "PROVIDER MONITORING TOOLS:\n"
-        "4. Use get_top_site_issues(target_date) to identify top site issues for a specific date and compare with last week/month.\n"
+        "3. Use get_top_site_issues(target_date) to identify top site issues for a specific date and compare with last week/month.\n"
         "There are two types of issues: site issues and request issues:\n"
         "site issues are defined as issue_source is tagged as site which is failure to collect data from the site itself\n"
         "request issues are defined as issue_source is tagged as request which refer to the request itself is invalid.\n"
         "   - Accepts date in YYYYMMDD format (e.g., '20251109')\n"
         "   - Returns issue_sources, issue_reasons, and counts with trend analysis\n"
-        "5. Use analyze_issue_scope(providercode, sitecode, target_date, lookback_days) to analyze issue dimensions.\n"
+        "4. Use analyze_issue_scope(providercode, sitecode, target_date, lookback_days) to analyze issue dimensions.\n"
         "   - Breaks down issues by POS, triptype, LOS, cabin, O&D, depart dates, day of week, observation hour\n"
         "   - Example: analyze_issue_scope('QL2', 'QF', '20251109', 7) for QL2/QF issues over last 7 days\n\n"
         "Never modify data and cite which tool produced each insight."
     )
-
-
-@function_tool
-async def describe_table(ctx: RunContextWrapper[AgentContext], table_name: str) -> dict:
-    """Return table metadata from information_schema."""
-    await _stream_progress(ctx, "search", f"describe_table: {_short_json({'table_name': table_name})}")
-    return _get_reader().describe_table(table_name)
 
 
 @function_tool
@@ -456,7 +401,6 @@ async def analyze_issue_scope(
 
 def monitoring_tools() -> list[Any]:
     return [
-        describe_table,
         read_table_head,
         query_table,
         get_top_site_issues,
