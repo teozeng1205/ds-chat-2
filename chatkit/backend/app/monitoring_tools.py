@@ -276,17 +276,6 @@ class AnalyticsReader(redshift_connector.RedshiftConnector):
             return df
 
 
-
-_reader: AnalyticsReader | None = None
-
-
-def _get_reader() -> AnalyticsReader:
-    global _reader
-    if _reader is None:
-        _reader = AnalyticsReader()
-    return _reader
-
-
 def _df_records(df: pd.DataFrame) -> list[dict[str, Any]]:
     return df.to_dict(orient="records")
 
@@ -310,9 +299,9 @@ def monitoring_instructions() -> str:
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     return (
         f"You are a database exploration and monitoring agent. Today is {current_date}.\n"
-        "Prioritize using tools for answers. If the user asks something else, "
-        "start with read_table_head() then follow with query_table() using your own SQL.\n"
-        "Primary table: prod.monitoring.provider_combined_audit.\n"
+        "Only use tools for answers. Prioritize any tool that can directly answer the user.\n"
+        "If no tool directly answers, start with read_table_head(), then follow with query_table() using your own SQL.\n"
+        "Primary table: prod.monitoring.provider_combined_audit (partitioned by sales_date as bigint like 20251205).\n"
         "\n"
         "GENERAL DATABASE EXPLORATION:\n"
         "1. Use read_table_head(limit=...) for quick previews.\n"
@@ -343,7 +332,11 @@ async def read_table_head(
         "search",
         f"read_table_head: {_short_json({'table_name': table_name, 'limit': limit})}",
     )
-    return _df_records(_get_reader().read_table_head(table_name, limit=limit))
+    reader = AnalyticsReader()
+    try:
+        return _df_records(reader.read_table_head(table_name, limit=limit))
+    finally:
+        reader.close()
 
 
 @function_tool
@@ -358,7 +351,11 @@ async def query_table(
         "search",
         f"query_table: {_short_json({'query': query, 'limit': limit})}",
     )
-    return _df_records(_get_reader().query_table(query, limit=limit))
+    reader = AnalyticsReader()
+    try:
+        return _df_records(reader.query_table(query, limit=limit))
+    finally:
+        reader.close()
 
 
 @function_tool
@@ -372,7 +369,11 @@ async def get_top_site_issues(
         "search",
         f"get_top_site_issues: {_short_json({'target_date': target_date})}",
     )
-    return _df_records(_get_reader().get_top_site_issues(target_date))
+    reader = AnalyticsReader()
+    try:
+        return _df_records(reader.get_top_site_issues(target_date))
+    finally:
+        reader.close()
 
 
 @function_tool
@@ -389,14 +390,18 @@ async def analyze_issue_scope(
         "search",
         f"analyze_issue_scope: {_short_json({'providercode': providercode, 'sitecode': sitecode, 'target_date': target_date, 'lookback_days': lookback_days})}",
     )
-    return _df_records(
-        _get_reader().analyze_issue_scope(
-            providercode=providercode,
-            sitecode=sitecode,
-            target_date=target_date,
-            lookback_days=lookback_days,
+    reader = AnalyticsReader()
+    try:
+        return _df_records(
+            reader.analyze_issue_scope(
+                providercode=providercode,
+                sitecode=sitecode,
+                target_date=target_date,
+                lookback_days=lookback_days,
+            )
         )
-    )
+    finally:
+        reader.close()
 
 
 def monitoring_tools() -> list[Any]:

@@ -102,16 +102,6 @@ class AnalyticsReader(redshift_connector.RedshiftConnector):
             return pd.DataFrame(records, columns=colnames)
 
 
-_reader: AnalyticsReader | None = None
-
-
-def _get_reader() -> AnalyticsReader:
-    global _reader
-    if _reader is None:
-        _reader = AnalyticsReader()
-    return _reader
-
-
 def _df_records(df: pd.DataFrame) -> list[dict[str, Any]]:
     return df.to_dict(orient="records")
 
@@ -135,9 +125,9 @@ def anomalies_instructions() -> str:
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     return (
         f"You are a market anomalies assistant. Today is {current_date}.\n"
-        "Prioritize using tools for answers. If the user asks something else, "
-        "start with read_table_head() then follow with query_table() using your own SQL.\n"
-        "Primary table: prod.analytics.market_level_anomalies_v3.\n"
+        "Only use tools for answers. Prioritize any tool that can directly answer the user.\n"
+        "If no tool directly answers, start with read_table_head(), then follow with query_table() using your own SQL.\n"
+        "Primary table: prod.analytics.market_level_anomalies_v3 (partitioned by sales_date as bigint like 20251205).\n"
         "Use get_anomalies_overiew(sales_date, customer) to fetch anomalies.\n"
         "customer is required (e.g., 'B6', 'AA'); sales_date defaults to today (YYYYMMDD).\n"
         "report their impact score"
@@ -156,7 +146,11 @@ async def get_anomalies_overiew(
         "search",
         f"get_anomalies_overiew: {_short_json({'customer': customer, 'sales_date': sales_date})}",
     )
-    return _df_records(_get_reader().get_anomalies_overiew(sales_date, customer))
+    reader = AnalyticsReader()
+    try:
+        return _df_records(reader.get_anomalies_overiew(sales_date, customer))
+    finally:
+        reader.close()
 
 
 @function_tool
@@ -171,7 +165,11 @@ async def read_table_head(
         "search",
         f"read_table_head: {_short_json({'table_name': table_name, 'limit': limit})}",
     )
-    return _df_records(_get_reader().read_table_head(table_name, limit=limit))
+    reader = AnalyticsReader()
+    try:
+        return _df_records(reader.read_table_head(table_name, limit=limit))
+    finally:
+        reader.close()
 
 
 @function_tool
@@ -186,7 +184,11 @@ async def query_table(
         "search",
         f"query_table: {_short_json({'query': query, 'limit': limit})}",
     )
-    return _df_records(_get_reader().query_table(query, limit=limit))
+    reader = AnalyticsReader()
+    try:
+        return _df_records(reader.query_table(query, limit=limit))
+    finally:
+        reader.close()
 
 
 def anomalies_tools() -> list[Any]:
