@@ -58,7 +58,7 @@ class AnalyticsReader(redshift_connector.RedshiftConnector):
             sales_date = datetime.date.today().strftime("%Y%m%d")
 
         query = f"""
-        SELECT observation_date, mkt, seg, top_offenders, cp, dow
+        SELECT observation_date, mkt, seg, top_offenders, cp, dow, impact_score
         FROM prod.analytics.market_level_anomalies_v3
         WHERE sales_date = {sales_date}
           AND customer = '{customer}'
