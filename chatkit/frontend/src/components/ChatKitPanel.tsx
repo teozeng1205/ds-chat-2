@@ -32,7 +32,7 @@ export function ChatKitPanel() {
         default: true,
       },
       {
-        id: "GPT-5-mini",
+        id: "gpt-5-mini",
         label: "Fast",
         description: "for speed optimized gpt-5-mini",
       },

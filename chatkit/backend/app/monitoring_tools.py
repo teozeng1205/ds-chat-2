@@ -93,76 +93,31 @@ class AnalyticsReader(redshift_connector.RedshiftConnector):
 
     def get_top_site_issues(self, target_date: str | None = None) -> pd.DataFrame:
         """
-        Get top site issues for today and compare with last week and last month.
+        Get top site issues for a specific date.
 
         Args:
             target_date: Date in YYYYMMDD format (default: today)
 
         Returns:
-            DataFrame with issue_sources, issue_reasons, and counts for today, last week, last month
+            DataFrame with issue_sources, issue_reasons, providercode, sitecode, and counts
         """
         if target_date is None:
             target_date = datetime.date.today().strftime("%Y%m%d")
 
-        target = datetime.datetime.strptime(str(target_date), "%Y%m%d").date()
-        last_week = (target - datetime.timedelta(days=7)).strftime("%Y%m%d")
-        last_month = (target - datetime.timedelta(days=30)).strftime("%Y%m%d")
-
         query = f"""
-        WITH today_issues AS (
-            SELECT
-                issue_sources,
-                issue_reasons,
-                sitecode,
-                COUNT(*) as today_count
-            FROM prod.monitoring.provider_combined_audit
-            WHERE sales_date = {target_date}
-              AND issue_sources != 'request'
-            GROUP BY issue_sources, issue_reasons, sitecode
-        ),
-        last_week_issues AS (
-            SELECT
-                issue_sources,
-                issue_reasons,
-                sitecode,
-                COUNT(*) as last_week_count
-            FROM prod.monitoring.provider_combined_audit
-            WHERE sales_date = {last_week}
-              AND issue_sources != 'request'
-            GROUP BY issue_sources, issue_reasons, sitecode
-        ),
-        last_month_issues AS (
-            SELECT
-                issue_sources,
-                issue_reasons,
-                sitecode,
-                COUNT(*) as last_month_count
-            FROM prod.monitoring.provider_combined_audit
-            WHERE sales_date = {last_month}
-              AND issue_sources != 'request'
-            GROUP BY issue_sources, issue_reasons, sitecode
-        )
         SELECT
-            COALESCE(t.sitecode, lw.sitecode, lm.sitecode) as sitecode,
-            COALESCE(t.issue_sources, lw.issue_sources, lm.issue_sources) as issue_sources,
-            COALESCE(t.issue_reasons, lw.issue_reasons, lm.issue_reasons) as issue_reasons,
-            COALESCE(t.today_count, 0) as today_count,
-            COALESCE(lw.last_week_count, 0) as last_week_count,
-            COALESCE(lm.last_month_count, 0) as last_month_count,
-            COALESCE(t.today_count, 0) - COALESCE(lw.last_week_count, 0) as week_over_week_change,
-            COALESCE(t.today_count, 0) - COALESCE(lm.last_month_count, 0) as month_over_month_change
-        FROM today_issues t
-        FULL OUTER JOIN last_week_issues lw
-            ON t.sitecode = lw.sitecode
-            AND t.issue_sources = lw.issue_sources
-            AND t.issue_reasons = lw.issue_reasons
-        FULL OUTER JOIN last_month_issues lm
-            ON COALESCE(t.sitecode, lw.sitecode) = lm.sitecode
-            AND COALESCE(t.issue_sources, lw.issue_sources) = lm.issue_sources
-            AND COALESCE(t.issue_reasons, lw.issue_reasons) = lm.issue_reasons
-        WHERE COALESCE(t.today_count, lw.last_week_count, lm.last_month_count) > 0
-        ORDER BY today_count DESC
-        LIMIT 50;
+            issue_sources,
+            issue_reasons,
+            providercode,
+            sitecode,
+            COUNT(*) as today_count
+        FROM prod.monitoring.provider_combined_audit
+        WHERE sales_date = {target_date}
+          AND issue_sources != 'request'
+          AND issue_sources != ''
+          AND issue_reasons != ''
+        GROUP BY issue_sources, issue_reasons, sitecode, providercode
+        ORDER BY today_count DESC;
         """
 
         log.info("Getting top site issues for date: %s", target_date)
@@ -307,12 +262,12 @@ def monitoring_instructions() -> str:
         "1. Use read_table_head(limit=...) for quick previews.\n"
         "2. When invoking query_table(), write SELECT/WITH statements only, keep LIMIT clauses, and include partition filters.\n\n"
         "PROVIDER MONITORING TOOLS:\n"
-        "3. Use get_top_site_issues(target_date) to identify top site issues for a specific date and compare with last week/month.\n"
+        "3. Use get_top_site_issues(target_date) to identify top site issues for a specific date.\n"
         "There are two types of issues: site issues and request issues:\n"
         "site issues are defined as issue_source is tagged as site which is failure to collect data from the site itself\n"
         "request issues are defined as issue_source is tagged as request which refer to the request itself is invalid.\n"
         "   - Accepts date in YYYYMMDD format (e.g., '20251109')\n"
-        "   - Returns issue_sources, issue_reasons, and counts with trend analysis\n"
+        "   - Returns issue_sources, issue_reasons, providercode, sitecode, and counts\n"
         "4. Use analyze_issue_scope(providercode, sitecode, target_date, lookback_days) to analyze issue dimensions.\n"
         "   - Breaks down issues by POS, triptype, LOS, cabin, O&D, depart dates, day of week, observation hour\n"
         "   - Example: analyze_issue_scope('QL2', 'QF', '20251109', 7) for QL2/QF issues over last 7 days\n\n"
