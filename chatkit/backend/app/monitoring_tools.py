@@ -92,18 +92,50 @@ class AnalyticsReader(redshift_connector.RedshiftConnector):
             log.info("Query returned %s rows", len(df))
             return df
 
-    def get_top_site_issues(self, target_date: str | None = None) -> pd.DataFrame:
+    def get_top_site_issues(
+        self,
+        target_date: str | None = None,
+        providercode: str | None = None,
+        sitecode: str | None = None,
+    ) -> pd.DataFrame:
         """
         Get top site issues for a specific date.
 
         Args:
             target_date: Date in YYYYMMDD format (default: today)
+            providercode: Provider code(s) - single code (e.g., 'QL2') or comma-separated (e.g., 'QL2,Atlas')
+            sitecode: Site code(s) - single code (e.g., 'QF') or comma-separated (e.g., 'QF,DY')
 
         Returns:
             DataFrame with issue_sources, issue_reasons, providercode, sitecode, and counts
         """
         if target_date is None:
             target_date = datetime.date.today().strftime("%Y%m%d")
+
+        where_clauses = [
+            f"sales_date = {target_date}",
+            "issue_sources != 'request'",
+            "issue_sources != ''",
+            "issue_reasons != ''",
+        ]
+
+        if providercode:
+            providers = [p.strip() for p in providercode.split(",")]
+            if len(providers) == 1:
+                where_clauses.append(f"providercode = '{providers[0]}'")
+            else:
+                provider_list = "', '".join(providers)
+                where_clauses.append(f"providercode IN ('{provider_list}')")
+
+        if sitecode:
+            sites = [s.strip() for s in sitecode.split(",")]
+            if len(sites) == 1:
+                where_clauses.append(f"sitecode = '{sites[0]}'")
+            else:
+                site_list = "', '".join(sites)
+                where_clauses.append(f"sitecode IN ('{site_list}')")
+
+        where_clause = " AND ".join(where_clauses)
 
         query = f"""
         SELECT
@@ -113,10 +145,7 @@ class AnalyticsReader(redshift_connector.RedshiftConnector):
             sitecode,
             COUNT(*) as today_count
         FROM prod.monitoring.provider_combined_audit
-        WHERE sales_date = {target_date}
-          AND issue_sources != 'request'
-          AND issue_sources != ''
-          AND issue_reasons != ''
+        WHERE {where_clause}
         GROUP BY issue_sources, issue_reasons, sitecode, providercode
         ORDER BY today_count DESC;
         """
@@ -263,8 +292,9 @@ def monitoring_instructions() -> str:
         "1. Use read_table_head(limit=...) for quick previews.\n"
         "2. When invoking query_table(), write SELECT/WITH statements only, keep LIMIT clauses, and include partition filters.\n\n"
         "PROVIDER MONITORING TOOLS:\n"
-        "3. Use get_top_site_issues(target_date) get a simple quick summary for today (not anomalies).\n"
+        "3. Use get_top_site_issues(target_date, providercode, sitecode) get a simple quick summary for today (not anomalies).\n"
         "   - Accepts date in YYYYMMDD format (e.g., '20251109')\n"
+        "   - Optional filters: providercode and/or sitecode (single or comma-separated)\n"
             "   - Returns issue_sources, issue_reasons, providercode, sitecode, and counts\n"
         "4. Use analyze_issue_scope(providercode, sitecode, target_date, lookback_days) to analyze issue dimensions.\n"
         "   - Breaks down issues by POS, triptype, LOS, cabin, O&D, depart dates, day of week, observation hour\n"
@@ -317,16 +347,24 @@ async def query_table(
 async def get_top_site_issues(
     ctx: RunContextWrapper[AgentContext],
     target_date: str | None = None,
+    providercode: str | None = None,
+    sitecode: str | None = None,
 ) -> list[dict[str, Any]]:
     """Return top site issues and trend deltas."""
     await _stream_progress(
         ctx,
         "search",
-        f"get_top_site_issues: {_short_json({'target_date': target_date})}",
+        f"get_top_site_issues: {_short_json({'target_date': target_date, 'providercode': providercode, 'sitecode': sitecode})}",
     )
     reader = AnalyticsReader()
     try:
-        return _df_records(reader.get_top_site_issues(target_date))
+        return _df_records(
+            reader.get_top_site_issues(
+                target_date=target_date,
+                providercode=providercode,
+                sitecode=sitecode,
+            )
+        )
     finally:
         reader.close()
 
