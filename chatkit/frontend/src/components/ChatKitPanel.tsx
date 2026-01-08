@@ -23,6 +23,12 @@ export function ChatKitPanel() {
         placeholderOverride:
           "Teo's Monitoring Tool: Ask questions about site monitoring issues.",
       },
+      {
+        id: "knowledge_docs",
+        icon: "book-open",
+        label: "Knowledge Docs",
+        placeholderOverride: "Knowledge Tool: Search docs.zanlit.com",
+      },
     ],
     models: [
       {

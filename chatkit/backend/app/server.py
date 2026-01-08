@@ -12,6 +12,7 @@ from chatkit.types import ThreadMetadata, ThreadStreamEvent, UserMessageItem
 from .persistent_store import SQLiteStore, default_sqlite_path
 from .anomalies_tools import anomalies_instructions, anomalies_tools
 from .monitoring_tools import monitoring_instructions, monitoring_tools
+from .knowledge_tools import knowledge_instructions, knowledge_tools
 from agents import Agent  # type: ignore[import]
 
 
@@ -43,13 +44,20 @@ def build_agent(tool_choice: Optional[str], model: str) -> Agent[AgentContext[di
             instructions=monitoring_instructions(),
             tools=monitoring_tools(),
         )
+    if tool_choice == "knowledge_docs":
+        return Agent[AgentContext[dict[str, Any]]](
+            model=chosen_model,
+            name="Knowledge Agent",
+            instructions=knowledge_instructions(),
+            tools=knowledge_tools(),
+        )
 
     # Default assistant agent
     return Agent[AgentContext[dict[str, Any]]](
         model=chosen_model,
         name="Starter Assistant",
         instructions=(
-            "You are a concise, helpful assistant that works for 3Victors, for any domain speecific stuffs, tell the user to turn on tools."
+            "You are a helpful assistant that works for 3Victors, for any domain speecific stuffs, tell the user to turn on tools."
             "You like Teo a lot, Teo is your best friend."
         ),
     )
