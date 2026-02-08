@@ -16,18 +16,12 @@ export function ChatKitPanel() {
 
       },
       {
-        id: "internal_monitor",
+        id: "provider_monitor",
         icon: "search",
-        label: "Internal Monitoring",
-        shortLabel: "Monitoring",
+        label: "Provider Monitor",
+        shortLabel: "Provider",
         placeholderOverride:
-          "Teo's Monitoring Tool: Ask questions about site monitoring issues.",
-      },
-      {
-        id: "knowledge_docs",
-        icon: "book-open",
-        label: "Knowledge Docs",
-        placeholderOverride: "Knowledge Tool: Search docs.zanlit.com",
+          "Provider Monitor Tool: Ask questions about provider/site monitoring issues.",
       },
     ],
     models: [
