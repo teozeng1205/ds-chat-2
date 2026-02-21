@@ -90,7 +90,7 @@ export function ChatKitPanel() {
         greeting: "What do you want to analyze today?",
         prompts: [
           {
-            label: "Internal monitoring anomalies",
+            label: "Internal monitoring",
             prompt: "what are the top site issues for provider QL2 today",
             icon: "analytics" as const,
           },
