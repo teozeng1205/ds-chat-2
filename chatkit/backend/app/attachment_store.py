@@ -16,9 +16,6 @@ from chatkit.types import (
 )
 
 
-DEFAULT_PUBLIC_BASE_URL = "http://127.0.0.1:8000"
-
-
 def default_attachment_dir() -> Path:
     env_path = os.getenv("CHATKIT_ATTACHMENTS_DIR")
     if env_path:
@@ -36,12 +33,23 @@ class LocalDiskAttachmentStore(AttachmentStore[dict[str, Any]]):
 
     def _build_upload_url(self, attachment_id: str, context: dict[str, Any]) -> str:
         request = context.get("request") if isinstance(context, dict) else None
-        base_url = None
-        if request is not None and hasattr(request, "base_url"):
-            base_url = str(request.base_url).rstrip("/")
-        if not base_url:
-            base_url = os.getenv("CHATKIT_PUBLIC_BASE_URL", DEFAULT_PUBLIC_BASE_URL).rstrip("/")
-        return f"{base_url}/chatkit/uploads/{quote(attachment_id, safe='')}"
+        attachment_path = f"/chatkit/uploads/{quote(attachment_id, safe='')}"
+
+        explicit_public_base_url = os.getenv("CHATKIT_PUBLIC_BASE_URL")
+        if explicit_public_base_url:
+            return f"{explicit_public_base_url.rstrip('/')}{attachment_path}"
+
+        if request is not None:
+            forwarded_host = request.headers.get("x-forwarded-host")
+            if forwarded_host:
+                forwarded_proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+                return f"{forwarded_proto}://{forwarded_host}{attachment_path}"
+
+            origin = request.headers.get("origin")
+            if origin:
+                return f"{origin.rstrip('/')}{attachment_path}"
+
+        return attachment_path
 
     async def create_attachment(
         self, input: AttachmentCreateParams, context: dict[str, Any]
@@ -89,4 +97,3 @@ class LocalDiskAttachmentStore(AttachmentStore[dict[str, Any]]):
     async def read_attachment_bytes(self, attachment_id: str) -> bytes:
         path = self._path_for_attachment(attachment_id)
         return path.read_bytes()
-

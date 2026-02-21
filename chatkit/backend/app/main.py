@@ -35,6 +35,17 @@ async def chatkit_endpoint(request: Request) -> Response:
     return JSONResponse(result)
 
 
+@app.get("/chatkit")
+async def chatkit_endpoint_info() -> Response:
+    """Informational endpoint for accidental browser GETs; chat requests use POST."""
+    return JSONResponse(
+        {
+            "ok": True,
+            "message": "ChatKit endpoint is available. Send POST /chatkit for chat requests.",
+        }
+    )
+
+
 @app.put("/chatkit/uploads/{attachment_id}")
 async def upload_attachment(attachment_id: str, request: Request) -> Response:
     context = {"request": request}

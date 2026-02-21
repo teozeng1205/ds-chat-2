@@ -9,6 +9,10 @@ dependencies = [
     "openai>=2.21.0,<3",
     "openai-agents>=0.9.3,<1",
     "openai-chatkit>=1.6.2,<2",
+    "numpy>=1.26,<3",
+    "pandas>=2.2,<3",
+    "matplotlib>=3.9,<4",
+    "seaborn>=0.13,<1",
 ]
 
 [project.optional-dependencies]

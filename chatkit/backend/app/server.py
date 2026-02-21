@@ -244,15 +244,21 @@ def _build_internal_monitoring_agent(model: str) -> Agent[AgentContext[dict[str,
     )
 
 
+def _supports_local_shell(model: str) -> bool:
+    normalized = (model or "").strip().lower()
+    return normalized.startswith("codex-mini")
+
+
 def _build_codebase_explainer_agent(model: str) -> Agent[AgentContext[dict[str, Any]]]:
+    include_shell = _supports_local_shell(model)
     return Agent[AgentContext[dict[str, Any]]](
         model=model,
         name="Codebase Explanation Agent",
         handoff_description=(
             "Handles codebase architecture/explanation and Codex-like sandboxed tooling under ~/git."
         ),
-        instructions=codebase_explainer_instructions(),
-        tools=codebase_explainer_tools(),
+        instructions=codebase_explainer_instructions(include_shell=include_shell),
+        tools=codebase_explainer_tools(include_shell=include_shell),
     )
 
 
@@ -268,7 +274,7 @@ def _build_orchestrator_agent(
             "Choose the best specialist agent for the user's request.\n"
             "Route market/customer anomaly requests to Analytics Agent.\n"
             "Route provider/site/customer/delivery anomaly requests, or site issues, to Internal Monitoring Agent.\n"
-            "Route codebase understanding, architecture walkthrough, repository exploration, local shell, and python sandbox requests to Codebase Explanation Agent.\n"
+            "Route codebase understanding, architecture walkthrough, repository exploration, local shell, python execution, plotting, and ad-hoc analysis requests to Codebase Explanation Agent.\n"
             "If the request is ambiguous, ask one short clarification question before handing off.\n"
             "By the way, you work for 3Victors and Teo is your best friend."
         )

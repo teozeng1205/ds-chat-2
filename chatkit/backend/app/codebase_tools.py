@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import base64
 import json
 import logging
 import mimetypes
@@ -28,12 +29,9 @@ from agents import (
 from chatkit.agents import AgentContext
 from chatkit.types import (
     AttachmentCreateParams,
-    GeneratedImage,
-    GeneratedImageItem,
     ProgressUpdateEvent,
-    ThreadItemAddedEvent,
-    ThreadItemDoneEvent,
 )
+from chatkit.widgets import Card
 
 from .attachment_store import LocalDiskAttachmentStore, default_attachment_dir
 
@@ -220,13 +218,9 @@ def _resolve(path_like):
     return path
 
 def _safe_open(file, mode="r", *args, **kwargs):
-    if any(flag in mode for flag in ("w", "a", "x", "+")):
-        raise PermissionError("Write modes are disabled in sandbox python mode.")
     return _ORIG_OPEN(_resolve(file), mode, *args, **kwargs)
 
 builtins.open = _safe_open
-pathlib.Path.write_text = _blocked
-pathlib.Path.write_bytes = _blocked
 pathlib.Path.unlink = _blocked
 pathlib.Path.rmdir = _blocked
 pathlib.Path.rename = _blocked
@@ -373,7 +367,9 @@ def codebase_explainer_instructions(include_shell: bool = True) -> str:
         "Use run_sandbox_command() or shell for shell diagnostics.\n"
         "Use run_sandbox_python() or shell with python for custom analysis.\n"
         "Use web_search to look up external docs, libraries, APIs, and recent web information when needed.\n"
-        "If you generate a plot image file, use publish_plot_image(path=...) to show it in chat.\n"
+        "When the user asks to run code, execute it with tools. Do not claim that code execution is unavailable.\n"
+        "For plotting requests, run python to create the chart image, then call publish_plot_image(path=...) so it renders in chat.\n"
+        "If you generate a plot image file, save it under ~/git and call publish_plot_image(path=...) to render it in chat.\n"
         "Never run destructive commands and never assume files outside sandbox root.\n"
         "When explaining, cite concrete file paths, symbols, and control flow."
     )
@@ -607,7 +603,7 @@ async def publish_plot_image(
     path: str,
     display_name: str | None = None,
 ) -> dict[str, Any]:
-    """Publish an existing image file from sandbox root into the chat as an inline generated image item."""
+    """Publish an existing image file from sandbox root into chat as an inline widget image."""
     image_path = _resolve_sandbox_path(path, require_exists=True, require_directory=False)
     if not image_path.is_file():
         raise ValueError(f"Expected file path: {image_path}")
@@ -640,14 +636,26 @@ async def publish_plot_image(
     if not image_url:
         raise RuntimeError("Failed to build image URL for published plot.")
 
-    generated_item = GeneratedImageItem(
-        id=ctx.context.generate_id("message"),
-        thread_id=ctx.context.thread.id,
-        created_at=datetime.datetime.now(),
-        image=GeneratedImage(id=attachment.id, url=image_url),
+    image_label = display_name or image_path.name
+    inline_data_url = f"data:{mime_type};base64,{base64.b64encode(file_bytes).decode('ascii')}"
+    await ctx.context.stream_widget(
+        Card(
+            children=[
+                {"type": "Title", "value": "Generated Plot"},
+                {
+                    "type": "Image",
+                    "src": inline_data_url,
+                    "alt": image_label,
+                    "fit": "contain",
+                    "frame": True,
+                    "radius": "md",
+                    "width": "100%",
+                },
+                {"type": "Caption", "value": image_label},
+            ]
+        ),
+        copy_text=f"Image: {image_label}",
     )
-    await ctx.context.stream(ThreadItemAddedEvent(item=generated_item))
-    await ctx.context.stream(ThreadItemDoneEvent(item=generated_item))
     await _stream_progress(ctx, "check-circle", f"Published image to chat: {image_path.name}")
 
     return {
@@ -665,9 +673,9 @@ def codebase_explainer_tools(include_shell: bool = True) -> list[Any]:
         tools.append(_SANDBOX_SHELL_TOOL)
     tools.extend(
         [
-        list_sandbox_repositories,
-        list_directory_tree,
-        read_code_file,
+            list_sandbox_repositories,
+            list_directory_tree,
+            read_code_file,
             search_code,
             run_sandbox_command,
             run_sandbox_python,
