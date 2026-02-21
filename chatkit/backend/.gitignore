@@ -8,3 +8,6 @@ __pycache__/
 .coverage/
 *.log
 chatkit.sqlite
+app/chatkit.db
+app/chatkit.sqlite
+app/chatkit_attachments/
