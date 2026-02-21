@@ -286,29 +286,6 @@ async def _stream_progress(
     await ctx.context.stream(ProgressUpdateEvent(icon=icon, text=text))
 
 
-def monitoring_instructions() -> str:
-    current_date = datetime.date.today().strftime("%Y-%m-%d")
-    return (
-        f"You are a database exploration and monitoring agent. Today is {current_date}.\n"
-        "Only use tools for answers. Prioritize any tool that can directly answer the user.\n"
-        "If no tool directly answers, start with read_table_head(), then follow with query_table() using your own SQL.\n"
-        "Primary table: prod.monitoring.provider_combined_audit (partitioned by sales_date as bigint like 20251205).\n"
-        "\n"
-        "GENERAL DATABASE EXPLORATION:\n"
-        "1. Use read_table_head(limit=...) for quick previews.\n"
-        "2. When invoking query_table(), write SELECT/WITH statements only, keep LIMIT clauses, and include partition filters.\n\n"
-        "INTERNAL MONITORING SQL TOOLS:\n"
-        "3. Use get_top_site_issues(target_date, providercode, sitecode) get a simple quick summary for today (not anomalies).\n"
-        "   - Accepts date in YYYYMMDD format (e.g., '20251109')\n"
-        "   - Optional filters: providercode and/or sitecode (single or comma-separated)\n"
-        "   - Returns issue_sources, issue_reasons, providercode, sitecode, and counts\n"
-        "4. Use analyze_issue_scope(providercode, sitecode, target_date, lookback_days) to analyze issue dimensions.\n"
-        "   - Breaks down issues by POS, triptype, LOS, cabin, O&D, depart dates, day of week, observation hour\n"
-        "   - Example: analyze_issue_scope('QL2', 'QF', '20251109', 7) for QL2/QF issues over last 7 days\n\n"
-        "Never modify data and cite which tool produced each insight."
-    )
-
-
 @function_tool
 async def read_table_head(
     ctx: RunContextWrapper[AgentContext],
@@ -666,12 +643,3 @@ def _get_internal_monitoring_anomalies_impl(
     ]
     payload["has_any_partition"] = any(payload["available_partitions"].values())
     return payload
-
-
-def monitoring_tools() -> list[Any]:
-    return [
-        read_table_head,
-        query_table,
-        get_top_site_issues,
-        analyze_issue_scope,
-    ]
