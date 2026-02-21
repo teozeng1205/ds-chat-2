@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime
 import json
 import logging
+import mimetypes
 import os
 import re
 import shlex
@@ -21,10 +22,20 @@ from agents import (
     ShellCommandRequest,
     ShellResult,
     ShellTool,
+    WebSearchTool,
     function_tool,
 )
 from chatkit.agents import AgentContext
-from chatkit.types import ProgressUpdateEvent
+from chatkit.types import (
+    AttachmentCreateParams,
+    GeneratedImage,
+    GeneratedImageItem,
+    ProgressUpdateEvent,
+    ThreadItemAddedEvent,
+    ThreadItemDoneEvent,
+)
+
+from .attachment_store import LocalDiskAttachmentStore, default_attachment_dir
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
@@ -342,6 +353,7 @@ async def _sandbox_shell_executor(request: ShellCommandRequest) -> ShellResult:
 
 
 _SANDBOX_SHELL_TOOL = ShellTool(executor=_sandbox_shell_executor, environment={"type": "local"})
+_WEB_SEARCH_TOOL = WebSearchTool(search_context_size="medium")
 
 
 def codebase_explainer_instructions(include_shell: bool = True) -> str:
@@ -360,6 +372,8 @@ def codebase_explainer_instructions(include_shell: bool = True) -> str:
         "then list_directory_tree(), search_code(), and read_code_file().\n"
         "Use run_sandbox_command() or shell for shell diagnostics.\n"
         "Use run_sandbox_python() or shell with python for custom analysis.\n"
+        "Use web_search to look up external docs, libraries, APIs, and recent web information when needed.\n"
+        "If you generate a plot image file, use publish_plot_image(path=...) to show it in chat.\n"
         "Never run destructive commands and never assume files outside sandbox root.\n"
         "When explaining, cite concrete file paths, symbols, and control flow."
     )
@@ -587,8 +601,66 @@ async def run_sandbox_python(
     }
 
 
+@function_tool
+async def publish_plot_image(
+    ctx: RunContextWrapper[AgentContext],
+    path: str,
+    display_name: str | None = None,
+) -> dict[str, Any]:
+    """Publish an existing image file from sandbox root into the chat as an inline generated image item."""
+    image_path = _resolve_sandbox_path(path, require_exists=True, require_directory=False)
+    if not image_path.is_file():
+        raise ValueError(f"Expected file path: {image_path}")
+
+    mime_type, _ = mimetypes.guess_type(str(image_path))
+    if not mime_type or not mime_type.startswith("image/"):
+        raise ValueError(
+            f"File must be an image (png/jpg/webp/gif/svg). Got mime={mime_type!r} for {image_path}"
+        )
+
+    file_bytes = image_path.read_bytes()
+    if not file_bytes:
+        raise ValueError(f"Image file is empty: {image_path}")
+
+    local_attachment_store = LocalDiskAttachmentStore(default_attachment_dir())
+    attachment = await local_attachment_store.create_attachment(
+        AttachmentCreateParams(
+            name=(display_name or image_path.name),
+            size=len(file_bytes),
+            mime_type=mime_type,
+        ),
+        context=ctx.context.request_context,
+    )
+    await ctx.context.store.save_attachment(attachment, context=ctx.context.request_context)
+    await local_attachment_store.write_attachment_bytes(attachment.id, file_bytes)
+
+    image_url = getattr(attachment, "preview_url", None) or (
+        attachment.upload_descriptor.url if attachment.upload_descriptor else None
+    )
+    if not image_url:
+        raise RuntimeError("Failed to build image URL for published plot.")
+
+    generated_item = GeneratedImageItem(
+        id=ctx.context.generate_id("message"),
+        thread_id=ctx.context.thread.id,
+        created_at=datetime.datetime.now(),
+        image=GeneratedImage(id=attachment.id, url=image_url),
+    )
+    await ctx.context.stream(ThreadItemAddedEvent(item=generated_item))
+    await ctx.context.stream(ThreadItemDoneEvent(item=generated_item))
+    await _stream_progress(ctx, "check-circle", f"Published image to chat: {image_path.name}")
+
+    return {
+        "published": True,
+        "attachment_id": attachment.id,
+        "image_url": image_url,
+        "path": str(image_path),
+        "mime_type": mime_type,
+    }
+
+
 def codebase_explainer_tools(include_shell: bool = True) -> list[Any]:
-    tools: list[Any] = []
+    tools: list[Any] = [_WEB_SEARCH_TOOL]
     if include_shell:
         tools.append(_SANDBOX_SHELL_TOOL)
     tools.extend(
@@ -596,9 +668,10 @@ def codebase_explainer_tools(include_shell: bool = True) -> list[Any]:
         list_sandbox_repositories,
         list_directory_tree,
         read_code_file,
-        search_code,
-        run_sandbox_command,
-        run_sandbox_python,
+            search_code,
+            run_sandbox_command,
+            run_sandbox_python,
+            publish_plot_image,
         ]
     )
     return tools

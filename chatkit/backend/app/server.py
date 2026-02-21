@@ -6,6 +6,7 @@ import asyncio
 import logging
 import re
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, AsyncIterator, Optional
 
 from agents import Runner  # type: ignore[import]
@@ -184,6 +185,39 @@ class DSChatThreadItemConverter(ThreadItemConverter):
 
 
 THREAD_ITEM_CONVERTER = DSChatThreadItemConverter()
+
+
+class _StreamingResultCompatWrapper:
+    """Compatibility wrapper for chatkit.stream_agent_response with hosted tool events."""
+
+    def __init__(self, wrapped: Any):
+        self._wrapped = wrapped
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._wrapped, name)
+
+    async def stream_events(self) -> AsyncIterator[Any]:
+        async for event in self._wrapped.stream_events():
+            if getattr(event, "type", None) != "run_item_stream_event":
+                yield event
+                continue
+
+            item = getattr(event, "item", None)
+            if getattr(item, "type", None) != "tool_call_item":
+                yield event
+                continue
+
+            raw_item = getattr(item, "raw_item", None)
+            if not isinstance(raw_item, dict):
+                yield event
+                continue
+
+            raw_type = raw_item.get("type")
+            raw_id = raw_item.get("id")
+            raw_call_id = raw_item.get("call_id")
+            patched = SimpleNamespace(type=raw_type, id=raw_id, call_id=raw_call_id)
+            patched_item = SimpleNamespace(type="tool_call_item", raw_item=patched)
+            yield SimpleNamespace(type="run_item_stream_event", item=patched_item)
 
 
 def _build_analytics_agent(model: str) -> Agent[AgentContext[dict[str, Any]]]:
@@ -369,7 +403,8 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
             max_turns=MAX_AGENT_TURNS,
         )
 
-        async for event in stream_agent_response(agent_context, result):
+        compatible_result = _StreamingResultCompatWrapper(result)
+        async for event in stream_agent_response(agent_context, compatible_result):
             yield event
 
         title_task = asyncio.create_task(self._maybe_set_thread_title(thread.id, context))
