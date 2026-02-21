@@ -5,16 +5,19 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+from pathlib import Path
 from typing import Any, AsyncIterator, Optional
 
 from agents import Runner  # type: ignore[import]
 from agents.extensions.handoff_prompt import prompt_with_handoff_instructions  # type: ignore[import]
-from chatkit.agents import AgentContext, simple_to_agent_input, stream_agent_response
+from chatkit.agents import AgentContext, ThreadItemConverter, stream_agent_response
 from chatkit.server import ChatKitServer
 from chatkit.types import (
+    Attachment,
     ThreadMetadata,
     ThreadStreamEvent,
     UserMessageItem,
+    UserMessageTagContent,
 )
 from openai import AsyncOpenAI
 
@@ -28,15 +31,26 @@ from .codebase_tools import (
     codebase_explainer_instructions,
     codebase_explainer_tools,
 )
+from .attachment_store import LocalDiskAttachmentStore, default_attachment_dir
 from agents import Agent  # type: ignore[import]
 
 
-MAX_RECENT_ITEMS = 30
+MAX_RECENT_ITEMS = 50
+MAX_AGENT_TURNS = 50
 DEFAULT_MODEL = "gpt-4.1-mini"
 TITLE_MODEL = "gpt-5-mini"
 MAX_TITLE_CHARS = 80
 MAX_TITLE_USER_TEXTS = 4
 MAX_TITLE_SOURCE_CHARS = 1000
+MAX_ATTACHMENT_SNIPPET_CHARS = 8_000
+TEXT_ATTACHMENT_MIME_TYPES = {
+    "application/json",
+    "application/csv",
+    "application/xml",
+    "application/yaml",
+    "application/x-yaml",
+    "text/csv",
+}
 
 log = logging.getLogger(__name__)
 
@@ -116,6 +130,60 @@ async def _generate_thread_title(
         ],
     )
     return _sanitize_title(getattr(response, "output_text", "") or "")
+
+
+def _is_text_attachment_mime(mime_type: str) -> bool:
+    return mime_type.startswith("text/") or mime_type in TEXT_ATTACHMENT_MIME_TYPES
+
+
+def _extract_attachment_snippet(attachment: Attachment) -> str | None:
+    if not _is_text_attachment_mime(attachment.mime_type):
+        return None
+    if not isinstance(attachment.metadata, dict):
+        return None
+
+    local_path_value = attachment.metadata.get("local_path")
+    if not isinstance(local_path_value, str) or not local_path_value:
+        return None
+
+    local_path = Path(local_path_value)
+    if not local_path.exists() or not local_path.is_file():
+        return None
+
+    raw = local_path.read_bytes()
+    decoded = raw.decode("utf-8", errors="replace").strip()
+    if not decoded:
+        return None
+    if len(decoded) > MAX_ATTACHMENT_SNIPPET_CHARS:
+        return f"{decoded[:MAX_ATTACHMENT_SNIPPET_CHARS]}...(truncated)"
+    return decoded
+
+
+class DSChatThreadItemConverter(ThreadItemConverter):
+    async def attachment_to_message_content(self, attachment: Attachment) -> dict[str, Any]:
+        descriptor = (
+            f"User attached file '{attachment.name}' "
+            f"(type: {attachment.mime_type}, id: {attachment.id})."
+        )
+        snippet = _extract_attachment_snippet(attachment)
+        if snippet:
+            descriptor = (
+                f"{descriptor}\n\nAttachment text content:\n"
+                f"<AttachmentContent>\n{snippet}\n</AttachmentContent>"
+            )
+        return {"type": "input_text", "text": descriptor}
+
+    async def tag_to_message_content(self, tag: UserMessageTagContent) -> dict[str, Any]:
+        return {
+            "type": "input_text",
+            "text": (
+                f"Tagged reference: {tag.text} (id: {tag.id}). "
+                "Treat this as contextual metadata."
+            ),
+        }
+
+
+THREAD_ITEM_CONVERTER = DSChatThreadItemConverter()
 
 
 def _build_analytics_agent(model: str) -> Agent[AgentContext[dict[str, Any]]]:
@@ -206,8 +274,15 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
 
     def __init__(self) -> None:
         self.store: SQLiteStore = SQLiteStore(default_sqlite_path())
+        self.local_attachment_store = LocalDiskAttachmentStore(default_attachment_dir())
         self._title_client = AsyncOpenAI()
-        super().__init__(self.store)
+        super().__init__(self.store, attachment_store=self.local_attachment_store)
+
+    async def save_attachment_payload(self, attachment_id: str, payload: bytes) -> None:
+        await self.local_attachment_store.write_attachment_bytes(attachment_id, payload)
+
+    async def read_attachment_payload(self, attachment_id: str) -> bytes:
+        return await self.local_attachment_store.read_attachment_bytes(attachment_id)
 
     @staticmethod
     def _log_background_error(task: asyncio.Task[None]) -> None:
@@ -264,7 +339,7 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
             context=context,
         )
         items = list(reversed(items_page.data))
-        agent_input = await simple_to_agent_input(items)
+        agent_input = await THREAD_ITEM_CONVERTER.to_agent_input(items)
 
         agent_context = AgentContext(
             thread=thread,
@@ -290,6 +365,7 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
             agent,
             agent_input,
             context=agent_context,
+            max_turns=MAX_AGENT_TURNS,
         )
 
         async for event in stream_agent_response(agent_context, result):

@@ -90,6 +90,15 @@ class SQLiteStore(Store[dict]):
             self._conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_items_created_at ON items(created_at);"
             )
+            self._conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS attachments (
+                    id TEXT PRIMARY KEY,
+                    created_at TEXT,
+                    data TEXT NOT NULL
+                );
+                """
+            )
 
     async def load_thread(self, thread_id: str, context: dict) -> ThreadMetadata:
         with self._lock, self._conn:
@@ -213,13 +222,35 @@ class SQLiteStore(Store[dict]):
         return Page(data=data, has_more=has_more, after=next_after)
 
     async def save_attachment(self, attachment: Attachment, context: dict) -> None:
-        raise NotImplementedError()
+        with self._lock, self._conn:
+            self._conn.execute(
+                """
+                INSERT OR REPLACE INTO attachments (id, created_at, data)
+                VALUES (?, ?, ?);
+                """,
+                (
+                    attachment.id,
+                    _format_dt(datetime.now()),
+                    _serialize(attachment),
+                ),
+            )
 
     async def load_attachment(self, attachment_id: str, context: dict) -> Attachment:
-        raise NotImplementedError()
+        with self._lock, self._conn:
+            row = self._conn.execute(
+                "SELECT data FROM attachments WHERE id = ?;",
+                (attachment_id,),
+            ).fetchone()
+        if not row:
+            raise NotFoundError(f"Attachment {attachment_id} not found")
+        return _deserialize(row["data"], Attachment)
 
     async def delete_attachment(self, attachment_id: str, context: dict) -> None:
-        raise NotImplementedError()
+        with self._lock, self._conn:
+            self._conn.execute(
+                "DELETE FROM attachments WHERE id = ?;",
+                (attachment_id,),
+            )
 
 
 def default_sqlite_path() -> str:
