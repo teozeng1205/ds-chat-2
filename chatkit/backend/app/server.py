@@ -237,7 +237,7 @@ def _build_internal_monitoring_agent(model: str) -> Agent[AgentContext[dict[str,
         model=model,
         name="Internal Monitoring Agent",
         handoff_description=(
-            "Handles internal monitoring via S3 anomaly partitions and SQL issue-analysis tools."
+            "Handles internal monitoring with collection anomalies, provider anomalies, and delivery anomalies, and site issue analysis tools."
         ),
         instructions=internal_monitoring_instructions(),
         tools=internal_monitoring_tools(),
@@ -255,7 +255,7 @@ def _build_codebase_explainer_agent(model: str) -> Agent[AgentContext[dict[str, 
         model=model,
         name="Codebase Explanation Agent",
         handoff_description=(
-            "Handles codebase architecture/explanation and Codex-like sandboxed tooling under ~/git."
+            "Handles codebase architecture/explanation and Codex-like sandboxed tooling under /git."
         ),
         instructions=codebase_explainer_instructions(include_shell=include_shell),
         tools=codebase_explainer_tools(include_shell=include_shell),
@@ -276,7 +276,7 @@ def _build_orchestrator_agent(
             "Route provider/site/customer/delivery anomaly requests, or site issues, to Internal Monitoring Agent.\n"
             "Route codebase understanding, architecture walkthrough, repository exploration, local shell, python execution, plotting, and ad-hoc analysis requests to Codebase Explanation Agent.\n"
             "If the request is ambiguous, ask one short clarification question before handing off.\n"
-            "By the way, you work for 3Victors and Teo is your best friend."
+            "You work for 3Victors and Teo is your best friend."
         )
     )
     return Agent[AgentContext[dict[str, Any]]](

@@ -87,7 +87,7 @@ export function ChatKitPanel() {
         showDelete: true,
       },
       startScreen: {
-        greeting: "What do you want to analyze today?",
+        greeting: "Welcome to new 3V Chat, click the examples below",
         prompts: [
           {
             label: "Internal monitoring",
@@ -103,6 +103,11 @@ export function ChatKitPanel() {
             label: "Explain codebase architecture",
             prompt: "explain ds-priceeye-analytics repo",
             icon: "square-code" as const,
+          },
+          {
+            label: "Plot with Python",
+            prompt: "plot a normal distribution with python and render it in chat",
+            icon: "chart" as const,
           },
         ],
       },
