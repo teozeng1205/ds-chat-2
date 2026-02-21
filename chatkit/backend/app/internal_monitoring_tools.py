@@ -13,6 +13,7 @@ from .monitoring_tools import (
     DEFAULT_ANOMALY_LIMIT,
     _get_internal_monitoring_anomalies_impl,
     analyze_issue_scope,
+    explore_monitoring_anomaly_data,
     get_top_site_issues,
     query_table,
     read_table_head,
@@ -36,10 +37,14 @@ def internal_monitoring_instructions() -> str:
         "Tool routing rules:\n"
         "1) If user asks for top site issues (e.g., 'top site issues', 'site issues for QL2'), use get_top_site_issues(...) first.\n"
         "2) If user asks for site-issue drilldown/scope for provider/customer/site/date, use analyze_issue_scope(...).\n"
-        "3) If user explicitly asks for anomalies, anomaly counts, anomaly records, or anomaly_t1/t2 logic, use get_monitoring_anomalies(...).\n"
-        "4) If user asks for custom SQL/table exploration, use read_table_head(...) and query_table(...).\n"
+        "3) If user asks anomaly questions, first use explore_monitoring_anomaly_data(...) to load CSV dataframes, inspect head/schema, and iteratively filter/group.\n"
+        "4) Use get_monitoring_anomalies(...) only when user asks for a compact pre-aggregated anomaly summary payload.\n"
+        "5) If user asks for custom SQL/table exploration, use read_table_head(...) and query_table(...).\n"
+        "For explore_monitoring_anomaly_data(...): use dataset=customer/provider/laterequests/all, use filters with operators (=, !=, >, >=, <, <=, ~), use group_by for grouped counts, and include head for quick sanity checks.\n"
         "For get_monitoring_anomalies(...): fetch from S3 partitions (customer/provider/late-request); treat as anomalies only when anomaly_t1=1 and anomaly_t2=1.\n"
         "Default sales_date to today unless user specifies a date.\n"
+        "Interpret phrases like 'customer collections', 'provider collections', or 'late requests' as dataset scope, not metric_name.\n"
+        "Only set metric_name when user explicitly asks for a concrete metric field (for example response_ratio, success_pct, site_issue_pct).\n"
         "For large datasets, apply filtering fields (providercode, sitecode, customer, metric_name, model_type, limit).\n"
         "If S3 partitions are missing, state which partitions are missing and continue with available data.\n"
         "When question is about site issues, do not call get_monitoring_anomalies unless user asked for anomalies."
@@ -96,6 +101,7 @@ async def get_monitoring_anomalies(
 
 def internal_monitoring_tools() -> list[Any]:
     return [
+        explore_monitoring_anomaly_data,
         get_monitoring_anomalies,
         get_top_site_issues,
         analyze_issue_scope,

@@ -109,6 +109,11 @@ export function ChatKitPanel() {
             prompt: "plot a normal distribution with python and render it in chat",
             icon: "chart" as const,
           },
+          {
+            label: "Customer anomalies",
+            prompt: "what are the customer collection anomalies yesterday",
+            icon: "analytics" as const,
+          },
         ],
       },
       widgets: {
