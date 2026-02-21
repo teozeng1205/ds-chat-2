@@ -7,36 +7,19 @@ export function ChatKitPanel() {
     composer: {
       // File uploads are disabled for the demo backend.
       attachments: { enabled: false },
-      tools: [
-      {
-        id: "market_anomalies",
-        icon: "book-open",
-        label: "Market Anomalies",
-        placeholderOverride: "Market Anomalies Tool: Summarize market anomalies for a customer",
-
-      },
-      {
-        id: "provider_monitor",
-        icon: "search",
-        label: "Provider Monitor",
-        shortLabel: "Provider",
-        placeholderOverride:
-          "Provider Monitor Tool: Ask questions about provider/site monitoring issues.",
-      },
-    ],
-    models: [
-      {
-        id: "gpt-5.2",
-        label: "Default",
-        description: "Default gpt-5.2",
-        default: true,
-      },
-      {
-        id: "gpt-5-mini",
-        label: "Fast",
-        description: "for speed optimized gpt-5-mini",
-      },
-    ],
+      models: [
+        {
+          id: "gpt-5.2",
+          label: "Default",
+          description: "Default gpt-5.2",
+          default: true,
+        },
+        {
+          id: "gpt-5-mini",
+          label: "Fast",
+          description: "for speed optimized gpt-5-mini",
+        },
+      ],
     },
   });
 

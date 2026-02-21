@@ -6,8 +6,9 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.114,<0.116",
     "uvicorn[standard]>=0.36,<0.37",
-    "openai>=1.40",
-    "openai-chatkit>=1.4.0,<2",
+    "openai>=2.21.0,<3",
+    "openai-agents>=0.9.3,<1",
+    "openai-chatkit>=1.6.2,<2",
 ]
 
 [project.optional-dependencies]
@@ -18,4 +19,3 @@ dev = [
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
-

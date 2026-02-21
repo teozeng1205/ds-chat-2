@@ -1,9 +1,8 @@
-"""Custom function tools for the market anomalies agent."""
+"""Custom function tools for the analytics agent."""
 
 from __future__ import annotations
 
 import datetime
-import json
 import logging
 from typing import Any
 
@@ -106,11 +105,11 @@ def _df_records(df: pd.DataFrame) -> list[dict[str, Any]]:
     return df.to_dict(orient="records")
 
 
-def _short_json(value: Any, limit: int = 500) -> str:
-    text = json.dumps(value, ensure_ascii=True, default=str)
-    if len(text) <= limit:
-        return text
-    return f"{text[:limit]}...(truncated)"
+def _preview_sql(query: str, limit: int = 120) -> str:
+    compact = " ".join(query.split())
+    if len(compact) <= limit:
+        return compact
+    return f"{compact[:limit]}..."
 
 
 async def _stream_progress(
@@ -124,7 +123,7 @@ async def _stream_progress(
 def anomalies_instructions() -> str:
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     return (
-        f"You are a market anomalies assistant. Today is {current_date}.\n"
+        f"You are an analytics assistant focused on market anomalies. Today is {current_date}.\n"
         "Only use tools for answers. Prioritize any tool that can directly answer the user.\n"
         "If no tool directly answers, start with read_table_head(), then follow with query_table() using your own SQL.\n"
         "Primary table: prod.analytics.market_level_anomalies_v3 (partitioned by sales_date as bigint like 20251205).\n"
@@ -141,16 +140,22 @@ async def get_anomalies_overiew(
     sales_date: str | None = None,
 ) -> list[dict[str, Any]]:
     """Return market-level anomalies for a customer and date."""
-    await _stream_progress(
-        ctx,
-        "search",
-        f"get_anomalies_overiew: {_short_json({'customer': customer, 'sales_date': sales_date})}",
-    )
-    reader = AnalyticsReader()
+    target_date = sales_date or datetime.date.today().strftime("%Y%m%d")
+    await _stream_progress(ctx, "search", f"Starting analytics anomaly lookup for {customer} on {target_date}.")
+    reader: AnalyticsReader | None = None
     try:
-        return _df_records(reader.get_anomalies_overiew(sales_date, customer))
+        reader = AnalyticsReader()
+        await _stream_progress(ctx, "clock", "Running market-level anomaly query.")
+        df = reader.get_anomalies_overiew(sales_date, customer)
+        records = _df_records(df)
+        await _stream_progress(ctx, "check-circle", f"Analytics anomaly query complete: {len(records)} rows.")
+        return records
+    except Exception as exc:
+        await _stream_progress(ctx, "bug", f"Analytics anomaly lookup failed: {type(exc).__name__}.")
+        raise
     finally:
-        reader.close()
+        if reader is not None:
+            reader.close()
 
 
 @function_tool
@@ -160,16 +165,24 @@ async def read_table_head(
     limit: int = 50,
 ) -> list[dict[str, Any]]:
     """Return a preview of table rows."""
-    await _stream_progress(
-        ctx,
-        "search",
-        f"read_table_head: {_short_json({'table_name': table_name, 'limit': limit})}",
-    )
-    reader = AnalyticsReader()
+    await _stream_progress(ctx, "search", f"Previewing `{table_name}` (limit {limit}).")
+    reader: AnalyticsReader | None = None
     try:
-        return _df_records(reader.read_table_head(table_name, limit=limit))
+        reader = AnalyticsReader()
+        df = reader.read_table_head(table_name, limit=limit)
+        records = _df_records(df)
+        await _stream_progress(
+            ctx,
+            "check-circle",
+            f"Table preview complete for `{table_name}`: {len(records)} rows.",
+        )
+        return records
+    except Exception as exc:
+        await _stream_progress(ctx, "bug", f"Table preview failed: {type(exc).__name__}.")
+        raise
     finally:
-        reader.close()
+        if reader is not None:
+            reader.close()
 
 
 @function_tool
@@ -182,13 +195,22 @@ async def query_table(
     await _stream_progress(
         ctx,
         "search",
-        f"query_table: {_short_json({'query': query, 'limit': limit})}",
+        f"Running analytics SQL (limit {limit}): {_preview_sql(query)}",
     )
-    reader = AnalyticsReader()
+    reader: AnalyticsReader | None = None
     try:
-        return _df_records(reader.query_table(query, limit=limit))
+        reader = AnalyticsReader()
+        await _stream_progress(ctx, "clock", "Executing analytics SQL query.")
+        df = reader.query_table(query, limit=limit)
+        records = _df_records(df)
+        await _stream_progress(ctx, "check-circle", f"Analytics SQL complete: {len(records)} rows.")
+        return records
+    except Exception as exc:
+        await _stream_progress(ctx, "bug", f"Analytics SQL failed: {type(exc).__name__}.")
+        raise
     finally:
-        reader.close()
+        if reader is not None:
+            reader.close()
 
 
 def anomalies_tools() -> list[Any]:
