@@ -30,3 +30,66 @@ relationships:
     left_key: customers
     right_key: customer
     relationship: many_to_one
+
+  - left_table_id: analytics_market_level_anomalies
+    right_table_id: analytics_segment_level_anomalies
+    left_key: customer
+    right_key: customer
+    relationship: many_to_many
+    notes: customer/day aligned anomaly facts from spark jobs.
+
+  - left_table_id: analytics_market_level_anomalies
+    right_table_id: analytics_oag_score_v2
+    left_key: customer
+    right_key: customer
+    relationship: many_to_one
+    notes: enrich market anomalies with OAG market score features.
+
+  - left_table_id: analytics_market_level_anomalies
+    right_table_id: analytics_revenue_score_v1
+    left_key: customer
+    right_key: customer
+    relationship: many_to_one
+    notes: revenue features used in impact score calculations.
+
+  - left_table_id: analytics_segment_level_anomalies
+    right_table_id: analytics_segment_level_anomalies_v3
+    left_key: customer
+    right_key: customer
+    relationship: many_to_one
+    notes: v3 view enriches segment-level facts.
+
+  - left_table_id: analytics_market_level_anomalies_v3
+    right_table_id: analytics_anomalies_direction_score
+    left_key: cp
+    right_key: competitive_position
+    relationship: many_to_one
+    notes: direction score lookup by competitive position + direction labels.
+
+  - left_table_id: analytics_market_level_anomalies_v3
+    right_table_id: analytics_anomalies_impact_score_weights
+    left_key: customer
+    right_key: customer
+    relationship: many_to_one
+    notes: customer-specific impact weighting.
+
+  - left_table_id: analytics_market_level_anomalies_v3
+    right_table_id: market_level_generator_s3
+    left_key: customer
+    right_key: customer
+    relationship: one_to_many
+    notes: DS generator publishes curated parquet from market-level anomalies.
+
+  - left_table_id: analytics_segment_level_anomalies_v3
+    right_table_id: segment_level_generator_s3
+    left_key: customer
+    right_key: customer
+    relationship: one_to_many
+    notes: DS generator publishes curated parquet from segment-level anomalies.
+
+  - left_table_id: derived_common_output_s3
+    right_table_id: analytics_market_level_anomalies
+    left_key: customer
+    right_key: customer
+    relationship: one_to_many
+    notes: derived common output is upstream input to competitive/anomaly spark jobs.
