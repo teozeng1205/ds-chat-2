@@ -199,11 +199,15 @@ class KnowledgeBaseService:
             )
 
         docs_dir = self.root_dir / "docs"
-        for path in sorted(docs_dir.glob("*.md")):
+        for path in sorted(docs_dir.rglob("*")):
+            if not path.is_file() or path.suffix.lower() not in {".md", ".txt"}:
+                continue
             body = path.read_text(encoding="utf-8", errors="replace")
+            rel_no_suffix = str(path.relative_to(self.root_dir).with_suffix(""))
+            doc_id = f"doc::{rel_no_suffix.replace('/', '::')}"
             records.append(
                 {
-                    "doc_id": f"doc::{path.stem}",
+                    "doc_id": doc_id,
                     "scope": "doc",
                     "path": str(path.relative_to(self.root_dir)),
                     "title": path.stem,

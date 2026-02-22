@@ -16,6 +16,7 @@ from .nextgen_tools import (
     data_access_tools,
     knowledge_planner_instructions,
     planner_tools,
+    search_kb,
     synthesis_instructions,
     synthesis_tools,
 )
@@ -76,14 +77,19 @@ def _build_synthesis_agent(model: str) -> Agent[AgentContext[dict[str, Any]]]:
 
 def _build_codebase_explainer_agent(model: str) -> Agent[AgentContext[dict[str, Any]]]:
     include_shell = _supports_local_shell(model)
+    tools = [search_kb, *codebase_explainer_tools(include_shell=include_shell)]
+    instructions = (
+        f"{codebase_explainer_instructions(include_shell=include_shell)}\n"
+        "Use search_kb() when you need internal domain docs, table metadata, relationships, or playbook context."
+    )
     return Agent[AgentContext[dict[str, Any]]](
         model=model,
         name="Codebase Explanation Agent",
         handoff_description=(
             "Handles codebase architecture/explanation and Codex-like sandboxed tooling under /git."
         ),
-        instructions=codebase_explainer_instructions(include_shell=include_shell),
-        tools=codebase_explainer_tools(include_shell=include_shell),
+        instructions=instructions,
+        tools=tools,
     )
 
 
