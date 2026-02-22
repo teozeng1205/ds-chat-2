@@ -4,7 +4,10 @@
   "scripts": {
     "dev": "concurrently --kill-others-on-fail --names backend,frontend \"npm run backend\" \"npm run frontend\"",
     "frontend": "npm --prefix frontend install && npm --prefix frontend run dev",
-    "backend": "./backend/scripts/run.sh"
+    "backend": "./backend/scripts/run.sh",
+    "backend:test": "bash ./backend/scripts/verify_nextgen.sh --skip-connectivity --skip-e2e",
+    "backend:smoke": "bash ./backend/scripts/verify_nextgen.sh --skip-unit",
+    "backend:verify": "bash ./backend/scripts/verify_nextgen.sh"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

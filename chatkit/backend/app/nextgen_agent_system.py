@@ -106,7 +106,9 @@ def _build_orchestrator_agent(
             "Route final conclusions to Synthesis Agent. "
             "Route repository/codebase questions to Codebase Explanation Agent. "
             "If required partition values are missing, ask one concise clarification before extraction. "
-            "Never bypass partition-safe workflows. Environment is fixed to 3VDEV."
+            "Never bypass partition-safe workflows. Environment is fixed to 3VDEV. "
+            "For investigation requests, complete the full workflow in one run: plan -> extract -> analyze -> synthesize. "
+            "Only stop after planning if the user explicitly asks for plan-only output."
         )
     )
     return Agent[AgentContext[dict[str, Any]]](
@@ -125,6 +127,12 @@ def build_agent(tool_choice: str | None, model: str) -> Agent[AgentContext[dict[
     analysis_agent = _build_analysis_agent(chosen_model)
     synthesis_agent = _build_synthesis_agent(chosen_model)
     codebase_agent = _build_codebase_explainer_agent(chosen_model)
+
+    # Enable end-to-end execution by allowing specialists to chain handoffs.
+    planner_agent.handoffs = [data_access_agent, synthesis_agent]
+    data_access_agent.handoffs = [analysis_agent, planner_agent]
+    analysis_agent.handoffs = [data_access_agent, synthesis_agent]
+    synthesis_agent.handoffs = [analysis_agent]
 
     if tool_choice in {"knowledge_planner", "market_anomalies", "internal_monitoring"}:
         return planner_agent

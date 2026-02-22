@@ -19,6 +19,25 @@ source .venv/bin/activate
 echo "Installing backend deps (editable) ..."
 pip install -e . >/dev/null
 
+# If threevictors is installed in system python but not in this venv,
+# bridge system site-packages into PYTHONPATH for runtime tool access.
+if ! python -c "import threevictors" >/dev/null 2>&1; then
+  THREEVICTORS_SITE_PACKAGES="$(
+    python3 - <<'PY' 2>/dev/null
+import os
+try:
+    import threevictors
+except Exception:
+    raise SystemExit(1)
+print(os.path.dirname(os.path.dirname(threevictors.__file__)))
+PY
+  )"
+  if [ -n "${THREEVICTORS_SITE_PACKAGES:-}" ] && [ -d "$THREEVICTORS_SITE_PACKAGES" ]; then
+    export PYTHONPATH="$THREEVICTORS_SITE_PACKAGES${PYTHONPATH:+:$PYTHONPATH}"
+    echo "Using threevictors from system site-packages: $THREEVICTORS_SITE_PACKAGES"
+  fi
+fi
+
 # Load env vars from the repo's .env.local (if present) so OPENAI_API_KEY
 # does not need to be exported manually.
 ENV_FILE="$PROJECT_ROOT/../.env.local"
@@ -37,4 +56,3 @@ fi
 
 echo "Starting ChatKit backend on http://127.0.0.1:8000 ..."
 exec uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-

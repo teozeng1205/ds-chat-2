@@ -43,3 +43,39 @@ and set `VITE_CHATKIT_API_DOMAIN_KEY` when deploying.
 - Query execution is partition-enforced from KB table metadata.
 - Per-turn datasets are materialized under `backend/.runtime/workspaces/...` and cleaned up after each response turn.
 - `threevictors` must be available in the backend Python runtime for Redshift/MySQL/S3 access.
+- Basic live connectivity smoke test script: `backend/scripts/smoke_threevictors.py --profile 3VDEV`
+
+## DS Chat Next-Gen Verification
+
+One command to run everything (unit tests + connectivity + E2E agent smokes):
+
+```bash
+npm run backend:verify
+```
+
+Available shortcuts:
+
+- Unit tests only:
+
+```bash
+npm run backend:test
+```
+
+- Live smoke tests only (requires `OPENAI_API_KEY` and granted profile access):
+
+```bash
+npm run backend:smoke
+```
+
+Direct script usage (more control):
+
+```bash
+backend/scripts/verify_nextgen.sh --help
+backend/scripts/verify_nextgen.sh --profile 3VDEV --max-turns 40
+backend/scripts/verify_nextgen.sh --scenarios top_site_issues,market_anomalies_distribution
+```
+
+E2E smoke reports with full model output and debug steps are written under:
+
+- `backend/.runtime/smoke_reports/*.md`
+- `backend/.runtime/smoke_reports/*.json`

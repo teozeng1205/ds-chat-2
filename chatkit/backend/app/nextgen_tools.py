@@ -5,8 +5,10 @@ from __future__ import annotations
 import datetime
 import json
 import logging
+import os
 import re
 import uuid
+import warnings as py_warnings
 from typing import Any
 
 import numpy as np
@@ -133,6 +135,149 @@ def _parse_s3_uri(uri: str) -> tuple[str, str]:
 def _collect_partition_values(filters: list[PlanFilter], required: list[str]) -> dict[str, Any]:
     by_col = {f.column: f.value for f in filters}
     return {predicate: by_col.get(predicate) for predicate in required}
+
+
+def _is_na_scalar(value: Any) -> bool:
+    try:
+        return bool(pd.isna(value))
+    except Exception:
+        return False
+
+
+def _json_scalar(value: Any) -> Any:
+    if isinstance(value, np.generic):
+        value = value.item()
+    if _is_na_scalar(value):
+        return None
+    if isinstance(value, (pd.Timestamp, datetime.datetime, datetime.date, datetime.time)):
+        return value.isoformat()
+    if isinstance(value, float):
+        if np.isnan(value) or np.isinf(value):
+            return None
+    return value
+
+
+def _normalize_record(record: dict[str, Any]) -> dict[str, Any]:
+    return {str(key): _json_scalar(value) for key, value in record.items()}
+
+
+def _build_raw_dataset_profile(
+    frame: pd.DataFrame,
+    *,
+    preview_rows: int = 5,
+    max_numeric_columns: int = 8,
+    max_category_columns: int = 8,
+    max_top_values: int = 10,
+) -> dict[str, Any]:
+    profile: dict[str, Any] = {
+        "row_count": int(len(frame)),
+        "column_count": int(len(frame.columns)),
+        "columns": [str(col) for col in frame.columns],
+    }
+    if frame.empty:
+        return profile
+
+    preview = frame.head(max(0, preview_rows)).to_dict(orient="records")
+    profile["preview_rows"] = [_normalize_record(row) for row in preview]
+
+    null_counts = frame.isna().sum()
+    missing = {str(col): int(count) for col, count in null_counts.items() if int(count) > 0}
+    if missing:
+        profile["null_counts"] = missing
+
+    numeric_cols = [str(col) for col in frame.select_dtypes(include=["number"]).columns][:max_numeric_columns]
+    if numeric_cols:
+        describe = frame[numeric_cols].describe(percentiles=[0.25, 0.5, 0.75]).T
+        numeric_stats: dict[str, Any] = {}
+        for col in numeric_cols:
+            row = describe.loc[col]
+            numeric_stats[col] = {
+                "count": _json_scalar(row.get("count")),
+                "mean": _json_scalar(row.get("mean")),
+                "std": _json_scalar(row.get("std")),
+                "min": _json_scalar(row.get("min")),
+                "p25": _json_scalar(row.get("25%")),
+                "p50": _json_scalar(row.get("50%")),
+                "p75": _json_scalar(row.get("75%")),
+                "max": _json_scalar(row.get("max")),
+            }
+        profile["numeric_stats"] = numeric_stats
+
+    categorical_cols = [str(col) for col in frame.columns if str(col) not in numeric_cols]
+    top_values: dict[str, Any] = {}
+    for col in categorical_cols[:max_category_columns]:
+        value_counts = frame[col].astype("string").fillna("<NULL>").value_counts(dropna=False).head(max_top_values)
+        if value_counts.empty:
+            continue
+        top_values[col] = [
+            {
+                "value": None if str(value) == "<NULL>" else str(value),
+                "count": int(count),
+            }
+            for value, count in value_counts.items()
+        ]
+    if top_values:
+        profile["top_values"] = top_values
+
+    return profile
+
+
+def _candidate_dataset_ids_from_analysis(parsed_analysis: dict[str, Any] | None) -> list[str]:
+    if not isinstance(parsed_analysis, dict):
+        return []
+    artifacts = parsed_analysis.get("artifacts")
+    if not isinstance(artifacts, list):
+        return []
+    out: list[str] = []
+    for artifact in artifacts:
+        value = str(artifact).strip()
+        if value:
+            out.append(value)
+    return out
+
+
+def _dedupe(values: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        normalized = value.strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        out.append(normalized)
+    return out
+
+
+def _select_dataset_ids_for_synthesis(
+    workspace: TurnWorkspace,
+    *,
+    requested_dataset_id: str | None,
+    parsed_analysis: dict[str, Any] | None,
+    max_fallback: int = 3,
+) -> list[str]:
+    selected = _dedupe(
+        [requested_dataset_id or "", *_candidate_dataset_ids_from_analysis(parsed_analysis)]
+    )
+    if selected:
+        return selected
+
+    workspace_ids = workspace.list_dataset_ids()
+    if not workspace_ids:
+        return []
+
+    ranked: list[tuple[datetime.datetime, str]] = []
+    for dataset_id in workspace_ids:
+        try:
+            manifest = workspace.read_manifest(dataset_id)
+            created_at = manifest.created_at
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=datetime.timezone.utc)
+            ranked.append((created_at, dataset_id))
+        except Exception:
+            ranked.append((datetime.datetime.fromtimestamp(0, tz=datetime.timezone.utc), dataset_id))
+
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    return [dataset_id for _, dataset_id in ranked[: max(1, max_fallback)]]
 
 
 def _resolve_entities_impl(
@@ -485,7 +630,7 @@ async def run_python_analysis(
     clamped_top_n = max(1, min(top_n, 200))
 
     output_df: pd.DataFrame | None = None
-    warnings: list[str] = []
+    analysis_warnings: list[str] = []
     metrics: dict[str, Any] = {"input_rows": int(len(frame))}
 
     if python_code and python_code.strip():
@@ -496,8 +641,20 @@ async def run_python_analysis(
             "df": frame.copy(),
             "result": {},
             "output_df": None,
+            "workspace_root": str(workspace.root_path),
         }
-        exec(compile(python_code, "<agent-python-analysis>", "exec"), scope, scope)
+        previous_cwd = os.getcwd()
+        os.chdir(str(workspace.root_path))
+        try:
+            with py_warnings.catch_warnings(record=True) as caught:
+                py_warnings.simplefilter("always")
+                exec(compile(python_code, "<agent-python-analysis>", "exec"), scope, scope)
+            for warning in caught:
+                analysis_warnings.append(
+                    f"{warning.category.__name__}: {warning.message}"
+                )
+        finally:
+            os.chdir(previous_cwd)
 
         result = scope.get("result", {})
         if isinstance(result, dict):
@@ -536,7 +693,7 @@ async def run_python_analysis(
                 selected = [col.strip() for col in metric_columns.split(",") if col.strip()]
                 selected_numeric = [col for col in selected if col in numeric_cols]
                 if selected and not selected_numeric:
-                    warnings.append("metric_columns provided but none are numeric columns.")
+                    analysis_warnings.append("metric_columns provided but none are numeric columns.")
                 if selected_numeric:
                     metrics["metric_describe"] = (
                         frame[selected_numeric].describe().fillna("").to_dict()
@@ -559,7 +716,7 @@ async def run_python_analysis(
         summary=f"Analysis complete for dataset '{dataset_id}' with {len(frame)} input rows.",
         metrics=metrics,
         artifacts=artifacts,
-        warnings=warnings,
+        warnings=analysis_warnings,
     )
     await _stream_progress(ctx, "check-circle", "Python analysis complete.")
     return analysis.model_dump(mode="json")
@@ -572,39 +729,85 @@ async def summarize_findings(
     analysis_json: str | None = None,
     dataset_id: str | None = None,
 ) -> dict[str, Any]:
-    """Summarize current findings with dataset lineage and key metrics."""
+    """Summarize findings by directly profiling raw local datasets."""
     workspace = _workspace(ctx)
     parts: list[str] = []
     payload: dict[str, Any] = {}
+    warnings_payload: list[str] = []
+    parsed_analysis: dict[str, Any] | None = None
 
     if question:
         parts.append(f"Question: {question}")
 
     if analysis_json:
-        parsed = json.loads(analysis_json)
-        payload["analysis"] = parsed
-        if isinstance(parsed, dict):
-            summary = parsed.get("summary")
-            if summary:
-                parts.append(str(summary))
-            metrics = parsed.get("metrics")
-            if isinstance(metrics, dict):
-                if "top_groups" in metrics:
-                    top_groups = metrics.get("top_groups")
-                    parts.append(f"Top grouped findings rows: {len(top_groups) if isinstance(top_groups, list) else 0}")
-                input_rows = metrics.get("input_rows")
-                if input_rows is not None:
-                    parts.append(f"Input rows analyzed: {input_rows}")
+        try:
+            parsed = json.loads(analysis_json)
+            if isinstance(parsed, dict):
+                parsed_analysis = parsed
+                payload["analysis_payload"] = parsed
+        except json.JSONDecodeError as exc:
+            warnings_payload.append(f"analysis_json parse failed: {exc}")
 
-    if dataset_id:
-        manifest = workspace.read_manifest(dataset_id)
-        payload["dataset_manifest"] = manifest.model_dump(mode="json", by_alias=True)
-        parts.append(
-            f"Dataset {dataset_id}: {manifest.row_count} rows from {manifest.source_type} source ({manifest.source_ref})."
+    selected_dataset_ids = _select_dataset_ids_for_synthesis(
+        workspace,
+        requested_dataset_id=dataset_id,
+        parsed_analysis=parsed_analysis,
+    )
+
+    raw_datasets: list[dict[str, Any]] = []
+    attempted_ids: set[str] = set()
+
+    def _try_load_dataset(selected_dataset_id: str) -> bool:
+        attempted_ids.add(selected_dataset_id)
+        try:
+            manifest = workspace.read_manifest(selected_dataset_id)
+            frame = workspace.read_dataset(selected_dataset_id)
+            raw_profile = _build_raw_dataset_profile(frame)
+            raw_datasets.append(
+                {
+                    "dataset_id": selected_dataset_id,
+                    "manifest": manifest.model_dump(mode="json", by_alias=True),
+                    "raw_profile": raw_profile,
+                }
+            )
+            parts.append(
+                (
+                    f"Raw dataset {selected_dataset_id}: {raw_profile.get('row_count')} rows, "
+                    f"{raw_profile.get('column_count')} columns from {manifest.source_type} source "
+                    f"({manifest.source_ref})."
+                )
+            )
+            return True
+        except FileNotFoundError:
+            warnings_payload.append(
+                f"Dataset manifest or parquet not found for {selected_dataset_id} in current workspace."
+            )
+            return False
+
+    for selected_dataset_id in selected_dataset_ids:
+        _try_load_dataset(selected_dataset_id)
+
+    if not raw_datasets:
+        fallback_ids = _select_dataset_ids_for_synthesis(
+            workspace,
+            requested_dataset_id=None,
+            parsed_analysis=None,
         )
+        for fallback_id in fallback_ids:
+            if fallback_id in attempted_ids:
+                continue
+            if _try_load_dataset(fallback_id):
+                parts.append("Requested dataset was unavailable; used fallback raw dataset from workspace.")
+                break
+
+    if raw_datasets:
+        payload["raw_datasets"] = raw_datasets
+        parts.append("Findings are grounded in raw dataset profiles above.")
 
     if not parts:
         parts.append("No findings payload was provided; run extract/analysis tools first.")
+    if warnings_payload:
+        payload["warnings"] = warnings_payload
 
     return {
         "summary": " ".join(parts),
@@ -634,7 +837,8 @@ def knowledge_planner_instructions() -> str:
     return (
         f"You are the Knowledge Planner Agent. Today is {today}. "
         "Always search local KB first, resolve entities, and produce strict InvestigationPlan JSON. "
-        "Never generate raw SQL directly. If required partition values are missing, ask a concise clarification."
+        "Never generate raw SQL directly. If required partition values are missing, ask a concise clarification. "
+        "If clarification is not needed and the user expects results, hand off to Data Access Agent to execute the plan."
     )
 
 
@@ -643,7 +847,8 @@ def data_access_instructions() -> str:
     return (
         f"You are the Data Access Agent. Today is {today}. "
         "Use only execute_sql_extract/execute_s3_extract/join_datasets/list_workspace_datasets. "
-        "Enforce partition-safe extraction and keep everything in local turn workspace artifacts."
+        "Enforce partition-safe extraction and keep everything in local turn workspace artifacts. "
+        "After extraction is complete, hand off to Analysis Agent."
     )
 
 
@@ -652,7 +857,10 @@ def analysis_instructions() -> str:
     return (
         f"You are the Analysis Agent. Today is {today}. "
         "Use run_python_analysis and join_datasets over local dataset artifacts. "
-        "Do offline pandas analysis and preserve lineage in outputs."
+        "Do offline pandas analysis and preserve lineage in outputs. "
+        "Prefer numeric summaries over plotting; avoid matplotlib/seaborn unless explicitly requested. "
+        "Do not write files outside the workspace. "
+        "After analysis, hand off to Synthesis Agent for the final user-facing response."
     )
 
 
@@ -660,7 +868,12 @@ def synthesis_instructions() -> str:
     today = datetime.date.today().strftime("%Y-%m-%d")
     return (
         f"You are the Synthesis Agent. Today is {today}. "
-        "Use summarize_findings and list_workspace_datasets to produce concise evidence-based conclusions with caveats."
+        "Before any final user-facing answer, you MUST call list_workspace_datasets first, "
+        "then call summarize_findings with concrete dataset_id values from the workspace. "
+        "Base conclusions on raw dataset content from summarize_findings.details.raw_datasets, "
+        "not on narrative text from prior agent messages or prior synthesized summaries. "
+        "If no raw dataset is available, explicitly state that data is unavailable and ask for missing constraints. "
+        "Return final findings with concrete metrics and caveats when available."
     )
 
 

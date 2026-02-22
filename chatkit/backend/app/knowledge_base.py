@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
+import tempfile
 import threading
 from pathlib import Path
 from typing import Any
@@ -253,6 +255,38 @@ class KnowledgeBaseService:
             vec /= norm
         return vec
 
+    @staticmethod
+    def _atomic_save_numpy(path: Path, values: np.ndarray) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, temp_name = tempfile.mkstemp(prefix=f"{path.stem}.", suffix=".tmp", dir=path.parent)
+        temp_path = Path(temp_name)
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                np.save(handle, values, allow_pickle=False)
+            temp_path.replace(path)
+        except Exception:
+            try:
+                temp_path.unlink()
+            except FileNotFoundError:
+                pass
+            raise
+
+    @staticmethod
+    def _atomic_write_json(path: Path, payload: Any) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, temp_name = tempfile.mkstemp(prefix=f"{path.stem}.", suffix=".tmp", dir=path.parent)
+        temp_path = Path(temp_name)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(payload, handle, indent=2)
+            temp_path.replace(path)
+        except Exception:
+            try:
+                temp_path.unlink()
+            except FileNotFoundError:
+                pass
+            raise
+
     def _rebuild_vector_index(self) -> None:
         meta_rows = [
             {
@@ -267,9 +301,11 @@ class KnowledgeBaseService:
         vectors = np.vstack(
             [self._hash_embed(f"{row['title']}\n{row['body']}") for row in meta_rows]
         ) if meta_rows else np.zeros((0, 384), dtype=np.float32)
+        vectors = np.asarray(vectors, dtype=np.float32)
+        vectors = np.nan_to_num(vectors, nan=0.0, posinf=0.0, neginf=0.0)
 
-        np.save(self.vector_dir / "doc_vectors.npy", vectors)
-        (self.vector_dir / "doc_meta.json").write_text(json.dumps(meta_rows, indent=2), encoding="utf-8")
+        self._atomic_save_numpy(self.vector_dir / "doc_vectors.npy", vectors)
+        self._atomic_write_json(self.vector_dir / "doc_meta.json", meta_rows)
 
     def get_table(self, table_id: str) -> TableSpec:
         self.refresh_if_needed()
@@ -383,14 +419,44 @@ class KnowledgeBaseService:
         if not vec_path.exists() or not meta_path.exists():
             return []
 
-        matrix = np.load(vec_path)
-        if matrix.shape[0] == 0:
+        try:
+            matrix = np.load(vec_path, allow_pickle=False)
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except Exception:
             return []
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
 
-        query_vec = self._hash_embed(query, dim=matrix.shape[1])
-        scores = matrix @ query_vec
-        top_idx = np.argsort(scores)[::-1][:top_k]
+        if not isinstance(meta, list):
+            return []
+        if matrix.ndim != 2 or matrix.shape[0] == 0 or matrix.shape[1] == 0:
+            return []
+        if len(meta) < matrix.shape[0]:
+            return []
+        if len(meta) > matrix.shape[0]:
+            meta = meta[: matrix.shape[0]]
+
+        matrix_norm = np.asarray(matrix, dtype=np.float64)
+        matrix_norm = np.nan_to_num(matrix_norm, nan=0.0, posinf=0.0, neginf=0.0)
+        with np.errstate(divide="ignore", invalid="ignore", over="ignore", under="ignore"):
+            row_norms = np.linalg.norm(matrix_norm, axis=1)
+        row_norms = np.nan_to_num(row_norms, nan=0.0, posinf=0.0, neginf=0.0)
+        nonzero_rows = row_norms > 0
+        if np.any(nonzero_rows):
+            matrix_norm[nonzero_rows] = matrix_norm[nonzero_rows] / row_norms[nonzero_rows, None]
+
+        query_vec = np.asarray(self._hash_embed(query, dim=matrix_norm.shape[1]), dtype=np.float64)
+        query_vec = np.nan_to_num(query_vec, nan=0.0, posinf=0.0, neginf=0.0)
+        with np.errstate(divide="ignore", invalid="ignore", over="ignore", under="ignore"):
+            query_norm = float(np.linalg.norm(query_vec))
+        if query_norm > 0:
+            query_vec = query_vec / query_norm
+
+        with np.errstate(divide="ignore", invalid="ignore", over="ignore", under="ignore"):
+            scores = matrix_norm @ query_vec
+        scores = np.nan_to_num(scores, nan=-1.0, posinf=1.0, neginf=-1.0)
+        scores = np.clip(scores, -1.0, 1.0)
+
+        max_hits = max(1, min(top_k, int(scores.shape[0])))
+        top_idx = np.argsort(scores)[::-1][:max_hits]
 
         hits: list[KBSearchHit] = []
         for idx in top_idx:

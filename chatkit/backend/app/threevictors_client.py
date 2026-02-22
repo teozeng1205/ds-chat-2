@@ -65,7 +65,7 @@ def _resolve_s3_util_cls():
 @dataclass
 class ThreeVictorsConfig:
     redshift_properties: str = "database-analytics-redshift-serverless-reader.properties"
-    mysql_properties: str = "database-priceeye-mysql-reader.properties"
+    mysql_properties: str = "database-priceeye-reader.properties"
     environment: str = "3VDEV"
 
 
