@@ -1,6 +1,6 @@
 providers:
   - code: QL2
-    aliases: [ql2, quicklook2]
+    aliases: [ql2]
   - code: B6
     aliases: [jetblue]
   - code: AA
@@ -11,6 +11,10 @@ providers:
     aliases: [lufthansa]
   - code: SK
     aliases: [sas]
+  - code: SS 
+    aliases: [skyscanner]
+  - code: AI 
+    aliases: [ai, aggregatedintelligence]
 
 sites:
   - code: QF
@@ -31,3 +35,5 @@ customers:
     aliases: [lufthansa]
   - code: SK
     aliases: [sas]
+  - code: CX
+    aliases: [cathaypacific]
