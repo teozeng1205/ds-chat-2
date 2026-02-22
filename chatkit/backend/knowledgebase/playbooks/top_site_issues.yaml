@@ -1,0 +1,18 @@
+playbook_id: top_site_issues
+title: Top Site Issues
+intent: top_site_issues
+keywords: [top site issues, site issues, provider issues, issue reasons]
+default_table_id: monitoring_provider_combined_audit
+default_columns:
+  - sales_date
+  - customers
+  - providercode
+  - sitecode
+  - issue_sources
+  - issue_reasons
+  - response_statuses
+  - observationtimestamp
+  - id
+analysis:
+  group_by: [issue_sources, issue_reasons, providercode, sitecode]
+  top_n: 30

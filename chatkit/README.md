@@ -30,3 +30,16 @@ and set `VITE_CHATKIT_API_DOMAIN_KEY` when deploying.
 - Update UI and connection settings in `frontend/src/lib/config.ts`.
 - Adjust layout in `frontend/src/components/ChatKitPanel.tsx`.
 - Swap the in-memory store in `backend/app/server.py` for persistence.
+
+## DS Chat Next-Gen Notes
+
+- The backend now uses a knowledge-driven multi-agent pipeline:
+  - Orchestrator
+  - Knowledge Planner
+  - Data Access
+  - Analysis
+  - Synthesis
+- Local KB files live in `backend/knowledgebase/` and are editable on demand.
+- Query execution is partition-enforced from KB table metadata.
+- Per-turn datasets are materialized under `backend/.runtime/workspaces/...` and cleaned up after each response turn.
+- `threevictors` must be available in the backend Python runtime for Redshift/MySQL/S3 access.

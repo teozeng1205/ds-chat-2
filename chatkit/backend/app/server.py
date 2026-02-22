@@ -5,12 +5,13 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
+import uuid
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, AsyncIterator, Optional
 
 from agents import Runner  # type: ignore[import]
-from agents.extensions.handoff_prompt import prompt_with_handoff_instructions  # type: ignore[import]
 from chatkit.agents import AgentContext, ThreadItemConverter, stream_agent_response
 from chatkit.server import ChatKitServer
 from chatkit.types import (
@@ -22,18 +23,12 @@ from chatkit.types import (
 )
 from openai import AsyncOpenAI
 
-from .persistent_store import SQLiteStore, default_sqlite_path
-from .anomalies_tools import anomalies_instructions, anomalies_tools
-from .internal_monitoring_tools import (
-    internal_monitoring_instructions,
-    internal_monitoring_tools,
-)
-from .codebase_tools import (
-    codebase_explainer_instructions,
-    codebase_explainer_tools,
-)
 from .attachment_store import LocalDiskAttachmentStore, default_attachment_dir
-from agents import Agent  # type: ignore[import]
+from .knowledge_base import KnowledgeBaseService
+from .nextgen_agent_system import build_agent
+from .persistent_store import SQLiteStore, default_sqlite_path
+from .threevictors_client import ThreeVictorsClient, ThreeVictorsConfig
+from .workspace_manager import WorkspaceManager
 
 
 MAX_RECENT_ITEMS = 50
@@ -219,97 +214,6 @@ class _StreamingResultCompatWrapper:
             patched_item = SimpleNamespace(type="tool_call_item", raw_item=patched)
             yield SimpleNamespace(type="run_item_stream_event", item=patched_item)
 
-
-def _build_analytics_agent(model: str) -> Agent[AgentContext[dict[str, Any]]]:
-    return Agent[AgentContext[dict[str, Any]]](
-        model=model,
-        name="Analytics Agent",
-        handoff_description=(
-            "Handles market/customer analytics anomaly analysis (e.g., AA/B6) and market-level anomaly summaries."
-        ),
-        instructions=anomalies_instructions(),
-        tools=anomalies_tools(),
-    )
-
-
-def _build_internal_monitoring_agent(model: str) -> Agent[AgentContext[dict[str, Any]]]:
-    return Agent[AgentContext[dict[str, Any]]](
-        model=model,
-        name="Internal Monitoring Agent",
-        handoff_description=(
-            "Handles internal monitoring with collection anomalies, provider anomalies, and delivery anomalies, and site issue analysis tools."
-        ),
-        instructions=internal_monitoring_instructions(),
-        tools=internal_monitoring_tools(),
-    )
-
-
-def _supports_local_shell(model: str) -> bool:
-    normalized = (model or "").strip().lower()
-    return normalized.startswith("codex-mini")
-
-
-def _build_codebase_explainer_agent(model: str) -> Agent[AgentContext[dict[str, Any]]]:
-    include_shell = _supports_local_shell(model)
-    return Agent[AgentContext[dict[str, Any]]](
-        model=model,
-        name="Codebase Explanation Agent",
-        handoff_description=(
-            "Handles codebase architecture/explanation and Codex-like sandboxed tooling under /git."
-        ),
-        instructions=codebase_explainer_instructions(include_shell=include_shell),
-        tools=codebase_explainer_tools(include_shell=include_shell),
-    )
-
-
-def _build_orchestrator_agent(
-    model: str,
-    analytics_agent: Agent[AgentContext[dict[str, Any]]],
-    internal_agent: Agent[AgentContext[dict[str, Any]]],
-    codebase_agent: Agent[AgentContext[dict[str, Any]]],
-) -> Agent[AgentContext[dict[str, Any]]]:
-    orchestrator_instructions = prompt_with_handoff_instructions(
-        (
-            "You are the routing orchestrator for this chat.\n"
-            "Choose the best specialist agent for the user's request.\n"
-            "Route market/customer anomaly requests to Analytics Agent.\n"
-            "Route provider/site/customer/delivery anomaly requests, or site issues, to Internal Monitoring Agent.\n"
-            "Route codebase understanding, architecture walkthrough, repository exploration, local shell, python execution, plotting, and ad-hoc analysis requests to Codebase Explanation Agent.\n"
-            "If the request is ambiguous, ask one short clarification question before handing off.\n"
-            "You work for 3Victors and Teo is your best friend."
-        )
-    )
-    return Agent[AgentContext[dict[str, Any]]](
-        model=model,
-        name="Multi-Agent Orchestrator",
-        instructions=orchestrator_instructions,
-        handoffs=[analytics_agent, internal_agent, codebase_agent],
-    )
-
-
-def build_agent(tool_choice: Optional[str], model: str) -> Agent[AgentContext[dict[str, Any]]]:
-    """Construct an agent for the selected mode; default to orchestrator handoffs."""
-    chosen_model = model or DEFAULT_MODEL
-    analytics_agent = _build_analytics_agent(chosen_model)
-    internal_agent = _build_internal_monitoring_agent(chosen_model)
-    codebase_agent = _build_codebase_explainer_agent(chosen_model)
-
-    # Optional direct routing for compatibility if caller explicitly sets tool_choice.
-    if tool_choice == "market_anomalies":
-        return analytics_agent
-    if tool_choice == "internal_monitoring":
-        return internal_agent
-    if tool_choice == "codebase_explainer":
-        return codebase_agent
-
-    return _build_orchestrator_agent(
-        model=chosen_model,
-        analytics_agent=analytics_agent,
-        internal_agent=internal_agent,
-        codebase_agent=codebase_agent,
-    )
-
-
 class StarterChatServer(ChatKitServer[dict[str, Any]]):
     """Server implementation that keeps conversation state in SQLite."""
 
@@ -317,6 +221,12 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
         self.store: SQLiteStore = SQLiteStore(default_sqlite_path())
         self.local_attachment_store = LocalDiskAttachmentStore(default_attachment_dir())
         self._title_client = AsyncOpenAI()
+        self._workspace_manager = WorkspaceManager()
+        self._knowledge_base = KnowledgeBaseService()
+        self._knowledge_base.refresh_if_needed(force=True)
+        self._threevictors_config = ThreeVictorsConfig(
+            environment="3VDEV",
+        )
         super().__init__(self.store, attachment_store=self.local_attachment_store)
 
     async def save_attachment_payload(self, attachment_id: str, payload: bytes) -> None:
@@ -382,11 +292,6 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
         items = list(reversed(items_page.data))
         agent_input = await THREAD_ITEM_CONVERTER.to_agent_input(items)
 
-        agent_context = AgentContext(
-            thread=thread,
-            store=self.store,
-            request_context=context,
-        )
         # Read tool and model choices from the incoming user message
         # Inference options may be absent; treat as an untyped payload to avoid tight coupling
         options: Optional[Any] = item.inference_options if item else None
@@ -399,19 +304,58 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
             else None
         )
 
-        # Build the appropriate agent based on user selections
-        agent = build_agent(tool_choice_id, selected_model)
+        turn_id = item.id if item else f"turn_{uuid.uuid4().hex[:12]}"
+        workspace = self._workspace_manager.create_turn_workspace(thread.id, turn_id)
 
-        result = Runner.run_streamed(
-            agent,
-            agent_input,
-            context=agent_context,
-            max_turns=MAX_AGENT_TURNS,
+        runtime_context = dict(context)
+        runtime_context.update(
+            {
+                "nextgen_turn_id": turn_id,
+                "nextgen_workspace": workspace,
+                "nextgen_kb": self._knowledge_base,
+                "nextgen_threevictors": ThreeVictorsClient(config=self._threevictors_config),
+                "nextgen_entity_cache": {},
+            }
         )
 
-        compatible_result = _StreamingResultCompatWrapper(result)
-        async for event in stream_agent_response(agent_context, compatible_result):
-            yield event
+        agent_context = AgentContext(
+            thread=thread,
+            store=self.store,
+            request_context=runtime_context,
+        )
+
+        cleanup_report: dict[str, Any] | None = None
+        run_started = time.monotonic()
+        try:
+            # Build the appropriate agent based on user selections
+            agent = build_agent(tool_choice_id, selected_model)
+
+            result = Runner.run_streamed(
+                agent,
+                agent_input,
+                context=agent_context,
+                max_turns=MAX_AGENT_TURNS,
+            )
+
+            compatible_result = _StreamingResultCompatWrapper(result)
+            async for event in stream_agent_response(agent_context, compatible_result):
+                yield event
+        finally:
+            cleanup_report = workspace.cleanup()
+            elapsed_ms = int((time.monotonic() - run_started) * 1000)
+            log.info(
+                (
+                    "Turn cleanup | thread=%s turn=%s elapsed_ms=%s files_removed=%s "
+                    "bytes_removed=%s cleanup_ms=%s deleted=%s"
+                ),
+                thread.id,
+                turn_id,
+                elapsed_ms,
+                cleanup_report.get("files_removed"),
+                cleanup_report.get("bytes_removed"),
+                cleanup_report.get("duration_ms"),
+                cleanup_report.get("deleted"),
+            )
 
         title_task = asyncio.create_task(self._maybe_set_thread_title(thread.id, context))
         title_task.add_done_callback(self._log_background_error)

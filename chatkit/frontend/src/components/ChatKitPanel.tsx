@@ -87,16 +87,16 @@ export function ChatKitPanel() {
         showDelete: true,
       },
       startScreen: {
-        greeting: "Welcome to new 3V Chat, click the examples below",
+        greeting: "Welcome to DS Chat Next-Gen, click the examples below",
         prompts: [
           {
-            label: "Internal monitoring",
-            prompt: "what are the top site issues for provider QL2 today",
+            label: "Top site issues",
+            prompt: "what are the top site issues for QL2 on 20260211",
             icon: "analytics" as const,
           },
           {
-            label: "Analytics market anomalies",
-            prompt: "what are the anomalies for B6 today",
+            label: "Anomaly deep dive",
+            prompt: "investigate anomalies for customer B6 on 20260211",
             icon: "chart" as const,
           },
           {
@@ -110,8 +110,8 @@ export function ChatKitPanel() {
             icon: "chart" as const,
           },
           {
-            label: "Customer anomalies",
-            prompt: "what are the customer collection anomalies yesterday",
+            label: "Multi-source investigation",
+            prompt: "investigate issue scope for provider QL2 and include useful S3 data if available",
             icon: "analytics" as const,
           },
         ],
@@ -121,7 +121,7 @@ export function ChatKitPanel() {
       },
       composer: {
         attachments: { enabled: true, maxCount: 5, maxSize: 25 * 1024 * 1024 },
-        placeholder: "Ask about anomalies, monitoring, or codebase questions...",
+        placeholder: "Ask multi-database issue investigation questions...",
         models: [
           {
             id: "gpt-5.2",

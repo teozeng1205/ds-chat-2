@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Playbook Schema",
+  "type": "object",
+  "required": ["playbook_id", "intent", "default_table_id"],
+  "properties": {
+    "playbook_id": {"type": "string"},
+    "title": {"type": "string"},
+    "intent": {"type": "string"},
+    "keywords": {"type": "array", "items": {"type": "string"}},
+    "default_table_id": {"type": "string"},
+    "default_columns": {"type": "array", "items": {"type": "string"}},
+    "analysis": {
+      "type": "object",
+      "properties": {
+        "group_by": {"type": "array", "items": {"type": "string"}},
+        "top_n": {"type": "integer"}
+      }
+    }
+  }
+}

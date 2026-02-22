@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TableSpec Schema",
+  "type": "object",
+  "required": ["table_id", "physical_name", "source_system", "partition_policy"],
+  "properties": {
+    "table_id": {"type": "string"},
+    "physical_name": {"type": "string"},
+    "source_system": {"enum": ["redshift", "mysql", "s3"]},
+    "environment": {"type": "string"},
+    "description": {"type": "string"},
+    "entity_columns": {"type": "object"},
+    "partition_policy": {
+      "type": "object",
+      "properties": {
+        "partition_columns": {"type": "array", "items": {"type": "string"}},
+        "required_predicates": {"type": "array", "items": {"type": "string"}},
+        "notes": {"type": "string"}
+      }
+    }
+  }
+}

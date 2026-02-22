@@ -1,0 +1,32 @@
+relationships:
+  - left_table_id: monitoring_provider_combined_audit
+    right_table_id: monitoring_combined_audit
+    left_key: id
+    right_key: id
+    relationship: many_to_one
+    notes: provider/site aggregate can drill into request-level details by id.
+
+  - left_table_id: monitoring_provider_combined_audit
+    right_table_id: analytics_market_level_anomalies_v3
+    left_key: customers
+    right_key: customer
+    relationship: many_to_one
+    notes: customer dimension joins for anomaly context.
+
+  - left_table_id: monitoring_provider_combined_audit
+    right_table_id: priceeye_provider
+    left_key: providercode
+    right_key: providercode
+    relationship: many_to_one
+
+  - left_table_id: monitoring_provider_combined_audit
+    right_table_id: priceeye_site
+    left_key: sitecode
+    right_key: sitecode
+    relationship: many_to_one
+
+  - left_table_id: monitoring_provider_combined_audit
+    right_table_id: priceeye_customer
+    left_key: customers
+    right_key: customer
+    relationship: many_to_one
