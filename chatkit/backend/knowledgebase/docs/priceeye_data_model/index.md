@@ -3,6 +3,7 @@
 This KB section captures live-profiled table summaries from `3VDEV` for PriceEye and PriceEye Analytics.
 
 ## Included Documents
+- `docs/priceeye_data_model/remaining_readers_discovery.md`
 - `docs/priceeye_data_model/serverless_all_tables_inventory.md`
 - `docs/priceeye_data_model/analytics_serverless_partition_notes.md`
 - `docs/priceeye_data_model/analytics_serverless_reader_discovery.md`
