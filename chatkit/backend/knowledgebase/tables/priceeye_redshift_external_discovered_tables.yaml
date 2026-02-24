@@ -4,9 +4,12 @@ tables:
   source_system: redshift
   environment: 3VDEV
   description: 'External adf.assembled_data_feed_v1 via core reader; source s3://s3-atp-3victors-3vdev-use1-adf/assembled_data_feed_emr/;
-    partition columns: customer, sales_date, sales_hour.'
+    partition columns: customer, sales_date, sales_hour. Columns(117): cxr, orig,
+    dest, fare_class, o_r, trf. Partition keys: customer, sales_date, sales_hour.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    sales_date: sales_date
   entity_columns:
     customer: customer
   partition_policy:
@@ -17,7 +20,8 @@ tables:
     required_predicates:
     - customer
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 9. Samples: ["AS","20260129","13"], ["TS","20260210","20"],
+      ["B6","20260210","10"]. Location: s3://s3-atp-3victors-3vdev-use1-adf/assembled_data_feed_emr/.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -32,9 +36,14 @@ tables:
   source_system: redshift
   environment: 3VDEV
   description: 'External analytics.competitive_position via core reader; source s3://s3-atp-3victors-3vdev-use1-competitive-position/v1/;
-    partition columns: sales_date, customer.'
+    partition columns: sales_date, customer. Columns(37): customer_observation_date,
+    pos, origin_country, destination_country, origin_metro, destination_metro. Partition
+    keys: sales_date, customer.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    sales_date: sales_date
+    airline: carrier
   entity_columns:
     customer: customer
   partition_policy:
@@ -44,7 +53,8 @@ tables:
     required_predicates:
     - customer
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 4161. Samples: ["20250910","SabreCERT"], ["20250912","INS"],
+      ["20250924","SmarterTravel"]. Location: s3://s3-atp-3victors-3vdev-use1-competitive-position/v1/.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -60,9 +70,13 @@ tables:
   environment: 3VDEV
   description: 'External analytics.competitive_position_v2 via core reader; source
     s3://s3-atp-3victors-3vdev-use1-competitive-position/v2/; partition columns: sales_date,
-    customer.'
+    customer. Columns(37): customer_observation_date, pos, origin_country, destination_country,
+    origin_metro, destination_metro. Partition keys: sales_date, customer.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    sales_date: sales_date
+    airline: carrier
   entity_columns:
     customer: customer
   partition_policy:
@@ -72,7 +86,8 @@ tables:
     required_predicates:
     - customer
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 11. Samples: ["20260221","CX"], ["20260223","B6"],
+      ["20260223","CX"]. Location: s3://s3-atp-3victors-3vdev-use1-competitive-position/v2/.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -87,9 +102,13 @@ tables:
   source_system: redshift
   environment: 3VDEV
   description: 'External analytics.daily_itins_prices_v2 via core reader; source s3://s3-atp-3victors-3vdev-use1-anomaly-datasets/daily_itins_prices/v2/;
-    partition columns: customer, sales_date.'
+    partition columns: customer, sales_date. Columns(10): carrier, origin_metro, destination_metro,
+    ap_band, cabin_group, min_fare. Partition keys: customer, sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    sales_date: sales_date
+    airline: carrier
   entity_columns:
     customer: customer
   partition_policy:
@@ -99,7 +118,8 @@ tables:
     required_predicates:
     - customer
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 1080. Samples: ["SK","20251101"], ["B6","20251015"],
+      ["AF","20260119"]. Location: s3://s3-atp-3victors-3vdev-use1-anomaly-datasets/daily_itins_prices/v2/.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -114,9 +134,14 @@ tables:
   source_system: redshift
   environment: 3VDEV
   description: 'External analytics.derived_common_output via core reader; source s3://s3-atp-3victors-3vdev-use1-derived-common-output/v1/;
-    partition columns: sales_date, customer.'
+    partition columns: sales_date, customer. Columns(47): customer_observation_date,
+    observation_datetime, origin, origin_city, origin_metro, origin_country. Partition
+    keys: sales_date, customer.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    sales_date: sales_date
+    airline: carrier
   entity_columns:
     customer: customer
   partition_policy:
@@ -126,7 +151,8 @@ tables:
     required_predicates:
     - customer
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 4164. Samples: ["20250907","AA"], ["20251004","GJ"],
+      ["20250919","LH"]. Location: s3://s3-atp-3victors-3vdev-use1-derived-common-output/v1/.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -142,9 +168,14 @@ tables:
   environment: 3VDEV
   description: 'External analytics.derived_common_output_v2 via core reader; source
     s3://s3-atp-3victors-3vdev-use1-derived-common-output/v2/; partition columns:
-    sales_date, customer.'
+    sales_date, customer. Columns(61): customer_observation_date, collection_name,
+    reference, customer_expected_delivery_time_utc, observation_date_utc, observation_time_utc.
+    Partition keys: sales_date, customer.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    sales_date: sales_date
+    airline: carrier
   entity_columns:
     customer: customer
   partition_policy:
@@ -154,7 +185,8 @@ tables:
     required_predicates:
     - customer
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 4. Samples: ["20260219","B6"], ["20260221","B6"],
+      ["20260222","B6"]. Location: s3://s3-atp-3victors-3vdev-use1-derived-common-output/v2/.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -170,9 +202,13 @@ tables:
   environment: 3VDEV
   description: 'External analytics.market_level_analysis_v2 via core reader; source
     s3://s3-atp-3victors-3vdev-use1-anomaly-datasets/market-analysis/v2/; partition
-    columns: customer, sales_date.'
+    columns: customer, sales_date. Columns(22): segment_name, competitive_position,
+    comparison_type, customer_brand, competitor_brand, metro_market. Partition keys:
+    customer, sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    sales_date: sales_date
   entity_columns:
     customer: customer
   partition_policy:
@@ -182,7 +218,8 @@ tables:
     required_predicates:
     - customer
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 7. Samples: ["YY","20260222"], ["YY","20260223"],
+      ["B6","20260222"]. Location: s3://s3-atp-3victors-3vdev-use1-anomaly-datasets/market-analysis/v2/.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -198,9 +235,12 @@ tables:
   environment: 3VDEV
   description: 'External analytics.market_level_anomalies_v2 via core reader; source
     s3://s3-atp-3victors-3vdev-use1-anomaly-datasets/market-level/v2/; partition columns:
-    customer, sales_date.'
+    customer, sales_date. Columns(53): observation_date, mkt, seg, region_name, depart_period,
+    carrier_group. Partition keys: customer, sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    sales_date: sales_date
   entity_columns:
     customer: customer
   partition_policy:
@@ -210,7 +250,8 @@ tables:
     required_predicates:
     - customer
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 222. Samples: ["AS","20250923"], ["SK","20250914"],
+      ["SK","20250813"]. Location: s3://s3-atp-3victors-3vdev-use1-anomaly-datasets/market-level/v2/.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -226,9 +267,12 @@ tables:
   environment: 3VDEV
   description: 'External analytics.market_level_anomalies_v4 via core reader; source
     s3://s3-atp-3victors-3vdev-use1-anomaly-datasets/market-level/v4/; partition columns:
-    customer, sales_date.'
+    customer, sales_date. Columns(61): observation_date, mkt, seg, region_name, depart_period,
+    carrier_group. Partition keys: customer, sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    sales_date: sales_date
   entity_columns:
     customer: customer
   partition_policy:
@@ -238,7 +282,8 @@ tables:
     required_predicates:
     - customer
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 5. Samples: ["YY","20260222"], ["YY","20260223"],
+      ["B6","20260222"]. Location: s3://s3-atp-3victors-3vdev-use1-anomaly-datasets/market-level/v4/.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -253,9 +298,13 @@ tables:
   source_system: redshift
   environment: 3VDEV
   description: 'External analytics.pax_midt via core reader; source s3://s3-atp-3victors-3vdev-use1-anomaly-datasets/pax_midt/v1/;
-    partition columns: customer, sales_date.'
+    partition columns: customer, sales_date. Columns(8): ap_band, origin_metro, destination_metro,
+    carrier, cabin_group, midt_pax. Partition keys: customer, sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    sales_date: sales_date
+    airline: carrier
   entity_columns:
     customer: customer
   partition_policy:
@@ -265,7 +314,8 @@ tables:
     required_predicates:
     - customer
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 1114. Samples: ["YY","20251025"], ["AS","20251011"],
+      ["CX","20260119"]. Location: s3://s3-atp-3victors-3vdev-use1-anomaly-datasets/pax_midt/v1/.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -280,9 +330,14 @@ tables:
   source_system: redshift
   environment: 3VDEV
   description: 'External analytics.price_outlook via core reader; source s3://s3-atp-3victors-3vdev-use1-price-outlook/v1/;
-    partition columns: sales_date, customer.'
+    partition columns: sales_date, customer. Columns(44): customer_observation_date,
+    observation_datetime, origin, origin_city, origin_metro, origin_country. Partition
+    keys: sales_date, customer.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    sales_date: sales_date
+    airline: carrier
   entity_columns:
     customer: customer
   partition_policy:
@@ -292,7 +347,8 @@ tables:
     required_predicates:
     - customer
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 4133. Samples: ["20250422","SK"], ["20250802","GJ"],
+      ["20250507","SmarterTravel"]. Location: s3://s3-atp-3victors-3vdev-use1-price-outlook/v1/.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -308,9 +364,13 @@ tables:
   environment: 3VDEV
   description: 'External analytics.segment_level_analysis_v2 via core reader; source
     s3://s3-atp-3victors-3vdev-use1-anomaly-datasets/segment-analysis/v2/; partition
-    columns: customer, sales_date.'
+    columns: customer, sales_date. Columns(23): segment_name, competitive_position,
+    comparison_type, customer_brand, competitor_brand, region_name. Partition keys:
+    customer, sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    sales_date: sales_date
   entity_columns:
     customer: customer
   partition_policy:
@@ -320,7 +380,8 @@ tables:
     required_predicates:
     - customer
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 7. Samples: ["B6","20260221"], ["B6","20260222"],
+      ["YY","20260221"]. Location: s3://s3-atp-3victors-3vdev-use1-anomaly-datasets/segment-analysis/v2/.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -336,9 +397,12 @@ tables:
   environment: 3VDEV
   description: 'External analytics.segment_level_anomalies_v2 via core reader; source
     s3://s3-atp-3victors-3vdev-use1-anomaly-datasets/segment-level/v2/; partition
-    columns: customer, sales_date.'
+    columns: customer, sales_date. Columns(51): observation_date, region_name, depart_period,
+    carrier_group, cabin_group, top_offenders. Partition keys: customer, sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    sales_date: sales_date
   entity_columns:
     customer: customer
   partition_policy:
@@ -348,7 +412,8 @@ tables:
     required_predicates:
     - customer
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 212. Samples: ["INS","20250906"], ["AS","20250921"],
+      ["AS","20250824"]. Location: s3://s3-atp-3victors-3vdev-use1-anomaly-datasets/segment-level/v2/.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -364,9 +429,12 @@ tables:
   environment: 3VDEV
   description: 'External analytics.segment_level_anomalies_v4 via core reader; source
     s3://s3-atp-3victors-3vdev-use1-anomaly-datasets/segment-level/v4/; partition
-    columns: customer, sales_date.'
+    columns: customer, sales_date. Columns(56): observation_date, region_name, depart_period,
+    carrier_group, cabin_group, top_offenders. Partition keys: customer, sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    sales_date: sales_date
   entity_columns:
     customer: customer
   partition_policy:
@@ -376,7 +444,8 @@ tables:
     required_predicates:
     - customer
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 5. Samples: ["YY","20260222"], ["B6","20260222"],
+      ["B6","20260223"]. Location: s3://s3-atp-3victors-3vdev-use1-anomaly-datasets/segment-level/v4/.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -392,9 +461,12 @@ tables:
   environment: 3VDEV
   description: 'External monitoring.auto_schedule_requests via core reader; source
     s3://s3-atp-3victors-3vdev-use1-as-converted-persistence/v1/; partition columns:
-    generation_id.'
+    generation_id. Columns(36): collectiontype, hourlycollectionplanid, timeboxstartdate,
+    timeboxstarttime, timeboxenddate, timeboxendtime. Partition keys: generation_id.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    provider: provider
+    site: site
   entity_columns:
     provider: provider
     site: site
@@ -403,7 +475,8 @@ tables:
     - generation_id
     required_predicates:
     - generation_id
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 187. Samples: ["3301"], ["3206"], ["3254"]. Location:
+      s3://s3-atp-3victors-3vdev-use1-as-converted-persistence/v1/.'
   default_date_column: null
   default_customer_column: null
   default_limit: 50000
@@ -419,9 +492,14 @@ tables:
   environment: 3VDEV
   description: 'External monitoring.customer_combined_audit_v1 via core reader; source
     s3://s3-atp-3victors-3vdev-use1-customer-monitor/v1/customer-combined-audit/;
-    partition columns: sales_date.'
+    partition columns: sales_date. Columns(35): customer_salesdate, customer, customercollectionname,
+    reference, sitecategory, customersitecode. Partition keys: sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    provider: providercode
+    site: sitecode
+    sales_date: sales_date
   entity_columns:
     customer: customer
     provider: providercode
@@ -431,7 +509,8 @@ tables:
     - sales_date
     required_predicates:
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 244. Samples: ["20250703"], ["20250328"], ["20250930"].
+      Location: s3://s3-atp-3victors-3vdev-use1-customer-monitor/v1/customer-combined-audit/.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -447,9 +526,14 @@ tables:
   environment: 3VDEV
   description: 'External monitoring.customer_combined_audit_v2 via core reader; source
     s3://s3-atp-3victors-3vdev-use1-customer-monitor/v2/customer-combined-audit/;
-    partition columns: sales_date.'
+    partition columns: sales_date. Columns(38): customer_salesdate, customer, customercollectionname,
+    reference, sitecategory, customersitecode. Partition keys: sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    provider: providercode
+    site: sitecode
+    sales_date: sales_date
   entity_columns:
     customer: customer
     provider: providercode
@@ -459,7 +543,8 @@ tables:
     - sales_date
     required_predicates:
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 184. Samples: ["20260207"], ["20251101"], ["20251117"].
+      Location: s3://s3-atp-3victors-3vdev-use1-customer-monitor/v2/customer-combined-audit/.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -475,16 +560,19 @@ tables:
   environment: 3VDEV
   description: 'External monitoring.deduped_cache_loader_audit via core reader; source
     s3://s3-atp-3victors-3vdev-use1-deduped-datasets/v1/cache_loader_audit/; partition
-    columns: sales_date.'
+    columns: sales_date. Columns(5): providerrequestauditid, itinerarycount, occurrences,
+    lastupdated, sales_date. Partition keys: sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    sales_date: sales_date
   entity_columns: {}
   partition_policy:
     partition_columns:
     - sales_date
     required_predicates:
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 389. Samples: ["20250224"], ["20251115"], ["20250812"].
+      Location: s3://s3-atp-3victors-3vdev-use1-deduped-datasets/v1/cache_loader_audit/.'
   default_date_column: sales_date
   default_customer_column: null
   default_limit: 50000
@@ -500,9 +588,12 @@ tables:
   environment: 3VDEV
   description: 'External monitoring.deduped_delivery_audit via core reader; source
     s3://s3-atp-3victors-3vdev-use1-deduped-datasets/v1/delivery_audit/; partition
-    columns: sales_date.'
+    columns: sales_date. Columns(15): providerrequestauditid, customer, customercollectionid,
+    customercollectionname, customerdeliveryid, groupid. Partition keys: sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    sales_date: sales_date
   entity_columns:
     customer: customer
   partition_policy:
@@ -510,7 +601,8 @@ tables:
     - sales_date
     required_predicates:
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 389. Samples: ["20250821"], ["20250611"], ["20250622"].
+      Location: s3://s3-atp-3victors-3vdev-use1-deduped-datasets/v1/delivery_audit/.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -526,16 +618,19 @@ tables:
   environment: 3VDEV
   description: 'External monitoring.deduped_enrichment_audit via core reader; source
     s3://s3-atp-3victors-3vdev-use1-deduped-datasets/v1/enrichment_audit/; partition
-    columns: sales_date.'
+    columns: sales_date. Columns(40): providerrequestauditid, enrichmentstatus, itinerarycount,
+    successcount, failcount, successbrand. Partition keys: sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    sales_date: sales_date
   entity_columns: {}
   partition_policy:
     partition_columns:
     - sales_date
     required_predicates:
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 389. Samples: ["20250517"], ["20251125"], ["20250925"].
+      Location: s3://s3-atp-3victors-3vdev-use1-deduped-datasets/v1/enrichment_audit/.'
   default_date_column: sales_date
   default_customer_column: null
   default_limit: 50000
@@ -551,16 +646,20 @@ tables:
   environment: 3VDEV
   description: 'External monitoring.deduped_global_filter_audit_summary via core reader;
     source s3://s3-atp-3victors-3vdev-use1-deduped-datasets/v1/global_filter_audit_summary/;
-    partition columns: sales_date.'
+    partition columns: sales_date. Columns(6): providerrequestauditid, totalitineraries,
+    totalitinerariesafterfiltering, occurrences, lastupdated, sales_date. Partition
+    keys: sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    sales_date: sales_date
   entity_columns: {}
   partition_policy:
     partition_columns:
     - sales_date
     required_predicates:
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 389. Samples: ["20250616"], ["20251126"], ["20250827"].
+      Location: s3://s3-atp-3victors-3vdev-use1-deduped-datasets/v1/global_filter_audit_summary/.'
   default_date_column: sales_date
   default_customer_column: null
   default_limit: 50000
@@ -576,9 +675,13 @@ tables:
   environment: 3VDEV
   description: 'External monitoring.deduped_packager_audit via core reader; source
     s3://s3-atp-3victors-3vdev-use1-deduped-datasets/v1/packager_audit/; partition
-    columns: sales_date.'
+    columns: sales_date. Columns(14): providerrequestauditid, inputrequestid, customer,
+    customercollectionid, customercollectionname, deliverytimestamp. Partition keys:
+    sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    sales_date: sales_date
   entity_columns:
     customer: customer
   partition_policy:
@@ -586,7 +689,8 @@ tables:
     - sales_date
     required_predicates:
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 389. Samples: ["20250615"], ["20251120"], ["20250617"].
+      Location: s3://s3-atp-3victors-3vdev-use1-deduped-datasets/v1/packager_audit/.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -602,9 +706,14 @@ tables:
   environment: 3VDEV
   description: 'External monitoring.deduped_provider_request_audit via core reader;
     source s3://s3-atp-3victors-3vdev-use1-deduped-datasets/v1/provider_request_audit/;
-    partition columns: sales_date.'
+    partition columns: sales_date. Columns(25): id, scheduledate, scheduletime, actualscheduletimestamp,
+    observationtimestamp, providercode. Partition keys: sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    provider: providercode
+    site: sitecode
+    sales_date: sales_date
+    id: id
   entity_columns:
     provider: providercode
     site: sitecode
@@ -613,7 +722,8 @@ tables:
     - sales_date
     required_predicates:
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 389. Samples: ["20250421"], ["20250831"], ["20250626"].
+      Location: s3://s3-atp-3victors-3vdev-use1-deduped-datasets/v1/provider_request_audit/.'
   default_date_column: sales_date
   default_customer_column: null
   default_limit: 50000
@@ -629,9 +739,13 @@ tables:
   environment: 3VDEV
   description: 'External monitoring.deduped_provider_request_audit_detail via core
     reader; source s3://s3-atp-3victors-3vdev-use1-deduped-datasets/v1/provider_request_audit_detail/;
-    partition columns: sales_date.'
+    partition columns: sales_date. Columns(12): providerrequestauditid, inputrequestid,
+    customer, customercollectionid, customercollectionname, customer_salesdate. Partition
+    keys: sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    sales_date: sales_date
   entity_columns:
     customer: customer
   partition_policy:
@@ -639,7 +753,8 @@ tables:
     - sales_date
     required_predicates:
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 389. Samples: ["20260221"], ["20250917"], ["20250823"].
+      Location: s3://s3-atp-3victors-3vdev-use1-deduped-datasets/v1/provider_request_audit_detail/.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -655,16 +770,19 @@ tables:
   environment: 3VDEV
   description: 'External monitoring.deduped_provider_response_audit via core reader;
     source s3://s3-atp-3victors-3vdev-use1-deduped-datasets/v1/provider_response_audit/;
-    partition columns: sales_date.'
+    partition columns: sales_date. Columns(10): providerrequestauditid, statuses,
+    status, errormessage, itinerarycount, possite. Partition keys: sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    sales_date: sales_date
   entity_columns: {}
   partition_policy:
     partition_columns:
     - sales_date
     required_predicates:
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 389. Samples: ["20250513"], ["20260214"], ["20260203"].
+      Location: s3://s3-atp-3victors-3vdev-use1-deduped-datasets/v1/provider_response_audit/.'
   default_date_column: sales_date
   default_customer_column: null
   default_limit: 50000
@@ -679,16 +797,19 @@ tables:
   source_system: redshift
   environment: 3VDEV
   description: 'External monitoring.deduped_retry_audit via core reader; source s3://s3-atp-3victors-3vdev-use1-deduped-datasets/v1/retry_audit/;
-    partition columns: sales_date.'
+    partition columns: sales_date. Columns(8): originalrequestid, retryrequestid,
+    retryprovider, retrysite, retryreason, occurrences. Partition keys: sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    sales_date: sales_date
   entity_columns: {}
   partition_policy:
     partition_columns:
     - sales_date
     required_predicates:
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 389. Samples: ["20250525"], ["20250425"], ["20250311"].
+      Location: s3://s3-atp-3victors-3vdev-use1-deduped-datasets/v1/retry_audit/.'
   default_date_column: sales_date
   default_customer_column: null
   default_limit: 50000
@@ -703,9 +824,12 @@ tables:
   source_system: redshift
   environment: 3VDEV
   description: 'External monitoring.provider_health via core reader; source s3://price-eye-provider-health-parquet/provider-health/v1/;
-    partition columns: eval_date, eval_hour.'
+    partition columns: eval_date, eval_hour. Columns(11): provider_code, health_state,
+    worst_site_code, total_sites, down_sites, degraded_sites. Partition keys: eval_date,
+    eval_hour.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    provider: provider_code
   entity_columns:
     provider: provider_code
   partition_policy:
@@ -714,7 +838,8 @@ tables:
     - eval_hour
     required_predicates:
     - eval_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 5. Samples: ["20260220","4"], ["20260222","14"], ["20260220","14"].
+      Location: s3://price-eye-provider-health-parquet/provider-health/v1/.'
   default_date_column: null
   default_customer_column: null
   default_limit: 50000
@@ -729,9 +854,13 @@ tables:
   source_system: redshift
   environment: 3VDEV
   description: 'External monitoring.provider_site_health via core reader; source s3://price-eye-provider-health-parquet/provider-site-health/v1/;
-    partition columns: eval_date, eval_hour.'
+    partition columns: eval_date, eval_hour. Columns(12): provider_code, site_code,
+    health_state, evaluation_notes, total_requests, successful_requests. Partition
+    keys: eval_date, eval_hour.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    provider: provider_code
+    site: site_code
   entity_columns:
     provider: provider_code
     site: site_code
@@ -741,7 +870,8 @@ tables:
     - eval_hour
     required_predicates:
     - eval_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 5. Samples: ["20260222","14"], ["20260220","14"],
+      ["20260221","15"]. Location: s3://price-eye-provider-health-parquet/provider-site-health/v1/.'
   default_date_column: null
   default_customer_column: null
   default_limit: 50000
@@ -756,9 +886,14 @@ tables:
   source_system: redshift
   environment: 3VDEV
   description: 'External monitoring.response_dupes via core reader; source s3://s3-atp-3victors-3vdev-use1-provider-monitor/v1/response-dupes;
-    partition columns: sales_date.'
+    partition columns: sales_date. Columns(7): id, providercode, sitecode, possite,
+    response_status, response_count. Partition keys: sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    provider: providercode
+    site: sitecode
+    sales_date: sales_date
+    id: id
   entity_columns:
     provider: providercode
     site: sitecode
@@ -767,7 +902,8 @@ tables:
     - sales_date
     required_predicates:
     - sales_date
-    notes: Derived from svv_external_columns.part_key and validated via svv_external_partitions.
+    notes: 'Catalog partitions: 112. Samples: ["20260219"], ["20260124"], ["20251128"].
+      Location: s3://s3-atp-3victors-3vdev-use1-provider-monitor/v1/response-dupes.'
   default_date_column: sales_date
   default_customer_column: null
   default_limit: 50000

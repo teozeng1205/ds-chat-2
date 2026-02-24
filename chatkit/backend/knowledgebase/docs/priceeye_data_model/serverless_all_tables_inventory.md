@@ -9,6 +9,7 @@ Reader profile: `database-analytics-redshift-serverless-reader.properties`.
 - Total discovered: 592
 - New KB specs added in this pass: 521
 - Coverage check result: 100% of discovered serverless-reader tables are represented in KB.
+- Column-level introspection coverage: 587/592 tables. The remaining 5 are present in KB with access-limited metadata notes.
 
 ## External Schemas
 - `adf`: 1
@@ -43,3 +44,10 @@ Reader profile: `database-analytics-redshift-serverless-reader.properties`.
 ## KB Catalog Files
 - `knowledgebase/tables/priceeye_serverless_all_tables.yaml` (comprehensive all-table catalog from this pass).
 - Existing table catalogs remain in place for curated/query-priority use cases.
+
+## Access-Limited Tables
+- `garcemont.mv_tbl__b6_cce_daily_v1__0`
+- `grayson.mv_tbl__b6_test__0`
+- `grayson.mv_tbl__billing_v2__0`
+- `pg_internal.padb_internal_mddl_conjunct_hash_mapping`
+- `pg_s3.local$monitoring$customer_combined_audit_v2$grayson$b6_test`

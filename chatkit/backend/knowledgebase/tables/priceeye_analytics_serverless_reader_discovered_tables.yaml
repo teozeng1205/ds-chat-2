@@ -5,9 +5,12 @@ tables:
   environment: 3VDEV
   description: 'Analytics serverless reader table billing.customer_daily_requests_v1;
     source s3://s3-atp-3victors-3vdev-use1-billing/v1/customer_daily_requests; partition
-    columns: sales_date.'
+    columns: sales_date. Columns(20): customer, cust_run_dt, total_reqs, requested_by_customers,
+    gds_scheduled, ota_scheduled. Partition keys: sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    sales_date: sales_date
   entity_columns:
     customer: customer
   partition_policy:
@@ -15,7 +18,8 @@ tables:
     - sales_date
     required_predicates:
     - sales_date
-    notes: Derived from serverless reader scan (svv_external_columns/svv_external_partitions).
+    notes: 'Catalog partitions: 309. Samples: ["20250824"], ["20250908"], ["20251117"].
+      Location: s3://s3-atp-3victors-3vdev-use1-billing/v1/customer_daily_requests.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -24,15 +28,21 @@ tables:
   - analytics-serverless-reader
   - discovered
   - billing
+  - partition-checked
 - table_id: analytics_serverless_billing_customer_daily_requests_v2
   physical_name: prod.billing.customer_daily_requests_v2
   source_system: redshift
   environment: 3VDEV
   description: 'Analytics serverless reader table billing.customer_daily_requests_v2;
     source s3://s3-atp-3victors-3vdev-use1-billing/v2/customer_daily_requests; partition
-    columns: sales_date.'
+    columns: sales_date. Columns(23): customer, cust_run_dt, providercode, total_reqs,
+    requested_by_customers, gds_scheduled. Partition keys: sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    provider: providercode
+    sales_date: sales_date
+    customer_site_code: customer_site_code
   entity_columns:
     customer: customer
     provider: providercode
@@ -41,7 +51,8 @@ tables:
     - sales_date
     required_predicates:
     - sales_date
-    notes: Derived from serverless reader scan (svv_external_columns/svv_external_partitions).
+    notes: 'Catalog partitions: 206. Samples: ["20260109"], ["20251031"], ["20260110"].
+      Location: s3://s3-atp-3victors-3vdev-use1-billing/v2/customer_daily_requests.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -50,15 +61,20 @@ tables:
   - analytics-serverless-reader
   - discovered
   - billing
+  - partition-checked
 - table_id: analytics_serverless_billing_customer_daily_requests_v3
   physical_name: billing.customer_daily_requests_v3
   source_system: redshift
   environment: 3VDEV
   description: 'Analytics serverless reader table billing.customer_daily_requests_v3;
     source s3://s3-atp-3victors-3vdev-use1-billing/v3/customer_daily_requests; partition
-    columns: sales_date.'
+    columns: sales_date. Columns(24): customer, cust_run_dt, customer_site_code, customersitetype,
+    customercollectionname, reference. Partition keys: sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    sales_date: sales_date
+    customer_site_code: customer_site_code
   entity_columns:
     customer: customer
   partition_policy:
@@ -66,7 +82,8 @@ tables:
     - sales_date
     required_predicates:
     - sales_date
-    notes: Derived from serverless reader scan (svv_external_columns/svv_external_partitions).
+    notes: 'Catalog partitions: 84. Samples: ["20260129"], ["20251226"], ["20260201"].
+      Location: s3://s3-atp-3victors-3vdev-use1-billing/v3/customer_daily_requests.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -75,22 +92,28 @@ tables:
   - analytics-serverless-reader
   - discovered
   - billing
+  - partition-checked
 - table_id: analytics_serverless_channel_comparison_carrier_miles_stats
   physical_name: channel_comparison.carrier_miles_stats
   source_system: redshift
   environment: 3VDEV
   description: 'Analytics serverless reader table channel_comparison.carrier_miles_stats;
     source s3://s3-atp-3victors-3vdev-use1-chnl-comp-datasets/v1/carrier_miles_stats/;
-    partition columns: sales_date.'
+    partition columns: sales_date. Columns(13): carrier_code, main_point_of_origin,
+    market_count, flight_count, codeshare_included, min_distance. Partition keys:
+    sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    sales_date: sales_date
+    airline: carrier_code
   entity_columns: {}
   partition_policy:
     partition_columns:
     - sales_date
     required_predicates:
     - sales_date
-    notes: Derived from serverless reader scan (svv_external_columns/svv_external_partitions).
+    notes: 'Catalog partitions: 12. Samples: ["20250603"], ["20251103"], ["20260103"].
+      Location: s3://s3-atp-3victors-3vdev-use1-chnl-comp-datasets/v1/carrier_miles_stats/.'
   default_date_column: sales_date
   default_customer_column: null
   default_limit: 50000
@@ -99,22 +122,27 @@ tables:
   - analytics-serverless-reader
   - discovered
   - channel_comparison
+  - partition-checked
 - table_id: analytics_serverless_channel_comparison_channel_availability
   physical_name: channel_comparison.channel_availability
   source_system: redshift
   environment: 3VDEV
   description: 'Analytics serverless reader table channel_comparison.channel_availability;
     source s3://s3-atp-3victors-3vdev-use1-chnl-comp-datasets/cc_exec/v1/channel_availability;
-    partition columns: sales_date.'
+    partition columns: sales_date. Columns(5): airline, ota, mse, gds, sales_date.
+    Partition keys: sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    sales_date: sales_date
+    airline: airline
   entity_columns: {}
   partition_policy:
     partition_columns:
     - sales_date
     required_predicates:
     - sales_date
-    notes: Derived from serverless reader scan (svv_external_columns/svv_external_partitions).
+    notes: 'Catalog partitions: 13. Samples: ["20260222"], ["20251005"], ["20251012"].
+      Location: s3://s3-atp-3victors-3vdev-use1-chnl-comp-datasets/cc_exec/v1/channel_availability.'
   default_date_column: sales_date
   default_customer_column: null
   default_limit: 50000
@@ -123,15 +151,19 @@ tables:
   - analytics-serverless-reader
   - discovered
   - channel_comparison
+  - partition-checked
 - table_id: analytics_serverless_channel_comparison_channel_daily_compare
   physical_name: channel_comparison.channel_daily_compare
   source_system: redshift
   environment: 3VDEV
   description: 'Analytics serverless reader table channel_comparison.channel_daily_compare;
     source s3://s3-atp-3victors-3vdev-use1-chnl-comp-datasets/cc_exec/v1/daily_compare/;
-    partition columns: airline, sales_date.'
+    partition columns: airline, sales_date. Columns(92): key, od, ddt_ob, flt_ob,
+    ddt_ib, flt_ib. Partition keys: airline, sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    sales_date: sales_date
+    airline: airline
   entity_columns: {}
   partition_policy:
     partition_columns:
@@ -139,7 +171,8 @@ tables:
     - sales_date
     required_predicates:
     - sales_date
-    notes: Derived from serverless reader scan (svv_external_columns/svv_external_partitions).
+    notes: 'Catalog partitions: 18139. Samples: ["ET","20260212"], ["A3","20251223"],
+      ["EY","20251001"]. Location: s3://s3-atp-3victors-3vdev-use1-chnl-comp-datasets/cc_exec/v1/daily_compare/.'
   default_date_column: sales_date
   default_customer_column: null
   default_limit: 50000
@@ -148,15 +181,20 @@ tables:
   - analytics-serverless-reader
   - discovered
   - channel_comparison
+  - partition-checked
 - table_id: analytics_serverless_channel_comparison_channel_period_summary
   physical_name: channel_comparison.channel_period_summary
   source_system: redshift
   environment: 3VDEV
   description: 'Analytics serverless reader table channel_comparison.channel_period_summary;
     source s3://s3-atp-3victors-3vdev-use1-chnl-comp-datasets/cc_exec/v1/period_summary;
-    partition columns: period, airline, sales_date.'
+    partition columns: period, airline, sales_date. Columns(12): channel_type, dimension,
+    dimension_value, count_of, count, obs_minute_diff_avg. Partition keys: period,
+    airline, sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    sales_date: sales_date
+    airline: airline
   entity_columns: {}
   partition_policy:
     partition_columns:
@@ -165,7 +203,8 @@ tables:
     - sales_date
     required_predicates:
     - sales_date
-    notes: Derived from serverless reader scan (svv_external_columns/svv_external_partitions).
+    notes: 'Catalog partitions: 2003. Samples: ["weekly","BT","20250914"], ["monthly","FZ","20250928"],
+      ["weekly","QR","20260222"]. Location: s3://s3-atp-3victors-3vdev-use1-chnl-comp-datasets/cc_exec/v1/period_summary.'
   default_date_column: sales_date
   default_customer_column: null
   default_limit: 50000
@@ -174,15 +213,20 @@ tables:
   - analytics-serverless-reader
   - discovered
   - channel_comparison
+  - partition-checked
 - table_id: analytics_serverless_common_output_common_output_format
   physical_name: prod.common_output.common_output_format
   source_system: redshift
   environment: 3VDEV
   description: 'Analytics serverless reader table common_output.common_output_format;
     source s3://s3-atp-3victors-3vdev-use1-pe-common-output/; partition columns: sales_date,
-    customer.'
+    customer. Columns(144): feed, observation_date, observation_time, reference, source,
+    pos. Partition keys: sales_date, customer.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    sales_date: sales_date
+    airline: carrier
   entity_columns:
     customer: customer
   partition_policy:
@@ -192,7 +236,8 @@ tables:
     required_predicates:
     - customer
     - sales_date
-    notes: Derived from serverless reader scan (svv_external_columns/svv_external_partitions).
+    notes: 'Catalog partitions: 2630. Samples: ["20250726","WNVacations"], ["20250416","WNVacations"],
+      ["20250902","Sanity1"]. Location: s3://s3-atp-3victors-3vdev-use1-pe-common-output/.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -201,15 +246,21 @@ tables:
   - analytics-serverless-reader
   - discovered
   - common_output
+  - partition-checked
 - table_id: analytics_serverless_webfares_infare_pricing_data_v1
   physical_name: webfares.infare_pricing_data_v1
   source_system: redshift
   environment: 3VDEV
   description: 'Analytics serverless reader table webfares.infare_pricing_data_v1;
     source s3://s3-atp-3victors-3vdev-use1-webfares/infare/v1; partition columns:
-    customer, sales_date.'
+    customer, sales_date. Columns(42): id, observation_date, observation_time, pos,
+    origin, destination. Partition keys: customer, sales_date.'
   primary_keys: []
-  join_keys: {}
+  join_keys:
+    customer: customer
+    sales_date: sales_date
+    id: id
+    airline: carrier
   entity_columns:
     customer: customer
   partition_policy:
@@ -219,7 +270,8 @@ tables:
     required_predicates:
     - customer
     - sales_date
-    notes: Derived from serverless reader scan (svv_external_columns/svv_external_partitions).
+    notes: 'Catalog partitions: 16. Samples: ["J2","20260205"], ["F9","20260205"],
+      ["HA","20260205"]. Location: s3://s3-atp-3victors-3vdev-use1-webfares/infare/v1.'
   default_date_column: sales_date
   default_customer_column: customer
   default_limit: 50000
@@ -228,3 +280,4 @@ tables:
   - analytics-serverless-reader
   - discovered
   - webfares
+  - partition-checked
