@@ -1,142 +1,199 @@
 tables:
-  - table_id: analytics_market_level_anomalies
-    physical_name: prod.analytics.market_level_anomalies
-    source_system: redshift
-    environment: 3VDEV
-    description: Spark-produced market-level anomalies fact table.
-    entity_columns:
-      customer: customer
-    partition_policy:
-      partition_columns: [customer, sales_date]
-      required_predicates: [customer, sales_date]
-      notes: Always prune by customer and sales_date.
-    default_date_column: sales_date
-    default_customer_column: customer
-    default_limit: 50000
-    tags: [analytics, anomalies, market]
-
-  - table_id: analytics_segment_level_anomalies
-    physical_name: prod.analytics.segment_level_anomalies
-    source_system: redshift
-    environment: 3VDEV
-    description: Spark-produced segment-level anomalies fact table.
-    entity_columns:
-      customer: customer
-    partition_policy:
-      partition_columns: [customer, sales_date]
-      required_predicates: [customer, sales_date]
-      notes: Always prune by customer and sales_date.
-    default_date_column: sales_date
-    default_customer_column: customer
-    default_limit: 50000
-    tags: [analytics, anomalies, segment]
-
-  - table_id: analytics_oag_score_v2
-    physical_name: prod.analytics.oag_score_v2
-    source_system: redshift
-    environment: 3VDEV
-    description: OAG seat supply and share scoring features by market.
-    entity_columns:
-      customer: customer
-    partition_policy:
-      partition_columns: [customer]
-      required_predicates: [customer]
-      notes: Customer predicate required for bounded scans.
-    default_customer_column: customer
-    default_limit: 50000
-    tags: [analytics, oag, features]
-
-  - table_id: analytics_revenue_score_v1
-    physical_name: prod.analytics.revenue_score_v1
-    source_system: redshift
-    environment: 3VDEV
-    description: Revenue score features used in impact scoring.
-    entity_columns:
-      customer: customer
-    partition_policy:
-      partition_columns: [customer, sales_date]
-      required_predicates: [customer, sales_date]
-      notes: Customer and date predicates required.
-    default_date_column: sales_date
-    default_customer_column: customer
-    default_limit: 50000
-    tags: [analytics, revenue, features]
-
-  - table_id: analytics_segment_level_anomalies_v3
-    physical_name: prod.analytics.segment_level_anomalies_v3
-    source_system: redshift
-    environment: 3VDEV
-    description: V3 segment anomaly view enriched with market scoring columns.
-    entity_columns:
-      customer: customer
-    partition_policy:
-      partition_columns: [customer, sales_date]
-      required_predicates: [customer, sales_date]
-      notes: Use both customer and sales_date predicates.
-    default_date_column: sales_date
-    default_customer_column: customer
-    default_limit: 50000
-    tags: [analytics, anomalies, segment, v3]
-
-  - table_id: analytics_anomalies_direction_score
-    physical_name: analytics.anomalies_direction_score
-    source_system: mysql
-    environment: 3VDEV
-    description: Direction weighting table for anomaly scoring.
-    partition_policy:
-      partition_columns: []
-      required_predicates: []
-    tags: [analytics, lookup, mysql]
-
-  - table_id: analytics_anomalies_impact_score_weights
-    physical_name: analytics.anomalies_impact_score_weights
-    source_system: mysql
-    environment: 3VDEV
-    description: Customer-specific impact weight configuration.
-    entity_columns:
-      customer: customer
-    partition_policy:
-      partition_columns: [customer]
-      required_predicates: [customer]
-      notes: Customer predicate recommended/required.
-    default_customer_column: customer
-    tags: [analytics, lookup, mysql]
-
-  - table_id: market_level_generator_s3
-    physical_name: s3://s3-atp-3victors-3vdev-use1-anomaly-datasets/market-level/
-    source_system: s3
-    environment: 3VDEV
-    description: Curated market-level anomaly parquet output.
-    partition_policy:
-      partition_columns: [customer, sales_date]
-      required_predicates: [sales_date]
-      notes: Prefix includes customer/date; prune by date and preferably customer.
-    default_date_column: sales_date
-    default_limit: 200000
-    tags: [s3, anomalies, market]
-
-  - table_id: segment_level_generator_s3
-    physical_name: s3://s3-atp-3victors-3vdev-use1-anomaly-datasets/segment-level/v3/
-    source_system: s3
-    environment: 3VDEV
-    description: Curated segment-level anomaly parquet output.
-    partition_policy:
-      partition_columns: [customer, sales_date]
-      required_predicates: [sales_date]
-      notes: Prefix includes customer/date; prune by date and preferably customer.
-    default_date_column: sales_date
-    default_limit: 200000
-    tags: [s3, anomalies, segment]
-
-  - table_id: derived_common_output_s3
-    physical_name: s3://s3-atp-3victors-3vdev-use1-derived-common-output/
-    source_system: s3
-    environment: 3VDEV
-    description: Derived common output parquet used upstream of anomaly jobs.
-    partition_policy:
-      partition_columns: [customer, sales_date]
-      required_predicates: [sales_date]
-      notes: Hourly date path; always constrain by date range.
-    default_date_column: sales_date
-    default_limit: 200000
-    tags: [s3, derived_common_output]
+- table_id: analytics_market_level_anomalies
+  physical_name: prod.analytics.market_level_anomalies
+  source_system: redshift
+  environment: 3VDEV
+  description: 'Spark-produced market-level anomalies fact table Key columns: segment_name,
+    competitive_position, metro_market, region_name, depart_period, carrier_group....'
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns:
+    - customer
+    - sales_date
+    required_predicates:
+    - customer
+    - sales_date
+    notes: Always prune by customer and sales_date.
+  default_date_column: sales_date
+  default_customer_column: customer
+  default_limit: 50000
+  tags:
+  - analytics
+  - anomalies
+  - market
+- table_id: analytics_segment_level_anomalies
+  physical_name: prod.analytics.segment_level_anomalies
+  source_system: redshift
+  environment: 3VDEV
+  description: 'Spark-produced segment-level anomalies fact table Key columns: segment_name,
+    competitive_position, region_name, depart_period, carrier_group, cabin_group....'
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns:
+    - customer
+    - sales_date
+    required_predicates:
+    - customer
+    - sales_date
+    notes: Always prune by customer and sales_date.
+  default_date_column: sales_date
+  default_customer_column: customer
+  default_limit: 50000
+  tags:
+  - analytics
+  - anomalies
+  - segment
+- table_id: analytics_oag_score_v2
+  physical_name: prod.analytics.oag_score_v2
+  source_system: redshift
+  environment: 3VDEV
+  description: 'OAG seat supply and share scoring features by market Key columns:
+    origin_metro, destination_metro, ct, carrier_code, number_of_seats, metro_od....'
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns:
+    - customer
+    required_predicates:
+    - customer
+    notes: Customer predicate required for bounded scans.
+  default_customer_column: customer
+  default_limit: 50000
+  tags:
+  - analytics
+  - oag
+  - features
+- table_id: analytics_revenue_score_v1
+  physical_name: prod.analytics.revenue_score_v1
+  source_system: redshift
+  environment: 3VDEV
+  description: 'Revenue score features used in impact scoring Key columns: ap_band,
+    origin_metro, destination_metro, cabin_group, midt_pax, selected_fare....'
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns:
+    - customer
+    - sales_date
+    required_predicates:
+    - customer
+    - sales_date
+    notes: Customer and date predicates required.
+  default_date_column: sales_date
+  default_customer_column: customer
+  default_limit: 50000
+  tags:
+  - analytics
+  - revenue
+  - features
+- table_id: analytics_segment_level_anomalies_v3
+  physical_name: prod.analytics.segment_level_anomalies_v3
+  source_system: redshift
+  environment: 3VDEV
+  description: 'V3 segment anomaly view enriched with market scoring columns Key columns:
+    observation_date, region_name, depart_period, carrier_group, cabin_group, top_offenders....'
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns:
+    - customer
+    - sales_date
+    required_predicates:
+    - customer
+    - sales_date
+    notes: Use both customer and sales_date predicates.
+  default_date_column: sales_date
+  default_customer_column: customer
+  default_limit: 50000
+  tags:
+  - analytics
+  - anomalies
+  - segment
+  - v3
+- table_id: analytics_anomalies_direction_score
+  physical_name: analytics.anomalies_direction_score
+  source_system: mysql
+  environment: 3VDEV
+  description: 'Direction weighting table for anomaly scoring Key columns: competitive_position,
+    freq_pcnt_direction, mag_pcnt_direction, direction_score.'
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  tags:
+  - analytics
+  - lookup
+  - mysql
+- table_id: analytics_anomalies_impact_score_weights
+  physical_name: analytics.anomalies_impact_score_weights
+  source_system: mysql
+  environment: 3VDEV
+  description: 'Customer-specific impact weight configuration Key columns: customer,
+    dimension, weights, last_updated, last_updated_by.'
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns:
+    - customer
+    required_predicates:
+    - customer
+    notes: Customer predicate recommended/required.
+  default_customer_column: customer
+  tags:
+  - analytics
+  - lookup
+  - mysql
+- table_id: market_level_generator_s3
+  physical_name: s3://s3-atp-3victors-3vdev-use1-anomaly-datasets/market-level/
+  source_system: s3
+  environment: 3VDEV
+  description: Curated market-level anomaly parquet output.
+  partition_policy:
+    partition_columns:
+    - customer
+    - sales_date
+    required_predicates:
+    - sales_date
+    notes: Prefix includes customer/date; prune by date and preferably customer.
+  default_date_column: sales_date
+  default_limit: 200000
+  tags:
+  - s3
+  - anomalies
+  - market
+- table_id: segment_level_generator_s3
+  physical_name: s3://s3-atp-3victors-3vdev-use1-anomaly-datasets/segment-level/v3/
+  source_system: s3
+  environment: 3VDEV
+  description: Curated segment-level anomaly parquet output.
+  partition_policy:
+    partition_columns:
+    - customer
+    - sales_date
+    required_predicates:
+    - sales_date
+    notes: Prefix includes customer/date; prune by date and preferably customer.
+  default_date_column: sales_date
+  default_limit: 200000
+  tags:
+  - s3
+  - anomalies
+  - segment
+- table_id: derived_common_output_s3
+  physical_name: s3://s3-atp-3victors-3vdev-use1-derived-common-output/
+  source_system: s3
+  environment: 3VDEV
+  description: Derived common output parquet used upstream of anomaly jobs.
+  partition_policy:
+    partition_columns:
+    - customer
+    - sales_date
+    required_predicates:
+    - sales_date
+    notes: Hourly date path; always constrain by date range.
+  default_date_column: sales_date
+  default_limit: 200000
+  tags:
+  - s3
+  - derived_common_output

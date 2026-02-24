@@ -93,3 +93,73 @@ relationships:
     right_key: customer
     relationship: one_to_many
     notes: derived common output is upstream input to competitive/anomaly spark jobs.
+
+  - left_table_id: priceeye_customer
+    right_table_id: priceeye_site_hierarchy
+    left_key: name
+    right_key: customer
+    relationship: one_to_many
+    notes: site hierarchy rows are scoped by customer code from customer master.
+
+  - left_table_id: priceeye_customer_site_code
+    right_table_id: priceeye_site_hierarchy
+    left_key: customer_site_code
+    right_key: customer_site_code
+    relationship: one_to_many
+    notes: site hierarchy resolves customer site code to prioritized provider/site routes.
+
+  - left_table_id: priceeye_site_hierarchy
+    right_table_id: priceeye_site
+    left_key: site_code
+    right_key: site_code
+    relationship: many_to_one
+    notes: hierarchy routes reference provider/site entries in site master.
+
+  - left_table_id: priceeye_site_metrics
+    right_table_id: priceeye_site
+    left_key: site_code
+    right_key: site_code
+    relationship: many_to_one
+    notes: site metrics store capacity/rate controls per provider/site/hour.
+
+  - left_table_id: priceeye_transaction_rates
+    right_table_id: priceeye_provider
+    left_key: provider
+    right_key: provider_code
+    relationship: many_to_one
+    notes: provider-level TPS settings align with provider master records.
+
+  - left_table_id: priceeye_runtime_archive
+    right_table_id: priceeye_site_hierarchy
+    left_key: customer_site_code
+    right_key: customer_site_code
+    relationship: many_to_one
+    notes: runtime scheduling rows reference customer site hierarchy routing keys.
+
+  - left_table_id: priceeye_auto_schedule_trigger
+    right_table_id: priceeye_runtime_archive
+    left_key: input_customer
+    right_key: customer
+    relationship: many_to_many
+    notes: autoscheduler triggers create/affect runtime scheduling records by customer/site context.
+
+  - left_table_id: priceeye_customer_collection_input_files
+    right_table_id: priceeye_customer_collection
+    left_key: customerCollectionId
+    right_key: id
+    relationship: many_to_one
+    notes: bridge table linking collections to input files.
+
+  - left_table_id: priceeye_customer_collection
+    right_table_id: priceeye_customer
+    left_key: customer
+    right_key: name
+    relationship: many_to_one
+    notes: customer collection definitions are scoped by customer master name.
+
+  - left_table_id: priceeye_dashboard_details
+    right_table_id: priceeye_customer
+    left_key: customer
+    right_key: name
+    relationship: many_to_one
+    notes: dashboard settings are configured by customer.

@@ -1,0 +1,1890 @@
+tables:
+- table_id: priceeye_airline_capacity_rank
+  physical_name: priceeye.airline_capacity_rank
+  source_system: mysql
+  environment: 3VDEV
+  description: 'airline_capacity_rank table for analytics support; ~705 rows; key
+    columns: airline_code, capacity_seats, capacity_rank, source, updated_at.'
+  primary_keys:
+  - airline_code
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - analytics_support
+- table_id: priceeye_airline_joint_business
+  physical_name: priceeye.airline_joint_business
+  source_system: mysql
+  environment: 3VDEV
+  description: 'airline_joint_business table for operations misc; ~63 rows; key columns:
+    marketing_airline, joint_business_carrier.'
+  primary_keys:
+  - marketing_airline
+  - joint_business_carrier
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_atlas_carriers
+  physical_name: priceeye.atlas_carriers
+  source_system: mysql
+  environment: 3VDEV
+  description: 'atlas_carriers table for reference data; ~127 rows; key columns: carrier,
+    last_updated.'
+  primary_keys:
+  - carrier
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - reference_data
+- table_id: priceeye_atlas_routes
+  physical_name: priceeye.atlas_routes
+  source_system: mysql
+  environment: 3VDEV
+  description: 'atlas_routes table for reference data; ~189158 rows; key columns:
+    origin, destination, carrier, isDirect, scheduleStart.'
+  primary_keys:
+  - origin
+  - destination
+  - carrier
+  - isDirect
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - reference_data
+- table_id: priceeye_atp_brands
+  physical_name: priceeye.atp_brands
+  source_system: mysql
+  environment: 3VDEV
+  description: 'atp_brands table for reference data; ~419235 rows; key columns: carrier_code,
+    rule_tariff_code, fare_basis_code, brand_name.'
+  primary_keys: []
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - reference_data
+- table_id: priceeye_audit_generator_config
+  physical_name: priceeye.audit_generator_config
+  source_system: mysql
+  environment: 3VDEV
+  description: 'audit_generator_config table for operations misc; ~3 rows; key columns:
+    requestor, lastHour, lastOffset.'
+  primary_keys:
+  - requestor
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_auto_schedule_last_trigger
+  physical_name: priceeye.auto_schedule_last_trigger
+  source_system: mysql
+  environment: 3VDEV
+  description: 'auto_schedule_last_trigger table for scheduling routing; ~0 rows;
+    key columns: app_name, trigger_id, last_updated.'
+  primary_keys:
+  - app_name
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - scheduling_routing
+- table_id: priceeye_auto_schedule_trigger
+  physical_name: priceeye.auto_schedule_trigger
+  source_system: mysql
+  environment: 3VDEV
+  description: 'auto_schedule_trigger table for scheduling routing; ~94 rows; key
+    columns: id, provider_code, site_code, triggered_by, input_location.'
+  primary_keys:
+  - id
+  join_keys:
+    customer: input_customer
+    provider: provider_code
+    site: site_code
+  entity_columns:
+    provider: provider_code
+    site: site_code
+    customer: input_customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: input_customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - scheduling_routing
+- table_id: priceeye_batches
+  physical_name: priceeye.batches
+  source_system: mysql
+  environment: 3VDEV
+  description: 'batches table for ingestion requests; ~293 rows; key columns: id,
+    provider_code, site_code, crawl_timestamp, trip_type.'
+  primary_keys:
+  - id
+  join_keys:
+    provider: provider_code
+    site: site_code
+  entity_columns:
+    provider: provider_code
+    site: site_code
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - ingestion_requests
+- table_id: priceeye_blacklist_market_summary_old
+  physical_name: priceeye.blacklist_market_summary_old
+  source_system: mysql
+  environment: 3VDEV
+  description: 'blacklist_market_summary_old table for operations misc; ~24 rows;
+    key columns: provider_code, site_code, origin_airport_code, destination_airport_code,
+    last_updated.'
+  primary_keys:
+  - provider_code
+  - site_code
+  - origin_airport_code
+  - destination_airport_code
+  join_keys:
+    provider: provider_code
+    site: site_code
+  entity_columns:
+    provider: provider_code
+    site: site_code
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_cabin
+  physical_name: priceeye.cabin
+  source_system: mysql
+  environment: 3VDEV
+  description: 'cabin table for operations misc; ~9 rows; key columns: code, name,
+    cabinType, validInput, hierarchy.'
+  primary_keys:
+  - code
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_cache_rate
+  physical_name: priceeye.cache_rate
+  source_system: mysql
+  environment: 3VDEV
+  description: 'cache_rate table for operations misc; ~121 rows; key columns: provider_code,
+    site_code, hour, cache_count, total.'
+  primary_keys:
+  - provider_code
+  - site_code
+  - hour
+  join_keys:
+    provider: provider_code
+    site: site_code
+  entity_columns:
+    provider: provider_code
+    site: site_code
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_capability_definition
+  physical_name: priceeye.capability_definition
+  source_system: mysql
+  environment: 3VDEV
+  description: 'capability_definition table for operations misc; ~21 rows; key columns:
+    capability_field, data_type, description, allowed_values, is_active.'
+  primary_keys:
+  - capability_field
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_confluence_page_map
+  physical_name: priceeye.confluence_page_map
+  source_system: mysql
+  environment: 3VDEV
+  description: 'confluence_page_map table for operations misc; ~4 rows; key columns:
+    release_name, confluence_page_id, last_fetched, last_known_version.'
+  primary_keys:
+  - release_name
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_contact_preferences
+  physical_name: priceeye.contact_preferences
+  source_system: mysql
+  environment: 3VDEV
+  description: 'contact_preferences table for operations misc; ~8 rows; key columns:
+    user_id, notification_category, in_app_enabled, email_enabled, last_updated.'
+  primary_keys:
+  - user_id
+  - notification_category
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_contacts
+  physical_name: priceeye.contacts
+  source_system: mysql
+  environment: 3VDEV
+  description: 'contacts table for operations misc; ~97 rows; key columns: user_id,
+    email, customer, is_admin, is_active.'
+  primary_keys:
+  - user_id
+  join_keys:
+    customer: customer
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_customer_billing
+  physical_name: priceeye.customer_billing
+  source_system: mysql
+  environment: 3VDEV
+  description: 'customer_billing table for customer config; ~55 rows; key columns:
+    name, billing_code, owned_carrier, iris, volume.'
+  primary_keys:
+  - name
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - customer_config
+- table_id: priceeye_customer_collection
+  physical_name: priceeye.customer_collection
+  source_system: mysql
+  environment: 3VDEV
+  description: 'customer_collection table for customer config; ~405 rows; key columns:
+    id, customer, name, description, frequency.'
+  primary_keys:
+  - id
+  join_keys:
+    customer: customer
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - customer_config
+- table_id: priceeye_customer_collection_delivery
+  physical_name: priceeye.customer_collection_delivery
+  source_system: mysql
+  environment: 3VDEV
+  description: 'customer_collection_delivery table for customer config; ~134 rows;
+    key columns: id, deliveryId, customerCollectionId, last_updated.'
+  primary_keys:
+  - id
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - customer_config
+- table_id: priceeye_customer_collection_input_files
+  physical_name: priceeye.customer_collection_input_files
+  source_system: mysql
+  environment: 3VDEV
+  description: 'customer_collection_input_files table for customer config; ~208 rows;
+    key columns: customerCollectionId, inputId, last_updated.'
+  primary_keys:
+  - customerCollectionId
+  - inputId
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - customer_config
+- table_id: priceeye_customer_defaults
+  physical_name: priceeye.customer_defaults
+  source_system: mysql
+  environment: 3VDEV
+  description: 'customer_defaults table for customer config; ~64 rows; key columns:
+    customer, packagingConfiguration, deliveryConfiguration, inputFormat, outputFormat.'
+  primary_keys:
+  - customer
+  join_keys:
+    customer: customer
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - customer_config
+- table_id: priceeye_customer_delivery
+  physical_name: priceeye.customer_delivery
+  source_system: mysql
+  environment: 3VDEV
+  description: 'customer_delivery table for customer config; ~53 rows; key columns:
+    id, customer, delivery_name, type, info_type.'
+  primary_keys:
+  - id
+  join_keys:
+    customer: customer
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - customer_config
+- table_id: priceeye_customer_imports
+  physical_name: priceeye.customer_imports
+  source_system: mysql
+  environment: 3VDEV
+  description: 'customer_imports table for customer config; ~3 rows; key columns:
+    customer, customerCollectionId, status, file_format, type.'
+  primary_keys:
+  - customerCollectionId
+  join_keys:
+    customer: customer
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - customer_config
+- table_id: priceeye_customer_packaging
+  physical_name: priceeye.customer_packaging
+  source_system: mysql
+  environment: 3VDEV
+  description: 'customer_packaging table for customer config; ~55 rows; key columns:
+    id, customer, packaging_name, output_format, max_result_file_size_mb.'
+  primary_keys:
+  - id
+  join_keys:
+    customer: customer
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - customer_config
+- table_id: priceeye_customer_reference_groups
+  physical_name: priceeye.customer_reference_groups
+  source_system: mysql
+  environment: 3VDEV
+  description: 'customer_reference_groups table for customer config; ~0 rows; key
+    columns: customer, reference_group, include_sql_pattern, exclude_sql_pattern,
+    last_updated.'
+  primary_keys:
+  - customer
+  - reference_group
+  join_keys:
+    customer: customer
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - customer_config
+- table_id: priceeye_customer_site_code
+  physical_name: priceeye.customer_site_code
+  source_system: mysql
+  environment: 3VDEV
+  description: 'customer_site_code table for scheduling routing; ~728 rows; key columns:
+    customer_site_code, description, type, industry_vertical, is_points.'
+  primary_keys:
+  - customer_site_code
+  join_keys:
+    customer_site_code: customer_site_code
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - scheduling_routing
+- table_id: priceeye_dashboard_details
+  physical_name: priceeye.dashboard_details
+  source_system: mysql
+  environment: 3VDEV
+  description: 'dashboard_details table for customer config; ~21 rows; key columns:
+    customer, type, dashboard_id, last_updated.'
+  primary_keys:
+  - customer
+  - type
+  join_keys:
+    customer: customer
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - customer_config
+- table_id: priceeye_ecs_launcher_config
+  physical_name: priceeye.ecs_launcher_config
+  source_system: mysql
+  environment: 3VDEV
+  description: 'ecs_launcher_config table for operations misc; ~33 rows; key columns:
+    queueName, taskDefinition, scope, arguments, queueDivisor.'
+  primary_keys:
+  - queueName
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_enrichment_sites
+  physical_name: priceeye.enrichment_sites
+  source_system: mysql
+  environment: 3VDEV
+  description: 'enrichment_sites table for operations misc; ~304 rows; key columns:
+    provider_code, site_code, enrichment_type, enrichment_option, source_provider_code.'
+  primary_keys:
+  - provider_code
+  - site_code
+  - enrichment_type
+  join_keys:
+    provider: provider_code
+    site: site_code
+  entity_columns:
+    provider: provider_code
+    site: site_code
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_error_mapping
+  physical_name: priceeye.error_mapping
+  source_system: mysql
+  environment: 3VDEV
+  description: 'error_mapping table for operations misc; ~98 rows; key columns: error_regex,
+    error_sql, issue_source, issue_reason, last_updated_by.'
+  primary_keys:
+  - error_regex
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_excluded_brands
+  physical_name: priceeye.excluded_brands
+  source_system: mysql
+  environment: 3VDEV
+  description: 'excluded_brands table for reference data; ~0 rows; key columns: provider_code,
+    site_code, brand, last_updated.'
+  primary_keys:
+  - provider_code
+  - site_code
+  - brand
+  join_keys:
+    provider: provider_code
+    site: site_code
+  entity_columns:
+    provider: provider_code
+    site: site_code
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - reference_data
+- table_id: priceeye_file_formats
+  physical_name: priceeye.file_formats
+  source_system: mysql
+  environment: 3VDEV
+  description: 'file_formats table for operations misc; ~14 rows; key columns: name,
+    specification, industry_vertical, last_updated, last_updated_by.'
+  primary_keys:
+  - name
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_gds_surcharges
+  physical_name: priceeye.gds_surcharges
+  source_system: mysql
+  environment: 3VDEV
+  description: 'gds_surcharges table for operations misc; ~11 rows; key columns: carrier_code,
+    geography, surcharge_type, currency_code, amount.'
+  primary_keys: []
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_import_rate
+  physical_name: priceeye.import_rate
+  source_system: mysql
+  environment: 3VDEV
+  description: 'import_rate table for ingestion requests; ~49 rows; key columns: provider_code,
+    site_code, hour, rate, override_flag.'
+  primary_keys:
+  - provider_code
+  - site_code
+  - hour
+  join_keys:
+    provider: provider_code
+    site: site_code
+  entity_columns:
+    provider: provider_code
+    site: site_code
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - ingestion_requests
+- table_id: priceeye_input
+  physical_name: priceeye.input
+  source_system: mysql
+  environment: 3VDEV
+  description: 'input table for ingestion requests; ~212 rows; key columns: id, name,
+    customer, status, start_date.'
+  primary_keys:
+  - id
+  join_keys:
+    customer: customer
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - ingestion_requests
+- table_id: priceeye_input_archive
+  physical_name: priceeye.input_archive
+  source_system: mysql
+  environment: 3VDEV
+  description: 'input_archive table for ingestion requests; ~685 rows; key columns:
+    id, name, customer, status, start_date.'
+  primary_keys:
+  - id
+  join_keys:
+    customer: customer
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - ingestion_requests
+- table_id: priceeye_input_criteria
+  physical_name: priceeye.input_criteria
+  source_system: mysql
+  environment: 3VDEV
+  description: 'input_criteria table for ingestion requests; ~6 rows; key columns:
+    id, attribute, operator, value, transformation_id.'
+  primary_keys:
+  - id
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - ingestion_requests
+- table_id: priceeye_input_details
+  physical_name: priceeye.input_details
+  source_system: mysql
+  environment: 3VDEV
+  description: 'input_details table for ingestion requests; ~272 rows; key columns:
+    input_id, s3_file_location, last_updated.'
+  primary_keys:
+  - input_id
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - ingestion_requests
+- table_id: priceeye_input_request
+  physical_name: priceeye.input_request
+  source_system: mysql
+  environment: 3VDEV
+  description: 'input_request table for ingestion requests; ~209982 rows; key columns:
+    id, input_id, customer, customer_site_code, customer_site_name.'
+  primary_keys:
+  - id
+  join_keys:
+    customer: customer
+    customer_site_code: customer_site_code
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - ingestion_requests
+- table_id: priceeye_input_request_old
+  physical_name: priceeye.input_request_old
+  source_system: mysql
+  environment: 3VDEV
+  description: 'input_request_old table for ingestion requests; ~211420 rows; key
+    columns: id, input_id, customer, customer_site_code, customer_site_name.'
+  primary_keys:
+  - id
+  join_keys:
+    customer: customer
+    customer_site_code: customer_site_code
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - ingestion_requests
+- table_id: priceeye_last_packaging_run
+  physical_name: priceeye.last_packaging_run
+  source_system: mysql
+  environment: 3VDEV
+  description: 'last_packaging_run table for packaging; ~62 rows; key columns: customer,
+    reference_group, last_successful_cache_timestamp.'
+  primary_keys:
+  - customer
+  - reference_group
+  join_keys:
+    customer: customer
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - packaging
+- table_id: priceeye_market_date_blacklist_old
+  physical_name: priceeye.market_date_blacklist_old
+  source_system: mysql
+  environment: 3VDEV
+  description: 'market_date_blacklist_old table for operations misc; ~284503 rows;
+    key columns: sales_date, provider_code, site_code, pos, carrier_codes.'
+  primary_keys:
+  - sales_date
+  - provider_code
+  - site_code
+  - pos
+  - carrier_codes
+  - connection_airport_codes
+  - max_stops
+  - cabin
+  - origin_airport_code
+  - destination_airport_code
+  - depart_date
+  - return_date
+  - passenger_count
+  - refundable
+  join_keys:
+    provider: provider_code
+    site: site_code
+    sales_date: sales_date
+  entity_columns:
+    provider: provider_code
+    site: site_code
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_ojt_hotel_locations
+  physical_name: priceeye.ojt_hotel_locations
+  source_system: mysql
+  environment: 3VDEV
+  description: 'ojt_hotel_locations table for reference data; ~722 rows; key columns:
+    name, location_code, location_type, country_code, state_code.'
+  primary_keys:
+  - airport_code
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - reference_data
+- table_id: priceeye_output_field_validation
+  physical_name: priceeye.output_field_validation
+  source_system: mysql
+  environment: 3VDEV
+  description: 'output_field_validation table for operations misc; ~163 rows; key
+    columns: customer, field_name, length, action, last_updated.'
+  primary_keys:
+  - customer
+  - field_name
+  join_keys:
+    customer: customer
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_output_file_formats
+  physical_name: priceeye.output_file_formats
+  source_system: mysql
+  environment: 3VDEV
+  description: 'output_file_formats table for operations misc; ~37 rows; key columns:
+    name, specification, output_type, csv_field_separator, csv_field_quote_character.'
+  primary_keys:
+  - name
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_packager_scheduler_config
+  physical_name: priceeye.packager_scheduler_config
+  source_system: mysql
+  environment: 3VDEV
+  description: 'packager_scheduler_config table for packaging; ~0 rows; key columns:
+    lastCacheLoaderAuditId, lastAuditId, lastDropdeadDate, lastDropdeadTime.'
+  primary_keys: []
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - packaging
+- table_id: priceeye_packaging_dedup_keys
+  physical_name: priceeye.packaging_dedup_keys
+  source_system: mysql
+  environment: 3VDEV
+  description: 'packaging_dedup_keys table for packaging; ~2 rows; key columns: name,
+    specification, last_updated.'
+  primary_keys:
+  - name
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - packaging
+- table_id: priceeye_pending_input_actions
+  physical_name: priceeye.pending_input_actions
+  source_system: mysql
+  environment: 3VDEV
+  description: 'pending_input_actions table for operations misc; ~4 rows; key columns:
+    pending_input_id, retiring_input_id, last_updated.'
+  primary_keys:
+  - pending_input_id
+  - retiring_input_id
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_poc_requests
+  physical_name: priceeye.poc_requests
+  source_system: mysql
+  environment: 3VDEV
+  description: 'poc_requests table for ingestion requests; ~27 rows; key columns:
+    customer, status, activation_date, expiration_date, duration_days.'
+  primary_keys:
+  - customer
+  join_keys:
+    customer: customer
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - ingestion_requests
+- table_id: priceeye_provider_cabin_mapping
+  physical_name: priceeye.provider_cabin_mapping
+  source_system: mysql
+  environment: 3VDEV
+  description: 'provider_cabin_mapping table for provider integration; ~162 rows;
+    key columns: provider_code, site_code, system_cabin, provider_site_cabin, forward_mapping.'
+  primary_keys:
+  - provider_code
+  - site_code
+  - system_cabin
+  - provider_site_cabin
+  - forward_mapping
+  join_keys:
+    provider: provider_code
+    site: site_code
+  entity_columns:
+    provider: provider_code
+    site: site_code
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - provider_integration
+- table_id: priceeye_provider_dummy_config
+  physical_name: priceeye.provider_dummy_config
+  source_system: mysql
+  environment: 3VDEV
+  description: 'provider_dummy_config table for provider integration; ~21 rows; key
+    columns: id, status, error_message, number_of_itineraries, delay_response.'
+  primary_keys:
+  - id
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - provider_integration
+- table_id: priceeye_provider_error_messages
+  physical_name: priceeye.provider_error_messages
+  source_system: mysql
+  environment: 3VDEV
+  description: 'provider_error_messages table for provider integration; ~0 rows; key
+    columns: providerCode, errorMessage.'
+  primary_keys: []
+  join_keys:
+    provider: providerCode
+  entity_columns:
+    provider: providerCode
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - provider_integration
+- table_id: priceeye_provider_pos_sitemap
+  physical_name: priceeye.provider_pos_sitemap
+  source_system: mysql
+  environment: 3VDEV
+  description: 'provider_pos_sitemap table for provider integration; ~99 rows; key
+    columns: provider_code, site_code, pos, provider_site_code, is_default_site_code.'
+  primary_keys:
+  - provider_code
+  - site_code
+  - pos
+  join_keys:
+    provider: provider_code
+    site: site_code
+  entity_columns:
+    provider: provider_code
+    site: site_code
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - provider_integration
+- table_id: priceeye_provider_ss_config
+  physical_name: priceeye.provider_ss_config
+  source_system: mysql
+  environment: 3VDEV
+  description: 'provider_ss_config table for provider integration; ~292 rows; key
+    columns: site_code, agent_ids.'
+  primary_keys:
+  - site_code
+  join_keys:
+    site: site_code
+  entity_columns:
+    site: site_code
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - provider_integration
+- table_id: priceeye_provider_ts_pccs
+  physical_name: priceeye.provider_ts_pccs
+  source_system: mysql
+  environment: 3VDEV
+  description: 'provider_ts_pccs table for provider integration; ~32 rows; key columns:
+    pos, pcc, accessGroup.'
+  primary_keys: []
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - provider_integration
+- table_id: priceeye_publish_raw_search_exclude
+  physical_name: priceeye.publish_raw_search_exclude
+  source_system: mysql
+  environment: 3VDEV
+  description: 'publish_raw_search_exclude table for operations misc; ~5 rows; key
+    columns: provider_code, site_code.'
+  primary_keys:
+  - provider_code
+  - site_code
+  join_keys:
+    provider: provider_code
+    site: site_code
+  entity_columns:
+    provider: provider_code
+    site: site_code
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_ql2_vacation_site
+  physical_name: priceeye.ql2_vacation_site
+  source_system: mysql
+  environment: 3VDEV
+  description: 'ql2_vacation_site table for vacation compare; ~13 rows; key columns:
+    site_code, ql2_site_code.'
+  primary_keys:
+  - site_code
+  join_keys:
+    site: site_code
+  entity_columns:
+    site: site_code
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - vacation_compare
+- table_id: priceeye_redis_cache_mapping
+  physical_name: priceeye.redis_cache_mapping
+  source_system: mysql
+  environment: 3VDEV
+  description: 'redis_cache_mapping table for operations misc; ~2 rows; key columns:
+    provider_code, site_code, cache_source, last_updated.'
+  primary_keys:
+  - provider_code
+  - site_code
+  join_keys:
+    provider: provider_code
+    site: site_code
+  entity_columns:
+    provider: provider_code
+    site: site_code
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_reference_swaps
+  physical_name: priceeye.reference_swaps
+  source_system: mysql
+  environment: 3VDEV
+  description: 'reference_swaps table for operations misc; ~11 rows; key columns:
+    customer, incoming_reference, outgoing_reference.'
+  primary_keys:
+  - customer
+  - incoming_reference
+  join_keys:
+    customer: customer
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_rental_agencies
+  physical_name: priceeye.rental_agencies
+  source_system: mysql
+  environment: 3VDEV
+  description: 'rental_agencies table for operations misc; ~226 rows; key columns:
+    agency, shorthand.'
+  primary_keys:
+  - agency
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_request_priority
+  physical_name: priceeye.request_priority
+  source_system: mysql
+  environment: 3VDEV
+  description: 'request_priority table for ingestion requests; ~8 rows; key columns:
+    customer, customerCollectionId, collectionFrequency, collectionHint, requestApStart.'
+  primary_keys:
+  - customer
+  - customerCollectionId
+  - collectionFrequency
+  - collectionHint
+  - requestApStart
+  - requestApEnd
+  join_keys:
+    customer: customer
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - ingestion_requests
+- table_id: priceeye_retry_rate
+  physical_name: priceeye.retry_rate
+  source_system: mysql
+  environment: 3VDEV
+  description: 'retry_rate table for operations misc; ~116 rows; key columns: provider_code,
+    site_code, hour, retrycount, total.'
+  primary_keys:
+  - provider_code
+  - site_code
+  - hour
+  join_keys:
+    provider: provider_code
+    site: site_code
+  entity_columns:
+    provider: provider_code
+    site: site_code
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_retry_substitution
+  physical_name: priceeye.retry_substitution
+  source_system: mysql
+  environment: 3VDEV
+  description: 'retry_substitution table for operations misc; ~59 rows; key columns:
+    customer, original_provider_code, original_site_code, substitute_provider_code,
+    substitute_site_code.'
+  primary_keys:
+  - customer
+  - original_provider_code
+  - original_site_code
+  join_keys:
+    customer: customer
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_runtime_archive
+  physical_name: priceeye.runtime_archive
+  source_system: mysql
+  environment: 3VDEV
+  description: 'runtime_archive table for scheduling routing; ~118 rows; key columns:
+    customer, customer_site_code, provider_code, reference, pos.'
+  primary_keys:
+  - customer
+  - customer_site_code
+  - provider_code
+  - reference
+  - pos
+  - cabin
+  - trip_type
+  - ap_min
+  - ap_max
+  - day_of_week
+  - schedule_hour
+  join_keys:
+    customer: customer
+    provider: provider_code
+    customer_site_code: customer_site_code
+  entity_columns:
+    provider: provider_code
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - scheduling_routing
+- table_id: priceeye_sabre_pccs
+  physical_name: priceeye.sabre_pccs
+  source_system: mysql
+  environment: 3VDEV
+  description: 'sabre_pccs table for reference data; ~5 rows; key columns: pos, site_code,
+    pcc, last_updated.'
+  primary_keys:
+  - pos
+  - site_code
+  join_keys:
+    site: site_code
+  entity_columns:
+    site: site_code
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - reference_data
+- table_id: priceeye_site_capabilities
+  physical_name: priceeye.site_capabilities
+  source_system: mysql
+  environment: 3VDEV
+  description: 'site_capabilities table for scheduling routing; ~593 rows; key columns:
+    provider_code, site_code, capability, capability_value, detection_method.'
+  primary_keys:
+  - provider_code
+  - site_code
+  - capability
+  join_keys:
+    provider: provider_code
+    site: site_code
+  entity_columns:
+    provider: provider_code
+    site: site_code
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - scheduling_routing
+- table_id: priceeye_site_carriers
+  physical_name: priceeye.site_carriers
+  source_system: mysql
+  environment: 3VDEV
+  description: 'site_carriers table for scheduling routing; ~497 rows; key columns:
+    provider_code, site_code, carrier_code, last_updated.'
+  primary_keys:
+  - provider_code
+  - site_code
+  - carrier_code
+  join_keys:
+    provider: provider_code
+    site: site_code
+  entity_columns:
+    provider: provider_code
+    site: site_code
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - scheduling_routing
+- table_id: priceeye_site_dictionary_requests
+  physical_name: priceeye.site_dictionary_requests
+  source_system: mysql
+  environment: 3VDEV
+  description: 'site_dictionary_requests table for scheduling routing; ~495 rows;
+    key columns: provider_code, site_code, capability_type, pos, carrier_codes.'
+  primary_keys:
+  - provider_code
+  - site_code
+  - capability_type
+  join_keys:
+    provider: provider_code
+    site: site_code
+  entity_columns:
+    provider: provider_code
+    site: site_code
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - scheduling_routing
+- table_id: priceeye_site_hierarchy
+  physical_name: priceeye.site_hierarchy
+  source_system: mysql
+  environment: 3VDEV
+  description: 'site_hierarchy table for scheduling routing; ~1131 rows; key columns:
+    customer, customer_site_code, priority, provider_code, site_code.'
+  primary_keys:
+  - customer
+  - customer_site_code
+  - priority
+  join_keys:
+    customer: customer
+    provider: provider_code
+    site: site_code
+    customer_site_code: customer_site_code
+  entity_columns:
+    provider: provider_code
+    site: site_code
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - scheduling_routing
+- table_id: priceeye_site_hierarchy_archive
+  physical_name: priceeye.site_hierarchy_archive
+  source_system: mysql
+  environment: 3VDEV
+  description: 'site_hierarchy_archive table for scheduling routing; ~2740 rows; key
+    columns: customer, customer_site_code, priority, provider_code, site_code.'
+  primary_keys:
+  - customer
+  - customer_site_code
+  - priority
+  join_keys:
+    customer: customer
+    provider: provider_code
+    site: site_code
+    customer_site_code: customer_site_code
+  entity_columns:
+    provider: provider_code
+    site: site_code
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - scheduling_routing
+- table_id: priceeye_site_mapping_archive
+  physical_name: priceeye.site_mapping_archive
+  source_system: mysql
+  environment: 3VDEV
+  description: 'site_mapping_archive table for scheduling routing; ~521 rows; key
+    columns: customer, customer_site_code, original_pos, min_ap, max_ap.'
+  primary_keys:
+  - customer
+  - customer_site_code
+  - original_pos
+  - min_ap
+  - max_ap
+  - cabin
+  - trip_type
+  join_keys:
+    customer: customer
+    provider: provider_code
+    site: site_code
+    customer_site_code: customer_site_code
+  entity_columns:
+    provider: provider_code
+    site: site_code
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - scheduling_routing
+- table_id: priceeye_site_metrics
+  physical_name: priceeye.site_metrics
+  source_system: mysql
+  environment: 3VDEV
+  description: 'site_metrics table for scheduling routing; ~12143 rows; key columns:
+    provider_code, site_code, hour_of_day, rate, measure.'
+  primary_keys:
+  - provider_code
+  - site_code
+  - hour_of_day
+  join_keys:
+    provider: provider_code
+    site: site_code
+  entity_columns:
+    provider: provider_code
+    site: site_code
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - scheduling_routing
+- table_id: priceeye_site_metrics_archive
+  physical_name: priceeye.site_metrics_archive
+  source_system: mysql
+  environment: 3VDEV
+  description: 'site_metrics_archive table for scheduling routing; ~13327 rows; key
+    columns: provider_code, site_code, hour_of_day, rate, measure.'
+  primary_keys:
+  - provider_code
+  - site_code
+  - hour_of_day
+  join_keys:
+    provider: provider_code
+    site: site_code
+  entity_columns:
+    provider: provider_code
+    site: site_code
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - scheduling_routing
+- table_id: priceeye_sk_brands
+  physical_name: priceeye.sk_brands
+  source_system: mysql
+  environment: 3VDEV
+  description: 'sk_brands table for reference data; ~17 rows; key columns: pattern,
+    brand, lastUpdated.'
+  primary_keys:
+  - pattern
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - reference_data
+- table_id: priceeye_system_configuration
+  physical_name: priceeye.system_configuration
+  source_system: mysql
+  environment: 3VDEV
+  description: 'system_configuration table for operations misc; ~0 rows; key columns:
+    name, value, last_updated.'
+  primary_keys:
+  - name
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_tmp_rank_mysql
+  physical_name: priceeye.tmp_rank_mysql
+  source_system: mysql
+  environment: 3VDEV
+  description: 'tmp_rank_mysql table for analytics support; ~705 rows; key columns:
+    carrier_code, capacity_seats, capacity_rank.'
+  primary_keys: []
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - analytics_support
+- table_id: priceeye_token
+  physical_name: priceeye.token
+  source_system: mysql
+  environment: 3VDEV
+  description: 'token table for provider integration; ~4 rows; key columns: provider,
+    pcc, token, lastUpdated.'
+  primary_keys:
+  - provider
+  - pcc
+  join_keys:
+    provider: provider
+  entity_columns:
+    provider: provider
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - provider_integration
+- table_id: priceeye_transaction_rates
+  physical_name: priceeye.transaction_rates
+  source_system: mysql
+  environment: 3VDEV
+  description: 'transaction_rates table for provider integration; ~55 rows; key columns:
+    provider, hour, tps.'
+  primary_keys:
+  - provider
+  - hour
+  join_keys:
+    provider: provider
+  entity_columns:
+    provider: provider
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - provider_integration
+- table_id: priceeye_transformation_rules
+  physical_name: priceeye.transformation_rules
+  source_system: mysql
+  environment: 3VDEV
+  description: 'transformation_rules table for operations misc; ~19 rows; key columns:
+    id, customer, description, attribute_name, transform_action.'
+  primary_keys:
+  - id
+  join_keys:
+    customer: customer
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc
+- table_id: priceeye_travelport_pccs
+  physical_name: priceeye.travelport_pccs
+  source_system: mysql
+  environment: 3VDEV
+  description: 'travelport_pccs table for reference data; ~160 rows; key columns:
+    countrycode, pcc, branch, citycode, provider.'
+  primary_keys:
+  - provider
+  - countrycode
+  join_keys:
+    provider: provider
+  entity_columns:
+    provider: provider
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - reference_data
+- table_id: priceeye_vacation_compare
+  physical_name: priceeye.vacation_compare
+  source_system: mysql
+  environment: 3VDEV
+  description: 'vacation_compare table for vacation compare; ~1 rows; key columns:
+    compareId, status, last_modified.'
+  primary_keys:
+  - compareId
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - vacation_compare
+- table_id: priceeye_vacation_compare_delivery
+  physical_name: priceeye.vacation_compare_delivery
+  source_system: mysql
+  environment: 3VDEV
+  description: 'vacation_compare_delivery table for vacation compare; ~2 rows; key
+    columns: compareId, deliveryId, type, file_name_pattern, send_exception_file.'
+  primary_keys:
+  - compareId
+  - deliveryId
+  - type
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - vacation_compare
+- table_id: priceeye_vacation_compare_input
+  physical_name: priceeye.vacation_compare_input
+  source_system: mysql
+  environment: 3VDEV
+  description: 'vacation_compare_input table for vacation compare; ~2 rows; key columns:
+    compareId, customer, customerCollectionId, last_modified.'
+  primary_keys:
+  - compareId
+  - customerCollectionId
+  join_keys:
+    customer: customer
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - vacation_compare
+- table_id: priceeye_vacation_compare_input_old
+  physical_name: priceeye.vacation_compare_input_old
+  source_system: mysql
+  environment: 3VDEV
+  description: 'vacation_compare_input_old table for vacation compare; ~56 rows; key
+    columns: deliveryId, customer, customerCollectionId, last_modified.'
+  primary_keys:
+  - deliveryId
+  - customerCollectionId
+  join_keys:
+    customer: customer
+  entity_columns:
+    customer: customer
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: customer
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - vacation_compare
+- table_id: priceeye_vacation_compare_old
+  physical_name: priceeye.vacation_compare_old
+  source_system: mysql
+  environment: 3VDEV
+  description: 'vacation_compare_old table for vacation compare; ~49 rows; key columns:
+    deliveryId, type, file_name_pattern, status, send_exception_file.'
+  primary_keys:
+  - deliveryId
+  - type
+  - file_name_pattern
+  join_keys: {}
+  entity_columns: {}
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - vacation_compare
+- table_id: priceeye_valid_substitution_sites
+  physical_name: priceeye.valid_substitution_sites
+  source_system: mysql
+  environment: 3VDEV
+  description: 'valid_substitution_sites table for operations misc; ~84 rows; key
+    columns: provider_code, site_code, last_updated.'
+  primary_keys:
+  - provider_code
+  - site_code
+  join_keys:
+    provider: provider_code
+    site: site_code
+  entity_columns:
+    provider: provider_code
+    site: site_code
+  partition_policy:
+    partition_columns: []
+    required_predicates: []
+  default_customer_column: null
+  tags:
+  - mysql
+  - priceeye
+  - discovered
+  - operations_misc

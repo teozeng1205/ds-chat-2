@@ -86,7 +86,7 @@ class EntityResolver:
         table_candidates = [
             ("provider", "priceeye.provider", ["providercode", "provider_code", "code", "provider"]),
             ("site", "priceeye.site", ["sitecode", "site_code", "code", "site"]),
-            ("customer", "priceeye.customer", ["customer", "customercode", "customer_code", "code"]),
+            ("customer", "priceeye.customer", ["customer", "customercode", "customer_code", "code", "name"]),
         ]
 
         for entity_type, table_name, preferred_columns in table_candidates:
