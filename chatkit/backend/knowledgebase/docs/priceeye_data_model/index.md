@@ -3,6 +3,8 @@
 This KB section captures live-profiled table summaries from `3VDEV` for PriceEye and PriceEye Analytics.
 
 ## Included Documents
+- `docs/priceeye_data_model/redshift_partition_audit.md`
+- `docs/priceeye_data_model/redshift_core_reader_discovery.md`
 - `docs/priceeye_data_model/database_connections.md`
 - `docs/priceeye_data_model/redshift_table_summaries.md`
 - `docs/priceeye_data_model/mysql_table_summaries.md`

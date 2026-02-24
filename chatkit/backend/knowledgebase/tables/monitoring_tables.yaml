@@ -19,12 +19,10 @@ tables:
     customer: customers
   partition_policy:
     partition_columns:
-    - customers
     - sales_date
     required_predicates:
-    - customers
     - sales_date
-    notes: Always prune by customer + sales_date for scan efficiency.
+    notes: Partition audit shows sales_date as external partition key; add customer filters when available for additional pruning.
   default_date_column: sales_date
   default_customer_column: customers
   default_limit: 100000

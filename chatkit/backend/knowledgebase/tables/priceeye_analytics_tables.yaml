@@ -9,8 +9,8 @@ tables:
     customer: customer
   partition_policy:
     partition_columns:
-    - customer
     - sales_date
+    - customer
     required_predicates:
     - customer
     - sales_date
@@ -32,8 +32,8 @@ tables:
     customer: customer
   partition_policy:
     partition_columns:
-    - customer
     - sales_date
+    - customer
     required_predicates:
     - customer
     - sales_date
@@ -56,9 +56,12 @@ tables:
   partition_policy:
     partition_columns:
     - customer
+    - run_date
     required_predicates:
     - customer
-    notes: Customer predicate required for bounded scans.
+    - run_date
+    notes: Partition audit shows customer + run_date keys; use both for bounded scans.
+  default_date_column: run_date
   default_customer_column: customer
   default_limit: 50000
   tags:
