@@ -163,3 +163,38 @@ relationships:
     right_key: name
     relationship: many_to_one
     notes: dashboard settings are configured by customer.
+
+  - left_table_id: analytics_market_level_anomalies_v3
+    right_table_id: analytics_reader_analytics_mysql_anomalies_direction_score
+    left_key: cp
+    right_key: competitive_position
+    relationship: many_to_one
+    notes: Analytics reader federated table mirrors direction score lookup used by impact scoring.
+
+  - left_table_id: analytics_market_level_anomalies_v3
+    right_table_id: analytics_reader_analytics_mysql_anomalies_impact_score_weights
+    left_key: customer
+    right_key: customer
+    relationship: many_to_one
+    notes: Analytics reader federated table mirrors customer impact score weights.
+
+  - left_table_id: analytics_market_level_anomalies_v3
+    right_table_id: analytics_reader_federated_analytics_anomalies_direction_score
+    left_key: cp
+    right_key: competitive_position
+    relationship: many_to_one
+    notes: Alternate federated analytics schema for direction score lookup.
+
+  - left_table_id: analytics_market_level_anomalies_v3
+    right_table_id: analytics_reader_federated_analytics_anomalies_impact_score_weights
+    left_key: customer
+    right_key: customer
+    relationship: many_to_one
+    notes: Alternate federated analytics schema for impact score weights.
+
+  - left_table_id: analytics_reader_pe_analytics_audits_alerts_audit_v1
+    right_table_id: analytics_market_level_anomalies_v3
+    left_key: sales_date
+    right_key: sales_date
+    relationship: many_to_many
+    notes: Analytics audits can be correlated by sales_date with anomaly outputs for run diagnostics.
