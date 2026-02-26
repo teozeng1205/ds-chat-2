@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from .nextgen_types import PlanFilter, TableSpec
+from .investigation.types import PlanFilter, TableSpec
 
 _ALLOWED_OPERATORS = {"=", "!=", ">", ">=", "<", "<=", "IN", "LIKE"}
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")

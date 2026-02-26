@@ -16,6 +16,7 @@ import sqlite3
 import threading
 import time
 import uuid
+import warnings
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
@@ -56,10 +57,12 @@ TASK_RECIPES_PATH = INVESTIGATION_ROOT / "task_recipes.json"
 SQL_BEST_PRACTICES_PATH = INVESTIGATION_ROOT / "sql_best_practices.md"
 TABLES_DOC_PATH = REPO_ROOT / "tables.md"
 
-KB_VERSION = "2026.02.26-next-gen-v3"
+KB_VERSION = "2026.02.26-investigation-v1"
 DEFAULT_SQL_LIMIT = 1000
-MAX_SQL_LIMIT = 6000
+MAX_SQL_LIMIT = 120000
 MAX_PREVIEW_ROWS = 200
+DEFAULT_EDA_SAMPLE_ROWS = 100000
+MAX_EDA_SAMPLE_ROWS = 200000
 DEFAULT_BUCKET_COUNT = 12
 DEFAULT_KB_MAX_EXTERNAL_FILES = 120
 
@@ -1604,8 +1607,18 @@ class OperatorRuntime:
 
 
 class InvestigationPlanner:
+    _TABLE_ALIASES: dict[str, str] = {
+        "combined audit": "prod.monitoring.combined_audit",
+        "combined_audit": "prod.monitoring.combined_audit",
+        "table combined_audit": "prod.monitoring.combined_audit",
+        "provider combined audit": "prod.monitoring.provider_combined_audit",
+        "provider_combined_audit": "prod.monitoring.provider_combined_audit",
+    }
+
     def classify_intent(self, question: str) -> str:
         lowered = question.lower()
+        if any(token in lowered for token in ("eda", "profile table", "explore table", "analyze table")):
+            return "table_eda"
         if "top site" in lowered or "site issue" in lowered:
             return "top_site_issues"
         if "customer collection" in lowered and "anomal" in lowered:
@@ -1613,6 +1626,21 @@ class InvestigationPlanner:
         if "market anomal" in lowered or "impact score" in lowered:
             return "market_anomalies_distribution"
         return "generic_investigation"
+
+    def _resolve_preview_table(self, *, question: str, knowledge: dict[str, Any]) -> str | None:
+        explicit_tables = re.findall(r"\b[A-Za-z_]+\.[A-Za-z_]+(?:\.[A-Za-z0-9_]+)?\b", question)
+        if explicit_tables:
+            return explicit_tables[0]
+
+        lowered = question.lower()
+        for alias, table_name in self._TABLE_ALIASES.items():
+            if alias in lowered:
+                return table_name
+
+        candidates = [str(item) for item in knowledge.get("candidate_tables", []) if isinstance(item, str)]
+        if len(candidates) == 1:
+            return candidates[0]
+        return None
 
     def compile_plan(
         self,
@@ -1705,10 +1733,50 @@ class InvestigationPlanner:
                 }
             ]
             analysis_spec = {"type": "distribution", "column": "impact_score", "bucket_count": int(constraints.get("bucket_count", DEFAULT_BUCKET_COUNT))}
+        elif intent == "table_eda":
+            table_name = self._resolve_preview_table(question=question, knowledge=knowledge)
+            sample_rows = min(
+                MAX_EDA_SAMPLE_ROWS,
+                max(1000, int(constraints.get("sample_rows", DEFAULT_EDA_SAMPLE_ROWS))),
+            )
+            if table_name:
+                datasource = _datasource_for_table(table_name)
+                extract_steps = [
+                    {
+                        "step_id": "table_preview",
+                        "type": "sql",
+                        "datasource": datasource,
+                        "query": f"SELECT * FROM {table_name} LIMIT {MAX_PREVIEW_ROWS}",
+                        "source_metadata": {
+                            "intent": intent,
+                            "table": table_name,
+                            "sample_mode": "preview",
+                        },
+                    },
+                    {
+                        "step_id": "table_profile_sample",
+                        "type": "sql",
+                        "datasource": datasource,
+                        "query": f"SELECT * FROM {table_name} LIMIT {sample_rows}",
+                        "source_metadata": {
+                            "intent": intent,
+                            "table": table_name,
+                            "sample_mode": "profile",
+                            "sample_rows": sample_rows,
+                        },
+                    },
+                ]
+                analysis_spec = {
+                    "type": "table_eda",
+                    "table_name": table_name,
+                    "sample_rows": sample_rows,
+                    "top_n": int(constraints.get("top_n", 10)),
+                }
+            else:
+                warnings.append("Unable to resolve table name for EDA request.")
         else:
-            explicit_tables = re.findall(r"\b[A-Za-z_]+\.[A-Za-z_]+(?:\.[A-Za-z0-9_]+)?\b", question)
-            if explicit_tables:
-                table_name = explicit_tables[0]
+            table_name = self._resolve_preview_table(question=question, knowledge=knowledge)
+            if table_name:
                 extract_steps = [
                     {
                         "step_id": "generic_table_preview",
@@ -1994,6 +2062,8 @@ class InvestigationRuntime:
             payload = self._analyze_anomaly_summary(frames, analysis_spec)
         elif analysis_type == "distribution":
             payload = self._analyze_distribution(frames, analysis_spec)
+        elif analysis_type == "table_eda":
+            payload = self._analyze_table_eda(frames, analysis_spec)
         else:
             payload = self._analyze_summary(frames)
 
@@ -2015,6 +2085,82 @@ class InvestigationRuntime:
             "local_path": record["local_path"],
             "results": payload.get("results", {}),
             "summary_stats": payload.get("summary_stats", {}),
+            "report_markdown": payload.get("report_markdown"),
+            "caveats": payload.get("caveats", []),
+        }
+
+    def run_table_eda(
+        self,
+        *,
+        thread_id: str,
+        table_name: str,
+        datasource: str | None = None,
+        constraints: dict[str, Any] | None = None,
+        run_id: str | None = None,
+    ) -> dict[str, Any]:
+        self.ensure_kb_ready()
+        constraints = constraints or {}
+        intent = "table_eda"
+        question = f"do EDA for table {table_name}"
+        sales_date = _coerce_sales_date(_extract_sales_date_from_text(question))
+        entities = self.resolve_entities(question, sales_date_hint=sales_date)
+        knowledge = self.retrieve_knowledge(intent=intent, entities=entities, question=question)
+        resolved_table = self.planner._resolve_preview_table(question=question, knowledge=knowledge) or table_name
+        resolved_table = resolved_table.strip()
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*){1,2}", resolved_table):
+            raise ValueError(f"Unsupported table identifier format: {table_name}")
+
+        source = datasource or _datasource_for_table(resolved_table)
+        metadata = self.inspect_table_metadata(table_name=resolved_table, datasource=source)
+
+        effective_run_id = run_id or self.workspace.start_run(thread_id)
+        preview_record = self.extract_sql_to_dataset(
+            thread_id=thread_id,
+            query=f"SELECT * FROM {resolved_table} LIMIT {MAX_PREVIEW_ROWS}",
+            datasource=source,
+            run_id=effective_run_id,
+            metadata={"intent": intent, "table": resolved_table, "mode": "preview"},
+            dataset_name="table_preview",
+        )
+        sample_rows = min(
+            MAX_EDA_SAMPLE_ROWS,
+            max(1000, int(constraints.get("sample_rows", DEFAULT_EDA_SAMPLE_ROWS))),
+        )
+        profile_record = self.extract_sql_to_dataset(
+            thread_id=thread_id,
+            query=f"SELECT * FROM {resolved_table} LIMIT {sample_rows}",
+            datasource=source,
+            run_id=effective_run_id,
+            metadata={"intent": intent, "table": resolved_table, "mode": "profile", "sample_rows": sample_rows},
+            dataset_name="table_profile_sample",
+        )
+        dataset_ids = [preview_record["dataset_id"], profile_record["dataset_id"]]
+        analysis = self.run_dataframe_analysis(
+            thread_id=thread_id,
+            run_id=effective_run_id,
+            dataset_ids=dataset_ids,
+            analysis_spec={"type": "table_eda", "table_name": resolved_table, "top_n": int(constraints.get("top_n", 10))},
+        )
+        lineage = {
+            "run_id": effective_run_id,
+            "dataset_ids": dataset_ids,
+            "key_queries": [preview_record["source_metadata"].get("query"), profile_record["source_metadata"].get("query")],
+            "caveats": analysis.get("caveats", []),
+        }
+        return {
+            "thread_id": thread_id,
+            "run_id": effective_run_id,
+            "intent": intent,
+            "table_name": resolved_table,
+            "datasource": source,
+            "table_metadata": metadata,
+            "datasets": [preview_record, profile_record],
+            "analysis": analysis,
+            "lineage": lineage,
+            "report_markdown": analysis.get("report_markdown", ""),
+            "answer": analysis.get("report_markdown", ""),
+            "errors": [],
+            "partial_result": False,
         }
 
     def cleanup_session_workspace(self, thread_id: str, mode: str = "ephemeral_manifest") -> dict[str, Any]:
@@ -2119,6 +2265,20 @@ class InvestigationRuntime:
             errors=errors,
             warnings=plan.get("warnings", []),
         )
+        if intent == "table_eda" and analysis_result and analysis_result.get("report_markdown"):
+            answer = str(analysis_result["report_markdown"])
+
+        lineage = {
+            "run_id": run_id,
+            "dataset_ids": [item.get("dataset_id") for item in dataset_records],
+            "key_queries": [
+                item.get("source_metadata", {}).get("query")
+                for item in dataset_records
+                if isinstance(item.get("source_metadata"), dict)
+                and item.get("source_metadata", {}).get("query")
+            ],
+            "caveats": list(plan.get("warnings", [])),
+        }
 
         result = {
             "thread_id": thread_id,
@@ -2134,6 +2294,7 @@ class InvestigationRuntime:
             "errors": errors,
             "answer": answer,
             "warnings": plan.get("warnings", []),
+            "lineage": lineage,
             "partial_result": bool(errors),
         }
 
@@ -2281,6 +2442,222 @@ class InvestigationRuntime:
             },
         }
 
+    def _analyze_table_eda(self, frames: dict[str, pd.DataFrame], analysis_spec: dict[str, Any]) -> dict[str, Any]:
+        values = list(frames.values())
+        preview_df = values[0] if values else pd.DataFrame()
+        profile_df = values[1] if len(values) > 1 else preview_df
+
+        table_name = str(analysis_spec.get("table_name", "unknown_table"))
+        top_n = max(3, int(analysis_spec.get("top_n", 10)))
+        sample_rows = int(analysis_spec.get("sample_rows", len(profile_df)))
+        row_count = int(len(profile_df))
+        column_count = int(len(profile_df.columns))
+
+        schema = [{"column": str(col), "dtype": str(dtype)} for col, dtype in profile_df.dtypes.items()]
+
+        missing_rows: list[dict[str, Any]] = []
+        if not profile_df.empty:
+            missing = (profile_df.isna().mean() * 100).sort_values(ascending=False)
+            missing_rows = [
+                {
+                    "column": str(col),
+                    "null_pct": float(round(pct, 4)),
+                    "null_count": int(profile_df[col].isna().sum()),
+                }
+                for col, pct in missing.items()
+            ]
+
+        numeric_columns = list(profile_df.select_dtypes(include=[np.number]).columns)
+        numeric_profiles: list[dict[str, Any]] = []
+        for col in numeric_columns[:25]:
+            series = pd.to_numeric(profile_df[col], errors="coerce").dropna()
+            if series.empty:
+                continue
+            q1 = float(series.quantile(0.25))
+            q3 = float(series.quantile(0.75))
+            iqr = q3 - q1
+            lower = q1 - 1.5 * iqr
+            upper = q3 + 1.5 * iqr
+            outliers = int(((series < lower) | (series > upper)).sum())
+            numeric_profiles.append(
+                {
+                    "column": str(col),
+                    "count": int(series.count()),
+                    "min": float(series.min()),
+                    "p25": q1,
+                    "p50": float(series.quantile(0.5)),
+                    "p75": q3,
+                    "p95": float(series.quantile(0.95)),
+                    "max": float(series.max()),
+                    "mean": float(series.mean()),
+                    "std": float(series.std(ddof=1)) if int(series.count()) > 1 else 0.0,
+                    "outlier_count_iqr": outliers,
+                }
+            )
+
+        categorical_profiles: list[dict[str, Any]] = []
+        for col in profile_df.columns:
+            if col in numeric_columns:
+                continue
+            series = profile_df[col].astype(str)
+            cardinality = int(series.nunique(dropna=False))
+            top_values = (
+                series.value_counts(dropna=False)
+                .head(top_n)
+                .rename_axis("value")
+                .reset_index(name="count")
+                .to_dict(orient="records")
+            )
+            categorical_profiles.append(
+                {
+                    "column": str(col),
+                    "cardinality": cardinality,
+                    "top_values": top_values,
+                }
+            )
+
+        temporal_coverage: list[dict[str, Any]] = []
+        for col in profile_df.columns:
+            if "date" not in str(col).lower() and "time" not in str(col).lower():
+                continue
+            parsed = pd.to_datetime(profile_df[col], errors="coerce", utc=False).dropna()
+            if parsed.empty:
+                continue
+            temporal_coverage.append(
+                {
+                    "column": str(col),
+                    "min": str(parsed.min()),
+                    "max": str(parsed.max()),
+                    "non_null_count": int(parsed.count()),
+                }
+            )
+
+        corr_pairs: list[dict[str, Any]] = []
+        if len(numeric_columns) >= 2:
+            corr_df = profile_df[numeric_columns].apply(pd.to_numeric, errors="coerce")
+            corr = corr_df.corr(numeric_only=True)
+            for left_idx, left_col in enumerate(corr.columns):
+                for right_col in corr.columns[left_idx + 1 :]:
+                    value = corr.loc[left_col, right_col]
+                    if pd.isna(value):
+                        continue
+                    corr_pairs.append(
+                        {
+                            "left": str(left_col),
+                            "right": str(right_col),
+                            "corr": float(value),
+                            "abs_corr": float(abs(value)),
+                        }
+                    )
+            corr_pairs.sort(key=lambda row: row["abs_corr"], reverse=True)
+            corr_pairs = corr_pairs[:10]
+
+        risks: list[str] = []
+        for row in missing_rows:
+            if row["null_pct"] >= 40.0:
+                risks.append(f"High missingness: {row['column']} ({row['null_pct']:.2f}% null).")
+        for row in categorical_profiles:
+            if row_count > 0 and row["cardinality"] >= max(100, int(0.8 * row_count)):
+                risks.append(
+                    f"High-cardinality column: {row['column']} ({row['cardinality']} unique values over {row_count} rows)."
+                )
+
+        caveats = [
+            f"Profile uses bounded sample up to {sample_rows} rows for cost control.",
+            "Statistics may differ from full-table metrics on very large partitions.",
+        ]
+        if row_count < sample_rows:
+            caveats.append("Returned rows are below requested sample cap for this extraction.")
+
+        preview_rows = preview_df.head(min(10, len(preview_df))).to_dict(orient="records") if not preview_df.empty else []
+        results = {
+            "table_name": table_name,
+            "schema": schema,
+            "preview_rows": preview_rows,
+            "missingness": missing_rows[:50],
+            "numeric_profiles": numeric_profiles,
+            "categorical_profiles": categorical_profiles[:50],
+            "temporal_coverage": temporal_coverage[:20],
+            "top_correlations": corr_pairs,
+            "risks": risks[:20],
+            "suggested_followups": [
+                f"SELECT COUNT(*) FROM {table_name};",
+                f"SELECT * FROM {table_name} LIMIT 200;",
+            ],
+        }
+        summary_stats = {
+            "row_count": row_count,
+            "column_count": column_count,
+            "numeric_column_count": int(len(numeric_columns)),
+            "categorical_column_count": int(max(0, column_count - len(numeric_columns))),
+            "risk_count": int(len(risks)),
+        }
+
+        lines = [
+            f"## Deep EDA Report: `{table_name}`",
+            "",
+            "### Dataset Overview",
+            f"- Rows profiled: `{row_count}`",
+            f"- Columns: `{column_count}`",
+            f"- Numeric columns: `{summary_stats['numeric_column_count']}`",
+            f"- Categorical columns: `{summary_stats['categorical_column_count']}`",
+            "",
+            "### Schema and Type Quality",
+            "",
+            "| Column | Dtype |",
+            "|---|---|",
+        ]
+        for row in schema[:50]:
+            lines.append(f"| {row['column']} | {row['dtype']} |")
+        lines.extend(["", "### Missingness (Top 20)", "", "| Column | Null % | Null Count |", "|---|---:|---:|"])
+        for row in missing_rows[:20]:
+            lines.append(f"| {row['column']} | {row['null_pct']:.2f} | {row['null_count']} |")
+        lines.extend(["", "### Numeric Distribution Summary (Top 15 by order)", ""])
+        for row in numeric_profiles[:15]:
+            lines.append(
+                (
+                    f"- `{row['column']}`: min={row['min']:.4f}, p50={row['p50']:.4f}, "
+                    f"p95={row['p95']:.4f}, max={row['max']:.4f}, outliers={row['outlier_count_iqr']}"
+                )
+            )
+        lines.extend(["", "### Cardinality / Top Categories (Top 10 columns)", ""])
+        for row in categorical_profiles[:10]:
+            top_values = ", ".join(
+                f"{item['value']} ({item['count']})" for item in row.get("top_values", [])[:5]
+            )
+            lines.append(f"- `{row['column']}`: cardinality={row['cardinality']}; top={top_values}")
+        lines.extend(["", "### Temporal Coverage", ""])
+        if temporal_coverage:
+            for row in temporal_coverage[:10]:
+                lines.append(f"- `{row['column']}`: min={row['min']}, max={row['max']}, non_null={row['non_null_count']}")
+        else:
+            lines.append("- No date-like columns with parseable values in sampled data.")
+        lines.extend(["", "### Correlation Highlights", ""])
+        if corr_pairs:
+            for row in corr_pairs[:10]:
+                lines.append(f"- `{row['left']}` vs `{row['right']}`: corr={row['corr']:.4f}")
+        else:
+            lines.append("- Not enough numeric columns for correlation analysis.")
+        lines.extend(["", "### Key Risks", ""])
+        if risks:
+            for row in risks[:10]:
+                lines.append(f"- {row}")
+        else:
+            lines.append("- No dominant data quality risks detected from sampled profile.")
+        lines.extend(["", "### Recommended Follow-up Queries", ""])
+        for query in results["suggested_followups"]:
+            lines.append(f"- `{query}`")
+        lines.extend(["", "### Caveats", ""])
+        for caveat in caveats:
+            lines.append(f"- {caveat}")
+
+        return {
+            "results": results,
+            "summary_stats": summary_stats,
+            "report_markdown": "\n".join(lines),
+            "caveats": caveats,
+        }
+
     @staticmethod
     def _analyze_summary(frames: dict[str, pd.DataFrame]) -> dict[str, Any]:
         if not frames:
@@ -2332,6 +2709,11 @@ class InvestigationRuntime:
                 f"p50={summary.get('p50')}, p90={summary.get('p90')}, max={summary.get('max')}."
             )
 
+        if intent == "table_eda":
+            if analysis_result.get("report_markdown"):
+                return str(analysis_result["report_markdown"])
+            return f"Table EDA completed for {sales_date}."
+
         message = f"Investigation finished for {intent} on {sales_date}."
         if errors:
             message += f" Encountered {len(errors)} step error(s)."
@@ -2357,5 +2739,16 @@ def cleanup_thread_workspace(thread_id: str, mode: str = "ephemeral_manifest") -
     return runtime.cleanup_session_workspace(thread_id=thread_id, mode=mode)
 
 
-def is_next_gen_enabled() -> bool:
+def is_investigation_engine_enabled() -> bool:
+    if os.getenv("INVESTIGATION_ENGINE_ENABLED") is not None:
+        return _bool_env("INVESTIGATION_ENGINE_ENABLED", True)
     return _bool_env("NEXT_GEN_INVESTIGATION", True)
+
+
+def is_next_gen_enabled() -> bool:
+    warnings.warn(
+        "is_next_gen_enabled is deprecated; use is_investigation_engine_enabled.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return is_investigation_engine_enabled()

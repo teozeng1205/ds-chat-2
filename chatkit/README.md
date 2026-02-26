@@ -20,7 +20,8 @@ What happens:
 - `OPENAI_API_KEY` (backend)
 - `VITE_CHATKIT_API_URL` (optional, defaults to `/chatkit`)
 - `VITE_CHATKIT_API_DOMAIN_KEY` (optional, defaults to `domain_pk_localhost_dev`)
-- `NEXT_GEN_INVESTIGATION` (optional, defaults to `1`)
+- `INVESTIGATION_ENGINE_ENABLED` (optional, defaults to `1`)
+- `NEXT_GEN_INVESTIGATION` (legacy compatibility flag, optional)
 
 Set `OPENAI_API_KEY` in your shell or in `.env.local` at the repo root before
 running the backend. Register a production domain key in the OpenAI dashboard
@@ -32,21 +33,19 @@ and set `VITE_CHATKIT_API_DOMAIN_KEY` when deploying.
 - Adjust layout in `frontend/src/components/ChatKitPanel.tsx`.
 - Swap the in-memory store in `backend/app/server.py` for persistence.
 
-## DS Chat Next-Gen Notes
+## DS Chat Investigation Runtime
 
 - The backend now uses a knowledge-driven multi-agent pipeline:
-  - Orchestrator
-  - Knowledge Planner
-  - Data Access
-  - Analysis
-  - Synthesis
-- Local KB files live in `backend/knowledgebase/` and are editable on demand.
-- Query execution is partition-enforced from KB table metadata.
-- Per-turn datasets are materialized under `backend/.runtime/workspaces/...` and cleaned up after each response turn.
+  - Multi-Agent Orchestrator
+  - Investigation Operator Agent
+  - Codebase Explanation Agent
+- Local KB files are editable and used by investigation planning.
+- Per-turn datasets are materialized under `backend/.work/sessions/...` and cleaned up after each response turn.
+- Autonomous deep EDA is available for table prompts (for example: `can you do a EDA of the table combined_audit`).
 - `threevictors` must be available in the backend Python runtime for Redshift/MySQL/S3 access.
 - Basic live connectivity smoke test script: `backend/scripts/smoke_threevictors.py --profile 3VDEV`
 
-## DS Chat Next-Gen Verification
+## DS Chat Investigation Verification
 
 One command to run everything (unit tests + connectivity + E2E agent smokes):
 
@@ -74,6 +73,9 @@ Direct script usage (more control):
 backend/scripts/verify_nextgen.sh --help
 backend/scripts/verify_nextgen.sh --profile 3VDEV --max-turns 40
 backend/scripts/verify_nextgen.sh --scenarios top_site_issues,market_anomalies_distribution
+backend/scripts/verify_investigation.sh --help
+backend/scripts/verify_investigation.sh --profile 3VDEV --max-turns 40
+backend/scripts/verify_investigation.sh --scenarios top_site_issues,market_anomalies_distribution
 ```
 
 E2E smoke reports with full model output and debug steps are written under:
@@ -81,12 +83,12 @@ E2E smoke reports with full model output and debug steps are written under:
 - `backend/.runtime/smoke_reports/*.md`
 - `backend/.runtime/smoke_reports/*.json`
 
-## Next-gen investigation runtime
+## Runtime Flags
 
-- Default mode (`NEXT_GEN_INVESTIGATION=1`) routes internal data tasks to the
+- Default mode (`INVESTIGATION_ENGINE_ENABLED=1`) routes internal data tasks to the
   unified `Investigation Operator Agent`.
-- Legacy split monitoring/anomalies agents can be forced with
-  `NEXT_GEN_INVESTIGATION=0` during migration.
+- Legacy compatibility env `NEXT_GEN_INVESTIGATION` is still honored when the new
+  flag is not set.
 - Knowledge sources are local and editable:
   - `tables.md`
   - `backend/app/investigation/common_codes.json`

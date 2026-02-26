@@ -12,7 +12,7 @@ from typing import Any
 
 import pandas as pd
 
-from .nextgen_types import DatasetHandle, DatasetManifest
+from .investigation.types import DatasetHandle, DatasetManifest
 
 
 DEFAULT_RUNTIME_ROOT = Path(__file__).resolve().parent.parent / ".runtime" / "workspaces"

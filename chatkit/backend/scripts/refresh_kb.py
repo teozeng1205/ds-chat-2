@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh next-gen investigation knowledge base."""
+"""Refresh investigation knowledge base."""
 
 from app.investigation.runtime import get_runtime
 

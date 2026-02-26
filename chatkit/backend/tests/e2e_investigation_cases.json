@@ -1,0 +1,29 @@
+{
+  "cases": [
+    {
+      "name": "top_site_issues_with_impact",
+      "thread_id": "thread-top-site-impact",
+      "question": "what are the top site issues for QL2|AV, and what is the impact?"
+    },
+    {
+      "name": "customer_collection_anomalies_yesterday",
+      "thread_id": "thread-customer-anom",
+      "question": "what were the customer collection anomalies yersterday?"
+    },
+    {
+      "name": "market_anomalies_distribution_b6_today",
+      "thread_id": "thread-market-dist",
+      "question": "what are the market anomalies today for customer B6, can you give me a distribution of impact score?"
+    },
+    {
+      "name": "combined_audit_head_query",
+      "thread_id": "thread-combined-audit-head",
+      "question": "query the head of the table combined audit"
+    },
+    {
+      "name": "combined_audit_deep_eda",
+      "thread_id": "thread-combined-audit-eda",
+      "question": "can you do a EDA of the table combined_audit"
+    }
+  ]
+}

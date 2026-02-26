@@ -13,7 +13,7 @@ from typing import Any
 
 import numpy as np
 
-from .nextgen_types import KBSearchHit, RelationshipSpec, TableSpec
+from .investigation.types import KBSearchHit, RelationshipSpec, TableSpec
 
 try:
     import yaml

@@ -6,7 +6,7 @@ import re
 from typing import Any
 
 from .knowledge_base import KnowledgeBaseService
-from .nextgen_types import EntityResolution
+from .investigation.types import EntityResolution
 from .threevictors_client import ThreeVictorsClient, ThreeVictorsDependencyError
 
 

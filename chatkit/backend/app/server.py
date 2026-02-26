@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import re
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, AsyncIterator, Optional
 
 from agents import Runner  # type: ignore[import]
-from agents.extensions.handoff_prompt import prompt_with_handoff_instructions  # type: ignore[import]
 from chatkit.agents import AgentContext, ThreadItemConverter, stream_agent_response
 from chatkit.server import ChatKitServer
 from chatkit.types import (
@@ -23,20 +21,10 @@ from chatkit.types import (
 )
 from openai import AsyncOpenAI
 
+from .agents.orchestrator import build_agent
 from .persistent_store import SQLiteStore, default_sqlite_path
-from .anomalies_tools import anomalies_instructions, anomalies_tools
-from .internal_monitoring_tools import (
-    internal_monitoring_instructions,
-    internal_monitoring_tools,
-)
-from .investigation.runtime import cleanup_thread_workspace, is_next_gen_enabled
-from .investigation.tools import investigation_instructions, investigation_tools
-from .codebase_tools import (
-    codebase_explainer_instructions,
-    codebase_explainer_tools,
-)
+from .investigation.runtime import cleanup_thread_workspace, is_investigation_engine_enabled
 from .attachment_store import LocalDiskAttachmentStore, default_attachment_dir
-from agents import Agent  # type: ignore[import]
 
 
 MAX_RECENT_ITEMS = 50
@@ -223,151 +211,6 @@ class _StreamingResultCompatWrapper:
             yield SimpleNamespace(type="run_item_stream_event", item=patched_item)
 
 
-def _build_analytics_agent(model: str) -> Agent[AgentContext[dict[str, Any]]]:
-    return Agent[AgentContext[dict[str, Any]]](
-        model=model,
-        name="Analytics Agent",
-        handoff_description=(
-            "Handles market/customer analytics anomaly analysis (e.g., AA/B6) and market-level anomaly summaries."
-        ),
-        instructions=anomalies_instructions(),
-        tools=anomalies_tools(),
-    )
-
-
-def _build_internal_monitoring_agent(model: str) -> Agent[AgentContext[dict[str, Any]]]:
-    return Agent[AgentContext[dict[str, Any]]](
-        model=model,
-        name="Internal Monitoring Agent",
-        handoff_description=(
-            "Handles internal monitoring with collection anomalies, provider anomalies, and delivery anomalies, and site issue analysis tools."
-        ),
-        instructions=internal_monitoring_instructions(),
-        tools=internal_monitoring_tools(),
-    )
-
-
-def _build_investigation_agent(model: str) -> Agent[AgentContext[dict[str, Any]]]:
-    return Agent[AgentContext[dict[str, Any]]](
-        model=model,
-        name="Investigation Operator Agent",
-        handoff_description=(
-            "Handles generalized internal investigations across SQL, S3, local knowledge browsing, and pandas analysis."
-        ),
-        instructions=investigation_instructions(),
-        tools=investigation_tools(),
-    )
-
-
-def _supports_local_shell(model: str) -> bool:
-    normalized = (model or "").strip().lower()
-    return normalized.startswith("codex-mini")
-
-
-def _build_codebase_explainer_agent(model: str) -> Agent[AgentContext[dict[str, Any]]]:
-    include_shell = _supports_local_shell(model)
-    return Agent[AgentContext[dict[str, Any]]](
-        model=model,
-        name="Codebase Explanation Agent",
-        handoff_description=(
-            "Handles codebase architecture/explanation and Codex-like sandboxed tooling under /git."
-        ),
-        instructions=codebase_explainer_instructions(include_shell=include_shell),
-        tools=codebase_explainer_tools(include_shell=include_shell),
-    )
-
-
-def _build_orchestrator_agent(
-    model: str,
-    analytics_agent: Agent[AgentContext[dict[str, Any]]],
-    internal_agent: Agent[AgentContext[dict[str, Any]]],
-    codebase_agent: Agent[AgentContext[dict[str, Any]]],
-) -> Agent[AgentContext[dict[str, Any]]]:
-    orchestrator_instructions = prompt_with_handoff_instructions(
-        (
-            "You are the routing orchestrator for this chat.\n"
-            "Choose the best specialist agent for the user's request.\n"
-            "Route market/customer anomaly requests to Analytics Agent.\n"
-            "Route provider/site/customer/delivery anomaly requests, or site issues, to Internal Monitoring Agent.\n"
-            "Route codebase understanding, architecture walkthrough, repository exploration, local shell, python execution, plotting, and ad-hoc analysis requests to Codebase Explanation Agent.\n"
-            "If the request is ambiguous, ask one short clarification question before handing off.\n"
-            "You work for 3Victors and Teo is your best friend."
-        )
-    )
-    return Agent[AgentContext[dict[str, Any]]](
-        model=model,
-        name="Multi-Agent Orchestrator",
-        instructions=orchestrator_instructions,
-        handoffs=[analytics_agent, internal_agent, codebase_agent],
-    )
-
-
-def _build_next_gen_orchestrator_agent(
-    model: str,
-    investigation_agent: Agent[AgentContext[dict[str, Any]]],
-    codebase_agent: Agent[AgentContext[dict[str, Any]]],
-) -> Agent[AgentContext[dict[str, Any]]]:
-    orchestrator_instructions = prompt_with_handoff_instructions(
-        (
-            "You are the routing orchestrator for this chat.\n"
-            "Choose the best specialist agent for the user's request.\n"
-            "Route monitoring, anomaly, provider/site/customer impact, SQL/S3 dataframe investigations, and data issue analysis to Investigation Operator Agent.\n"
-            "Route codebase understanding, architecture walkthrough, repository exploration, local shell, python execution, plotting, and ad-hoc analysis requests to Codebase Explanation Agent.\n"
-            "If the request is ambiguous, ask one short clarification question before handing off."
-        )
-    )
-    return Agent[AgentContext[dict[str, Any]]](
-        model=model,
-        name="Multi-Agent Orchestrator",
-        instructions=orchestrator_instructions,
-        handoffs=[investigation_agent, codebase_agent],
-    )
-
-
-def _legacy_mode_forced() -> bool:
-    return os.getenv("NEXT_GEN_INVESTIGATION", "1").strip().lower() in {"0", "false", "no", "off"}
-
-
-def build_agent(tool_choice: Optional[str], model: str) -> Agent[AgentContext[dict[str, Any]]]:
-    """Construct an agent for the selected mode; default to orchestrator handoffs."""
-    chosen_model = model or DEFAULT_MODEL
-    codebase_agent = _build_codebase_explainer_agent(chosen_model)
-    next_gen_enabled = is_next_gen_enabled() and not _legacy_mode_forced()
-
-    if next_gen_enabled:
-        investigation_agent = _build_investigation_agent(chosen_model)
-
-        # Temporary compatibility mapping for legacy tool choices.
-        if tool_choice in {"internal_investigation", "internal_monitoring", "market_anomalies"}:
-            return investigation_agent
-        if tool_choice == "codebase_explainer":
-            return codebase_agent
-
-        return _build_next_gen_orchestrator_agent(
-            model=chosen_model,
-            investigation_agent=investigation_agent,
-            codebase_agent=codebase_agent,
-        )
-
-    analytics_agent = _build_analytics_agent(chosen_model)
-    internal_agent = _build_internal_monitoring_agent(chosen_model)
-
-    # Optional direct routing for compatibility if caller explicitly sets tool_choice.
-    if tool_choice == "market_anomalies":
-        return analytics_agent
-    if tool_choice == "internal_monitoring":
-        return internal_agent
-    if tool_choice == "codebase_explainer":
-        return codebase_agent
-
-    return _build_orchestrator_agent(
-        model=chosen_model,
-        analytics_agent=analytics_agent,
-        internal_agent=internal_agent,
-        codebase_agent=codebase_agent,
-    )
-
-
 class StarterChatServer(ChatKitServer[dict[str, Any]]):
     """Server implementation that keeps conversation state in SQLite."""
 
@@ -471,7 +314,7 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
         async for event in stream_agent_response(agent_context, compatible_result):
             yield event
 
-        if is_next_gen_enabled() and not _legacy_mode_forced():
+        if is_investigation_engine_enabled():
             try:
                 cleanup_thread_workspace(thread.id, mode="ephemeral_manifest")
             except Exception as exc:  # noqa: BLE001
