@@ -23,13 +23,12 @@ pip install -e . >/dev/null
 # bridge system site-packages into PYTHONPATH for runtime tool access.
 if ! python -c "import threevictors" >/dev/null 2>&1; then
   THREEVICTORS_SITE_PACKAGES="$(
-    python3 - <<'PY' 2>/dev/null
+    python3 - <<'PY' 2>/dev/null || true
+import importlib.util
 import os
-try:
-    import threevictors
-except Exception:
-    raise SystemExit(1)
-print(os.path.dirname(os.path.dirname(threevictors.__file__)))
+spec = importlib.util.find_spec("threevictors")
+if spec is not None and spec.origin:
+    print(os.path.dirname(os.path.dirname(spec.origin)))
 PY
   )"
   if [ -n "${THREEVICTORS_SITE_PACKAGES:-}" ] && [ -d "$THREEVICTORS_SITE_PACKAGES" ]; then
