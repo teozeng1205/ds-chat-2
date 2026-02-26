@@ -316,6 +316,16 @@ class ActionPlanner:
                             "expected_output": "Python analysis or derived dataset.",
                         }
                     )
+        python_template = self._render_template(str(card.get("python_template", "")), vars_map).strip()
+        if python_template:
+            queue.append(
+                {
+                    "action": "run_python",
+                    "inputs": {"code": python_template},
+                    "reason": f"Task-card python template ({card.get('card_id')}).",
+                    "expected_output": "Python analysis artifact.",
+                }
+            )
         return queue
 
     def _fallback_action(self, ctx: LoopContext) -> dict[str, Any]:
@@ -677,6 +687,15 @@ class AutonomousInvestigationEngine:
             created = [item for item in py_result.get("created_datasets", []) if isinstance(item, dict)]
             for row in created:
                 ctx.datasets.append(row)
+            latest_analysis = py_result.get("latest_analysis")
+            if isinstance(latest_analysis, dict):
+                ctx.analysis = {
+                    "analysis_id": "python_generated",
+                    "results": latest_analysis.get("results", {}),
+                    "summary_stats": latest_analysis.get("summary_stats", {}),
+                    "report_markdown": latest_analysis.get("report_markdown", ""),
+                    "caveats": latest_analysis.get("caveats", []),
+                }
             ctx.ran_python = True
             return {
                 "action": name,
@@ -731,6 +750,8 @@ class AutonomousInvestigationEngine:
     def _done(ctx: LoopContext) -> bool:
         if ctx.clarification:
             return True
+        if ctx.action_queue:
+            return False
         if ctx.analysis is not None and ctx.datasets:
             return True
         return ctx.done

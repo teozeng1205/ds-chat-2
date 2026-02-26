@@ -340,12 +340,27 @@ class InvestigationRuntime:
             payload={"approval_policy": self.approval_policy, "sandbox_mode": self.sandbox_mode},
         )
         result = self.operator.run_python(thread_id=thread_id, run_id=effective_run_id, code=code)
+        latest_analysis: dict[str, Any] | None = None
+        created_analyses = [item for item in result.get("created_analyses", []) if isinstance(item, dict)]
+        if created_analyses:
+            latest = created_analyses[-1]
+            path = Path(str(latest.get("local_path", "")))
+            if path.exists():
+                try:
+                    latest_analysis = json.loads(path.read_text(encoding="utf-8"))
+                except Exception:
+                    latest_analysis = None
         self._log_event(
             thread_id=thread_id,
             run_id=effective_run_id,
             event="operator_run_python_done",
-            payload={"created_datasets": len(result.get("created_datasets", []))},
+            payload={
+                "created_datasets": len(result.get("created_datasets", [])),
+                "created_analyses": len(created_analyses),
+            },
         )
+        if latest_analysis is not None:
+            result["latest_analysis"] = latest_analysis
         return result
 
     def run_table_eda(

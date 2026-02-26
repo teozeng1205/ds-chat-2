@@ -97,6 +97,11 @@ class OperatorRuntime:
     def run_python(self, *, thread_id: str, run_id: str, code: str) -> dict[str, Any]:
         self._ensure_safe(code)
         before_ids = {item["dataset_id"] for item in self.workspace.list_dataset_records(thread_id=thread_id, run_id=run_id)}
+        before_analyses = {
+            item.get("analysis_id")
+            for item in self.workspace.load_manifest(thread_id=thread_id, run_id=run_id).get("analyses", [])
+            if isinstance(item, dict) and item.get("analysis_id")
+        }
         stdout = io.StringIO()
 
         def list_datasets() -> list[dict[str, Any]]:
@@ -138,10 +143,14 @@ class OperatorRuntime:
 
         records = self.workspace.list_dataset_records(thread_id=thread_id, run_id=run_id)
         created = [item for item in records if item["dataset_id"] not in before_ids]
+        manifest = self.workspace.load_manifest(thread_id=thread_id, run_id=run_id)
+        analyses = [item for item in manifest.get("analyses", []) if isinstance(item, dict)]
+        created_analyses = [item for item in analyses if item.get("analysis_id") not in before_analyses]
         return {
             "ok": True,
             "stdout": stdout.getvalue(),
             "created_datasets": created,
+            "created_analyses": created_analyses,
             "run_id": run_id,
         }
 

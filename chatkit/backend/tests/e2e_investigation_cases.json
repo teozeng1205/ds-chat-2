@@ -39,6 +39,16 @@
       "name": "generic_outlier_numeric_columns_table_x",
       "thread_id": "thread-outliers-table-x",
       "question": "find outliers in any numeric columns for table prod.monitoring.combined_audit"
+    },
+    {
+      "name": "derived_common_output_eda_b6_yesterday_price_outlook_plot",
+      "thread_id": "thread-derived-common-output-eda",
+      "question": "make a EDA of derived common output for customer B6 and yesterday, and can you make a plot of price outlook?"
+    },
+    {
+      "name": "detailed_competitive_position_analysis",
+      "thread_id": "thread-competitive-position-detailed",
+      "question": "make a detailed analysis of competitive position for customer B6 yesterday"
     }
   ]
 }
