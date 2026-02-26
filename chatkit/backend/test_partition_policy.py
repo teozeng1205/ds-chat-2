@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.nextgen_types import PartitionPolicy, PlanFilter, TableSpec
+from app.investigation.types import PartitionPolicy, PlanFilter, TableSpec
 from app.partition_policy import ensure_partition_filters
 
 

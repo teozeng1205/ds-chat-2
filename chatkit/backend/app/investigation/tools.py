@@ -1,16 +1,7 @@
-"""Compatibility shim for investigation tools.
-
-Use `app.tools.investigation_tools` for active imports.
-"""
+"""Investigation tool exports."""
 
 from __future__ import annotations
 
-import warnings
+from ..tools.investigation_tools import investigation_instructions, investigation_tools
 
-from ..tools.investigation_tools import *  # noqa: F401,F403
-
-warnings.warn(
-    "app.investigation.tools is deprecated; import app.tools.investigation_tools instead.",
-    DeprecationWarning,
-    stacklevel=2,
-)
+__all__ = ["investigation_instructions", "investigation_tools"]

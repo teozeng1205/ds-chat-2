@@ -1,4 +1,4 @@
-"""Function tools for the investigation operator agent."""
+"""Function tools exposed to the autonomous investigation agent."""
 
 from __future__ import annotations
 
@@ -10,11 +10,7 @@ from agents import RunContextWrapper, function_tool
 from chatkit.agents import AgentContext
 from chatkit.types import ProgressUpdateEvent
 
-from ..investigation.runtime import (
-    cleanup_thread_workspace,
-    get_runtime,
-    is_investigation_engine_enabled,
-)
+from ..investigation.runtime import cleanup_thread_workspace, get_runtime, is_investigation_engine_enabled
 
 
 def _thread_id(ctx: RunContextWrapper[AgentContext]) -> str:
@@ -23,11 +19,7 @@ def _thread_id(ctx: RunContextWrapper[AgentContext]) -> str:
     return str(thread_id) if thread_id else "default-thread"
 
 
-async def _stream_progress(
-    ctx: RunContextWrapper[AgentContext],
-    icon: str,
-    text: str,
-) -> None:
+async def _stream_progress(ctx: RunContextWrapper[AgentContext], icon: str, text: str) -> None:
     await ctx.context.stream(ProgressUpdateEvent(icon=icon, text=text))
 
 
@@ -46,52 +38,25 @@ def _parse_json_object(raw: str | None, *, field_name: str) -> dict[str, Any]:
 def investigation_instructions() -> str:
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     return (
-        f"You are an internal investigation operator agent. Today is {current_date}.\n"
-        "Always use tools for factual answers.\n"
-        "Preferred execution style is shell-first and dataframe-first with offline artifacts.\n"
-        "Primary tool: investigate_issue(question, sales_date, constraints).\n"
-        "Use run_table_eda(table_name, ...) when the task asks for EDA/profile/exploration of a table.\n"
-        "Use extract_sql_to_dataset and extract_s3_to_dataset for explicit extraction tasks.\n"
-        "Use operator_run_python to perform custom pandas analysis over saved datasets.\n"
-        "Use inspect_table_metadata for unknown tables or schema discovery.\n"
-        "Use browse_knowledge_files to inspect local KB source files directly.\n"
-        "Partition filters are advisory; if broad query is necessary, state caveats.\n"
-        "Every conclusion should include lineage with run_id and relevant dataset ids.\n"
-        "Use cleanup_session_workspace when user asks to purge artifacts; runtime also auto-cleans manifests after response.\n"
+        f"You are an autonomous investigation operator. Today is {current_date}.\n"
+        "Operate in iterative plan/act/observe loops using tools until done criteria are met.\n"
+        "Do not rely on predefined intent labels; infer strategy from evidence and KB context.\n"
+        "Always ground conclusions in local artifacts and include lineage with run_id and dataset IDs.\n"
+        "Prefer extract_sql_to_dataset/extract_s3_to_dataset, then run_dataframe_analysis/operator_run_python.\n"
+        "Use run_table_eda when the user explicitly asks for EDA/profile exploration of a table.\n"
+        "Use inspect_table_metadata for unknown or discovered tables.\n"
+        "Use browse_knowledge_files for local docs and KB sources.\n"
+        "Keep SQL read-only and call out caveats for sampled or broad scans.\n"
     )
 
 
 @function_tool
-async def refresh_knowledge_base(
-    ctx: RunContextWrapper[AgentContext],
-    force: bool = True,
-) -> dict[str, Any]:
-    """Refresh local investigation knowledge base from local editable sources."""
-    await _stream_progress(ctx, "search", "Refreshing local knowledge base index.")
-    runtime = get_runtime()
-    result = runtime.refresh_knowledge_base(force=force)
-    await _stream_progress(
-        ctx,
-        "check-circle",
-        f"Knowledge base refresh complete: refreshed={result.get('refreshed', False)}.",
-    )
-    return result
-
-
-@function_tool
-async def browse_knowledge_files(
-    ctx: RunContextWrapper[AgentContext],
-    path_or_glob: str,
-) -> dict[str, Any]:
-    """Browse local KB source files directly (tables.md/common codes/recipes/docs)."""
+async def browse_knowledge_files(ctx: RunContextWrapper[AgentContext], path_or_glob: str) -> dict[str, Any]:
+    """Browse local KB source files directly (tables/docs/codes/practices)."""
     await _stream_progress(ctx, "search", f"Browsing knowledge files for: {path_or_glob}")
     runtime = get_runtime()
     result = runtime.browse_knowledge_files(path_or_glob)
-    await _stream_progress(
-        ctx,
-        "check-circle",
-        f"Knowledge browse complete: {result.get('count', 0)} file(s).",
-    )
+    await _stream_progress(ctx, "check-circle", f"Knowledge browse complete: {result.get('count', 0)} file(s).")
     return result
 
 
@@ -101,7 +66,7 @@ async def resolve_entities(
     input_text: str,
     sales_date_hint: str | None = None,
 ) -> dict[str, Any]:
-    """Resolve provider/site/customer entities using local common codes then MySQL fallback."""
+    """Resolve provider/site/customer entities via common codes + MySQL fallback."""
     await _stream_progress(ctx, "search", "Resolving entities and code references.")
     runtime = get_runtime()
     result = runtime.resolve_entities(input_text, sales_date_hint=sales_date_hint)
@@ -125,19 +90,15 @@ async def retrieve_knowledge(
     entities: str,
     question: str,
 ) -> dict[str, Any]:
-    """Retrieve candidate tables, partitions, and templates from local KB index."""
-    await _stream_progress(ctx, "search", f"Retrieving KB context for intent={intent}.")
+    """Retrieve candidate tables/metadata hints from local KB index."""
+    await _stream_progress(ctx, "search", "Retrieving KB context.")
     runtime = get_runtime()
     parsed_entities = _parse_json_object(entities, field_name="entities")
     result = runtime.retrieve_knowledge(intent=intent, entities=parsed_entities, question=question)
     await _stream_progress(
         ctx,
         "check-circle",
-        (
-            "Knowledge retrieval complete: "
-            f"tables={len(result.get('candidate_tables', []))}, "
-            f"patterns={len(result.get('query_patterns', []))}."
-        ),
+        f"Knowledge retrieval complete: tables={len(result.get('candidate_tables', []))}.",
     )
     return result
 
@@ -149,7 +110,7 @@ async def inspect_table_metadata(
     datasource: str | None = None,
     capture_example_row: bool = True,
 ) -> dict[str, Any]:
-    """Inspect table schema/columns/partition candidates and cache into KB."""
+    """Inspect schema/partitions and cache unknown tables as discovered metadata."""
     await _stream_progress(ctx, "search", f"Inspecting metadata for table {table_name}.")
     runtime = get_runtime()
     result = runtime.inspect_table_metadata(
@@ -174,7 +135,7 @@ async def extract_sql_to_dataset(
     metadata: str | None = None,
     dataset_name: str | None = None,
 ) -> dict[str, Any]:
-    """Execute read-only SQL and persist dataframe as local offline dataset."""
+    """Execute read-only SQL and persist result to local dataset artifact."""
     runtime = get_runtime()
     thread_id = _thread_id(ctx)
     parsed_metadata = _parse_json_object(metadata, field_name="metadata") if metadata else {}
@@ -205,7 +166,7 @@ async def extract_s3_to_dataset(
     metadata: str | None = None,
     dataset_name: str | None = None,
 ) -> dict[str, Any]:
-    """Fetch CSV object(s) from S3 and persist dataframe as local offline dataset."""
+    """Fetch CSV object(s) from S3 and persist result to local dataset artifact."""
     runtime = get_runtime()
     thread_id = _thread_id(ctx)
     parsed_metadata = _parse_json_object(metadata, field_name="metadata") if metadata else {}
@@ -234,7 +195,7 @@ async def run_dataframe_analysis(
     dataset_ids: list[str],
     analysis_spec: str,
 ) -> dict[str, Any]:
-    """Run built-in dataframe analysis against extracted datasets."""
+    """Run built-in dataframe analyses on dataset artifacts."""
     runtime = get_runtime()
     thread_id = _thread_id(ctx)
     parsed_analysis_spec = _parse_json_object(analysis_spec, field_name="analysis_spec")
@@ -246,11 +207,7 @@ async def run_dataframe_analysis(
         dataset_ids=dataset_ids,
         analysis_spec=parsed_analysis_spec,
     )
-    await _stream_progress(
-        ctx,
-        "check-circle",
-        f"Dataframe analysis complete: analysis_id={result.get('analysis_id')}.",
-    )
+    await _stream_progress(ctx, "check-circle", f"Dataframe analysis complete: analysis_id={result.get('analysis_id')}.")
     return result
 
 
@@ -260,7 +217,7 @@ async def operator_run_python(
     code: str,
     run_id: str | None = None,
 ) -> dict[str, Any]:
-    """Run shell-style custom Python over local datasets (pandas-first operator loop)."""
+    """Run pandas-focused Python analysis over saved dataset artifacts."""
     runtime = get_runtime()
     thread_id = _thread_id(ctx)
     await _stream_progress(ctx, "clock", "Running custom Python operator code.")
@@ -268,10 +225,7 @@ async def operator_run_python(
     await _stream_progress(
         ctx,
         "check-circle",
-        (
-            "Python operator complete: "
-            f"created_datasets={len(result.get('created_datasets', []))}, run_id={result.get('run_id')}."
-        ),
+        f"Python operator complete: created_datasets={len(result.get('created_datasets', []))}, run_id={result.get('run_id')}.",
     )
     return result
 
@@ -283,17 +237,13 @@ async def cleanup_session_workspace(
     mode: str = "ephemeral_manifest",
 ) -> dict[str, Any]:
     """Clean local workspace artifacts while retaining compact manifests for lineage."""
-    runtime = get_runtime()
     target_thread = thread_id or _thread_id(ctx)
     await _stream_progress(ctx, "search", f"Cleaning workspace for thread {target_thread}.")
-    result = runtime.cleanup_session_workspace(target_thread, mode=mode)
+    result = cleanup_thread_workspace(thread_id=target_thread, mode=mode)
     await _stream_progress(
         ctx,
         "check-circle",
-        (
-            "Workspace cleanup complete: "
-            f"deleted_files={result.get('deleted_files')}, manifest_retained={result.get('manifest_retained')}."
-        ),
+        f"Workspace cleanup complete: deleted_files={result.get('deleted_files')}, manifest_retained={result.get('manifest_retained')}.",
     )
     return result
 
@@ -306,7 +256,7 @@ async def run_table_eda(
     constraints: str | None = None,
     run_id: str | None = None,
 ) -> dict[str, Any]:
-    """Run deep autonomous EDA for a table and return a chat-ready markdown report."""
+    """Run deep autonomous EDA for a table and return markdown report + lineage."""
     runtime = get_runtime()
     thread_id = _thread_id(ctx)
     parsed_constraints = _parse_json_object(constraints, field_name="constraints") if constraints else {}
@@ -322,10 +272,7 @@ async def run_table_eda(
     await _stream_progress(
         ctx,
         "check-circle",
-        (
-            f"EDA complete: table={result.get('table_name')}, "
-            f"datasets={len(result.get('datasets', []))}, run_id={result.get('run_id')}."
-        ),
+        f"EDA complete: datasets={len(result.get('datasets', []))}, run_id={result.get('run_id')}.",
     )
     return result
 
@@ -337,26 +284,22 @@ async def investigate_issue(
     sales_date: str | None = None,
     constraints: str | None = None,
 ) -> dict[str, Any]:
-    """End-to-end investigation: knowledge -> extract -> dataframe analysis -> conclusions."""
+    """Autonomous investigation dispatcher (no predefined intent recipes)."""
     runtime = get_runtime()
     thread_id = _thread_id(ctx)
     parsed_constraints = _parse_json_object(constraints, field_name="constraints") if constraints else None
 
-    await _stream_progress(ctx, "search", "Starting investigation pipeline.")
+    await _stream_progress(ctx, "search", "Starting autonomous investigation.")
     result = runtime.investigate_issue(
         thread_id=thread_id,
         question=question,
         sales_date=sales_date,
         constraints=parsed_constraints,
     )
-
     await _stream_progress(
         ctx,
         "check-circle",
-        (
-            f"Investigation complete: intent={result.get('intent')}, "
-            f"datasets={len(result.get('datasets', []))}, run_id={result.get('run_id')}."
-        ),
+        f"Investigation complete: strategy={result.get('strategy')}, datasets={len(result.get('datasets', []))}, run_id={result.get('run_id')}.",
     )
     return result
 
@@ -374,13 +317,12 @@ def investigation_tools() -> list[Any]:
         run_dataframe_analysis,
         operator_run_python,
         cleanup_session_workspace,
-        refresh_knowledge_base,
     ]
 
 
 __all__ = [
     "investigation_instructions",
     "investigation_tools",
-    "cleanup_session_workspace",
+    "cleanup_thread_workspace",
     "is_investigation_engine_enabled",
 ]

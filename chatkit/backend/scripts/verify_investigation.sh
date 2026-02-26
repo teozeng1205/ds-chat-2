@@ -131,11 +131,6 @@ if [[ "$SKIP_CONNECTIVITY" -eq 0 ]]; then
 fi
 
 if [[ "$SKIP_E2E" -eq 0 ]]; then
-  if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-    echo "OPENAI_API_KEY is required for E2E smoke."
-    exit 1
-  fi
-
   echo "==> Running investigation E2E smoke"
   E2E_CMD=(
     python scripts/smoke_investigation_pipeline.py

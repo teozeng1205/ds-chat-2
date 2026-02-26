@@ -15,11 +15,11 @@ def test_orchestrator_routes_to_investigation_and_codebase() -> None:
     assert "Codebase Explanation Agent" in names
 
 
-def test_tool_choice_compatibility_maps_legacy_ids_to_investigation() -> None:
-    investigation = build_agent("internal_monitoring", "gpt-4.1-mini")
-    assert investigation.name == "Investigation Operator Agent"
-
-
 def test_tool_choice_codebase_routes_to_codebase_agent() -> None:
     codebase = build_agent("codebase_explainer", "gpt-4.1-mini")
     assert codebase.name == "Codebase Explanation Agent"
+
+
+def test_tool_choice_investigation_routes_to_investigation_agent() -> None:
+    investigation = build_agent("investigation", "gpt-4.1-mini")
+    assert investigation.name == "Investigation Operator Agent"

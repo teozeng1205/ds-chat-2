@@ -19,18 +19,41 @@ from threevictors.dao import mysql_connector, redshift_connector
 from threevictors.s3_util import s3_util
 
 
-def bootstrap_creds(profile: str) -> None:
+def bootstrap_creds(profile: str) -> dict[str, int]:
     proc = subprocess.run(
-        ["granted", "credential-process", "--profile", profile, "--auto-login"],
-        check=True,
+        ["zsh", "-lc", f"assume {profile} >/dev/null 2>&1; env -0"],
         capture_output=True,
-        text=True,
+        text=False,
     )
-    payload = json.loads(proc.stdout)
-    os.environ["AWS_ACCESS_KEY_ID"] = payload["AccessKeyId"]
-    os.environ["AWS_SECRET_ACCESS_KEY"] = payload["SecretAccessKey"]
-    os.environ["AWS_SESSION_TOKEN"] = payload["SessionToken"]
+    if proc.returncode != 0:
+        stderr = proc.stderr.decode("utf-8", errors="replace") if proc.stderr else ""
+        raise RuntimeError(f"assume {profile} failed: {stderr.strip() or 'unknown error'}")
+
+    loaded = 0
+    output = proc.stdout.decode("utf-8", errors="replace")
+    for pair in output.split("\x00"):
+        if not pair or "=" not in pair:
+            continue
+        key, value = pair.split("=", 1)
+        if key.startswith("AWS_"):
+            os.environ[key] = value
+            loaded += 1
+    if loaded == 0:
+        fallback = subprocess.run(
+            ["granted", "credential-process", "--profile", profile, "--auto-login"],
+            capture_output=True,
+            text=True,
+        )
+        if fallback.returncode != 0:
+            stderr = fallback.stderr or ""
+            raise RuntimeError(f"Credential fallback failed for {profile}: {stderr.strip() or 'unknown error'}")
+        payload = json.loads(fallback.stdout)
+        os.environ["AWS_ACCESS_KEY_ID"] = str(payload.get("AccessKeyId") or "")
+        os.environ["AWS_SECRET_ACCESS_KEY"] = str(payload.get("SecretAccessKey") or "")
+        os.environ["AWS_SESSION_TOKEN"] = str(payload.get("SessionToken") or "")
+        loaded = 3
     os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-1")
+    return {"env_keys_loaded": loaded}
 
 
 class _RedshiftReader(redshift_connector.RedshiftConnector):
@@ -96,7 +119,12 @@ def smoke_mysql() -> dict:
 def smoke_s3() -> dict:
     try:
         client = s3_util.S3Util()
-        response = client.s3_client.list_objects_v2(
+        s3_client = getattr(client, "s3_client", None)
+        if s3_client is None and hasattr(client, "get_s3_client"):
+            s3_client = client.get_s3_client()
+        if s3_client is None:
+            raise RuntimeError("Unable to initialize S3 client from S3Util")
+        response = s3_client.list_objects_v2(
             Bucket="s3-atp-3victors-3vdev-use1-collection-anomalies",
             Prefix="collection-customer/v1/",
             MaxKeys=5,
@@ -124,13 +152,13 @@ def main() -> int:
     }
 
     try:
-        bootstrap_creds(args.profile)
+        details = bootstrap_creds(args.profile)
     except Exception as exc:
         output["bootstrap"] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
         print(json.dumps(output, indent=2, default=str))
         return 1
 
-    output["bootstrap"] = {"ok": True}
+    output["bootstrap"] = {"ok": True, **details}
     output["redshift"] = smoke_redshift()
     output["mysql"] = smoke_mysql()
     output["s3"] = smoke_s3()

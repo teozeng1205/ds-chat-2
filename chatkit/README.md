@@ -21,7 +21,6 @@ What happens:
 - `VITE_CHATKIT_API_URL` (optional, defaults to `/chatkit`)
 - `VITE_CHATKIT_API_DOMAIN_KEY` (optional, defaults to `domain_pk_localhost_dev`)
 - `INVESTIGATION_ENGINE_ENABLED` (optional, defaults to `1`)
-- `NEXT_GEN_INVESTIGATION` (legacy compatibility flag, optional)
 
 Set `OPENAI_API_KEY` in your shell or in `.env.local` at the repo root before
 running the backend. Register a production domain key in the OpenAI dashboard
@@ -70,9 +69,6 @@ npm run backend:smoke
 Direct script usage (more control):
 
 ```bash
-backend/scripts/verify_nextgen.sh --help
-backend/scripts/verify_nextgen.sh --profile 3VDEV --max-turns 40
-backend/scripts/verify_nextgen.sh --scenarios top_site_issues,market_anomalies_distribution
 backend/scripts/verify_investigation.sh --help
 backend/scripts/verify_investigation.sh --profile 3VDEV --max-turns 40
 backend/scripts/verify_investigation.sh --scenarios top_site_issues,market_anomalies_distribution
@@ -87,10 +83,8 @@ E2E smoke reports with full model output and debug steps are written under:
 
 - Default mode (`INVESTIGATION_ENGINE_ENABLED=1`) routes internal data tasks to the
   unified `Investigation Operator Agent`.
-- Legacy compatibility env `NEXT_GEN_INVESTIGATION` is still honored when the new
-  flag is not set.
 - Knowledge sources are local and editable:
-  - `tables.md`
-  - `backend/app/investigation/common_codes.json`
-  - `backend/app/investigation/task_recipes.json`
-  - `backend/app/investigation/sql_best_practices.md`
+  - `backend/app/investigation/knowledge/tables.md`
+  - `backend/app/investigation/knowledge/common_codes.json`
+  - `backend/app/investigation/knowledge/task_recipes.json`
+  - `backend/app/investigation/knowledge/sql_best_practices.md`
