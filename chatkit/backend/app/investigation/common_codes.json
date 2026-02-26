@@ -1,0 +1,32 @@
+{
+  "providers": [
+    "AA",
+    "BA",
+    "DL",
+    "LH",
+    "QL2",
+    "SK",
+    "UA"
+  ],
+  "sites": [
+    "AV",
+    "DF",
+    "DY",
+    "NY",
+    "QF"
+  ],
+  "customers": [
+    "AA",
+    "B6",
+    "DL",
+    "LH",
+    "SK",
+    "UA"
+  ],
+  "customer_sites": [
+    "AA|AV",
+    "B6|QF",
+    "DL|DY",
+    "LH|AV"
+  ]
+}
