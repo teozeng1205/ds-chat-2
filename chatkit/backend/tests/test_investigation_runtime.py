@@ -145,7 +145,7 @@ def test_workspace_cleanup_retains_manifest(tmp_path: Path):
     assert not Path(record["local_path"]).exists()
 
 
-def test_knowledge_base_parses_tables_doc_and_refreshes(tmp_path: Path):
+def test_knowledge_index_parses_tables_doc_and_refreshes(tmp_path: Path):
     knowledge_root = tmp_path / "knowledge"
     knowledge_root.mkdir(parents=True, exist_ok=True)
 

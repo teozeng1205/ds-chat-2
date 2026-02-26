@@ -150,7 +150,7 @@ class InvestigationRuntime:
     def ensure_kb_ready(self) -> dict[str, Any]:
         return self.kb.refresh(force=False, catalog=self.catalog)
 
-    def refresh_knowledge_base(self, force: bool = True) -> dict[str, Any]:
+    def refresh_knowledge_index(self, force: bool = True) -> dict[str, Any]:
         return self.kb.refresh(force=force, catalog=self.catalog)
 
     def browse_knowledge_files(self, path_or_glob: str) -> dict[str, Any]:
