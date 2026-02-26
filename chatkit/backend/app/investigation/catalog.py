@@ -1,15 +1,21 @@
-"""Local file-backed knowledge catalog with sqlite index."""
+"""Local file-backed knowledge catalog with sqlite index and task cards."""
 
 from __future__ import annotations
 
 import glob
 import hashlib
 import json
+import re
 import sqlite3
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+try:
+    import yaml
+except Exception:  # pragma: no cover
+    yaml = None
 
 
 @dataclass(frozen=True)
@@ -78,7 +84,12 @@ class LocalCodeCatalog:
     def rows(self) -> list[tuple[str, str, str]]:
         payload = self._load()
         out: list[tuple[str, str, str]] = []
-        for key, entity in [("providers", "provider"), ("sites", "site"), ("customers", "customer"), ("customer_sites", "customer_site")]:
+        for key, entity in [
+            ("providers", "provider"),
+            ("sites", "site"),
+            ("customers", "customer"),
+            ("customer_sites", "customer_site"),
+        ]:
             for row in payload.get(key, []) or []:
                 if isinstance(row, str):
                     code = row.strip().upper()
@@ -90,7 +101,9 @@ class LocalCodeCatalog:
 
 
 class KnowledgeBase:
-    """Local sqlite-backed KB index with source files in investigation/knowledge."""
+    """Local sqlite-backed KB index with natural-language task cards and docs."""
+
+    _TOKEN_RE = re.compile(r"[A-Za-z0-9_]{2,}")
 
     def __init__(self, *, root: Path, db_path: Path) -> None:
         self.root = root
@@ -149,6 +162,20 @@ class KnowledgeBase:
                     content TEXT NOT NULL,
                     updated_at REAL NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS kb_task_cards (
+                    card_id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    signals_json TEXT NOT NULL,
+                    required_entities_json TEXT NOT NULL,
+                    candidate_tables_json TEXT NOT NULL,
+                    actions_json TEXT NOT NULL,
+                    analysis_mode TEXT NOT NULL,
+                    analysis_instructions TEXT NOT NULL,
+                    python_template TEXT NOT NULL,
+                    body TEXT NOT NULL,
+                    source_path TEXT NOT NULL,
+                    updated_at REAL NOT NULL
+                );
                 """
             )
             conn.commit()
@@ -156,15 +183,22 @@ class KnowledgeBase:
             conn.close()
 
     def _source_files(self) -> list[Path]:
+        patterns = [
+            "*.md",
+            "*.json",
+            "docs/**/*.md",
+            "docs/**/*.txt",
+            "task_cards/**/*.md",
+        ]
         out: list[Path] = []
-        for pattern in ["*.md", "*.json", "docs/*.md", "docs/*.txt"]:
+        for pattern in patterns:
             out.extend(sorted(self.root.glob(pattern)))
         return [p for p in out if p.is_file()]
 
     def _source_hash(self) -> str:
         digest = hashlib.sha256()
         for path in self._source_files():
-            digest.update(path.name.encode("utf-8"))
+            digest.update(str(path.relative_to(self.root)).encode("utf-8"))
             digest.update(path.read_bytes())
         return digest.hexdigest()
 
@@ -179,7 +213,7 @@ class KnowledgeBase:
             if not line.startswith("|"):
                 continue
             cells = [part.strip() for part in line.strip("|").split("|")]
-            if len(cells) < 1:
+            if not cells:
                 continue
             candidate = cells[0].strip("`")
             if "." not in candidate or " " in candidate:
@@ -198,14 +232,53 @@ class KnowledgeBase:
                     "datasource": datasource,
                     "tier": "common",
                     "notes": cells[1] if len(cells) > 1 else "",
-                    "partitions": [],
-                    "columns": [],
-                    "sample_row": None,
                     "query_example": f"SELECT * FROM {candidate} LIMIT 200",
-                    "analysis_example": "Run profile summary and missingness analysis",
+                    "analysis_example": "Run generic profile + targeted python analysis",
                 },
             )
         return out
+
+    @staticmethod
+    def _parse_markdown_frontmatter(text: str) -> tuple[dict[str, Any], str]:
+        if not text.startswith("---\n"):
+            return {}, text
+        end = text.find("\n---\n", 4)
+        if end <= 0:
+            return {}, text
+        frontmatter_raw = text[4:end]
+        body = text[end + 5 :]
+        if yaml is None:
+            return {}, body
+        data = yaml.safe_load(frontmatter_raw) or {}
+        if not isinstance(data, dict):
+            data = {}
+        return data, body
+
+    def _load_task_cards(self) -> list[dict[str, Any]]:
+        cards_dir = self.root / "task_cards"
+        if not cards_dir.exists():
+            return []
+
+        cards: list[dict[str, Any]] = []
+        for path in sorted(cards_dir.rglob("*.md")):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            fm, body = self._parse_markdown_frontmatter(text)
+            card_id = str(fm.get("id") or path.stem)
+            card = {
+                "card_id": card_id,
+                "title": str(fm.get("title") or card_id),
+                "signals": [str(item).strip().lower() for item in (fm.get("signals") or []) if str(item).strip()],
+                "required_entities": [str(item).strip().lower() for item in (fm.get("required_entities") or []) if str(item).strip()],
+                "candidate_tables": [str(item).strip() for item in (fm.get("candidate_tables") or []) if str(item).strip()],
+                "actions": list(fm.get("actions") or []),
+                "analysis_mode": str(fm.get("analysis_mode") or "profile_dataset"),
+                "analysis_instructions": str(fm.get("analysis_instructions") or ""),
+                "python_template": str(fm.get("python_template") or ""),
+                "body": body.strip(),
+                "source_path": str(path),
+            }
+            cards.append(card)
+        return cards
 
     def refresh(self, *, force: bool, catalog: LocalCodeCatalog) -> dict[str, Any]:
         now = time.time()
@@ -223,9 +296,9 @@ class KnowledgeBase:
             conn.execute("DELETE FROM kb_example_rows")
             conn.execute("DELETE FROM kb_codes")
             conn.execute("DELETE FROM kb_documents")
+            conn.execute("DELETE FROM kb_task_cards")
 
-            tables_doc = self.root / "tables.md"
-            table_rows = self._parse_tables_markdown(tables_doc)
+            table_rows = self._parse_tables_markdown(self.root / "tables.md")
             for table_name, row in table_rows.items():
                 conn.execute(
                     """
@@ -249,7 +322,8 @@ class KnowledgeBase:
                     (code, code_type, source, now),
                 )
 
-            for file_path in self._source_files():
+            source_files = self._source_files()
+            for file_path in source_files:
                 content = file_path.read_text(encoding="utf-8", errors="replace")
                 doc_id = hashlib.sha256(str(file_path).encode("utf-8")).hexdigest()[:24]
                 conn.execute(
@@ -257,21 +331,49 @@ class KnowledgeBase:
                     (doc_id, str(file_path), content, now),
                 )
 
+            task_cards = self._load_task_cards()
+            for card in task_cards:
+                conn.execute(
+                    """
+                    INSERT INTO kb_task_cards (
+                        card_id, title, signals_json, required_entities_json, candidate_tables_json,
+                        actions_json, analysis_mode, analysis_instructions, python_template,
+                        body, source_path, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        card["card_id"],
+                        card["title"],
+                        json.dumps(card.get("signals", []), ensure_ascii=True),
+                        json.dumps(card.get("required_entities", []), ensure_ascii=True),
+                        json.dumps(card.get("candidate_tables", []), ensure_ascii=True),
+                        json.dumps(card.get("actions", []), ensure_ascii=True),
+                        card.get("analysis_mode", "profile_dataset"),
+                        card.get("analysis_instructions", ""),
+                        card.get("python_template", ""),
+                        card.get("body", ""),
+                        card.get("source_path", ""),
+                        now,
+                    ),
+                )
+
             conn.execute("INSERT OR REPLACE INTO kb_meta (key, value) VALUES ('source_hash', ?)", (source_hash,))
             conn.execute("INSERT OR REPLACE INTO kb_meta (key, value) VALUES ('last_refresh', ?)", (str(now),))
             conn.commit()
+
             return {
                 "ok": True,
                 "refreshed": True,
                 "source_hash": source_hash,
                 "tables_indexed": len(table_rows),
                 "codes_indexed": len(catalog.rows()),
+                "task_cards_indexed": len(task_cards),
             }
         finally:
             conn.close()
 
     def browse_files(self, path_or_glob: str) -> dict[str, Any]:
-        pattern = path_or_glob.strip() or "*"
+        pattern = path_or_glob.strip() or "**/*"
         base = self.root
         if any(ch in pattern for ch in "*?[]"):
             files = [Path(path) for path in glob.glob(str(base / pattern), recursive=True)]
@@ -280,40 +382,48 @@ class KnowledgeBase:
             files = [target] if target.exists() else []
         entries: list[dict[str, Any]] = []
         for path in files:
-            if not path.is_file() or base not in path.parents and path != base:
+            if not path.is_file():
+                continue
+            if base not in path.parents and path != base:
                 continue
             text = path.read_text(encoding="utf-8", errors="replace")
             entries.append(
                 {
                     "path": str(path),
                     "size": path.stat().st_size,
-                    "content": text[:8000],
-                    "truncated": len(text) > 8000,
+                    "content": text[:12000],
+                    "truncated": len(text) > 12000,
                 }
             )
         return {"count": len(entries), "files": entries}
 
+    @classmethod
+    def _tokens(cls, text: str) -> list[str]:
+        return [m.group(0).lower() for m in cls._TOKEN_RE.finditer(text or "")]
+
     def retrieve(self, *, question: str, entities: dict[str, Any], top_k: int = 8) -> dict[str, Any]:
-        tokens = [tok.lower() for tok in question.split() if tok]
+        tokens = self._tokens(question)
         conn = sqlite3.connect(self.db_path)
         try:
-            rows = conn.execute("SELECT table_name, datasource, tier, notes, query_example, analysis_example FROM kb_tables").fetchall()
-            scored: list[tuple[float, dict[str, Any]]] = []
-            for table_name, datasource, tier, notes, query_example, analysis_example in rows:
+            table_rows = conn.execute(
+                "SELECT table_name, datasource, tier, notes, query_example, analysis_example FROM kb_tables"
+            ).fetchall()
+            table_scored: list[tuple[float, dict[str, Any]]] = []
+            for table_name, datasource, tier, notes, query_example, analysis_example in table_rows:
                 score = 0.0
                 text = f"{table_name} {notes}".lower()
                 for tok in tokens:
                     if tok in text:
                         score += 1.0
-                if entities.get("providers") and "provider" in text:
-                    score += 1.5
+                if entities.get("providers") and any(v in text for v in ["provider", "providercode"]):
+                    score += 1.0
                 if entities.get("sites") and "site" in text:
-                    score += 1.5
+                    score += 1.0
                 if entities.get("customers") and "customer" in text:
-                    score += 1.5
+                    score += 1.0
                 if score <= 0:
                     continue
-                scored.append(
+                table_scored.append(
                     (
                         score,
                         {
@@ -326,12 +436,86 @@ class KnowledgeBase:
                         },
                     )
                 )
-            scored.sort(key=lambda item: item[0], reverse=True)
-            candidate_tables = [item[1]["table_name"] for item in scored[:top_k]]
-            hints = [item[1] for item in scored[:top_k]]
+            table_scored.sort(key=lambda item: item[0], reverse=True)
+
+            card_rows = conn.execute(
+                """
+                SELECT card_id, title, signals_json, required_entities_json, candidate_tables_json,
+                       actions_json, analysis_mode, analysis_instructions, python_template, body, source_path
+                FROM kb_task_cards
+                """
+            ).fetchall()
+
+            card_scored: list[tuple[float, dict[str, Any]]] = []
+            for (
+                card_id,
+                title,
+                signals_json,
+                required_entities_json,
+                candidate_tables_json,
+                actions_json,
+                analysis_mode,
+                analysis_instructions,
+                python_template,
+                body,
+                source_path,
+            ) in card_rows:
+                signals = json.loads(signals_json or "[]")
+                required_entities = json.loads(required_entities_json or "[]")
+                candidate_tables = json.loads(candidate_tables_json or "[]")
+                actions = json.loads(actions_json or "[]")
+
+                score = 0.0
+                title_body = f"{title} {body}".lower()
+                for tok in tokens:
+                    if tok in title_body:
+                        score += 0.7
+                for signal in signals:
+                    signal_text = str(signal).strip().lower()
+                    if signal_text and signal_text in question.lower():
+                        score += 2.0
+                for ent in required_entities:
+                    if ent == "provider" and entities.get("providers"):
+                        score += 1.0
+                    if ent == "site" and entities.get("sites"):
+                        score += 1.0
+                    if ent == "customer" and entities.get("customers"):
+                        score += 1.0
+                for table_name, _datasource, _tier, _notes, _q, _a in table_rows:
+                    if table_name in candidate_tables and any(tok in table_name.lower() for tok in tokens):
+                        score += 0.5
+                if score <= 0:
+                    continue
+
+                card_scored.append(
+                    (
+                        score,
+                        {
+                            "card_id": card_id,
+                            "title": title,
+                            "signals": signals,
+                            "required_entities": required_entities,
+                            "candidate_tables": candidate_tables,
+                            "actions": actions,
+                            "analysis_mode": analysis_mode,
+                            "analysis_instructions": analysis_instructions,
+                            "python_template": python_template,
+                            "body": body,
+                            "source_path": source_path,
+                        },
+                    )
+                )
+
+            card_scored.sort(key=lambda item: item[0], reverse=True)
+
+            candidate_tables = [item[1]["table_name"] for item in table_scored[:top_k]]
+            table_hints = [item[1] for item in table_scored[:top_k]]
+            task_cards = [item[1] for item in card_scored[:top_k]]
+
             return {
                 "candidate_tables": candidate_tables,
-                "table_hints": hints,
+                "table_hints": table_hints,
+                "task_cards": task_cards,
             }
         finally:
             conn.close()
@@ -361,7 +545,7 @@ class KnowledgeBase:
                     tier,
                     notes,
                     f"SELECT * FROM {table_name} LIMIT 200",
-                    "Profile table and compute missingness/cardinality/numeric summary",
+                    "Profile dataset and, if needed, run python analysis",
                     now,
                 ),
             )

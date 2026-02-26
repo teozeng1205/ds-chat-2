@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import datetime as dt
-import fnmatch
 import json
 import logging
 import os
@@ -38,7 +37,6 @@ KB_DB_PATH = KB_RUNTIME_ROOT / "knowledge.sqlite"
 INVESTIGATION_ROOT = Path(__file__).resolve().parent
 KNOWLEDGE_ROOT = INVESTIGATION_ROOT / "knowledge"
 COMMON_CODES_PATH = KNOWLEDGE_ROOT / "common_codes.json"
-TASK_RECIPES_PATH = KNOWLEDGE_ROOT / "task_recipes.json"
 SQL_BEST_PRACTICES_PATH = KNOWLEDGE_ROOT / "sql_best_practices.md"
 TABLES_DOC_PATH = KNOWLEDGE_ROOT / "tables.md"
 
@@ -69,10 +67,6 @@ def _json_default(value: Any) -> Any:
     if isinstance(value, set):
         return sorted(value)
     return str(value)
-
-
-def _normalize_code(value: str) -> str:
-    return "".join(ch for ch in str(value).upper() if ch.isalnum())
 
 
 def _mask_value(value: Any) -> Any:
@@ -111,6 +105,14 @@ def _coerce_sales_date(value: str | dt.date | dt.datetime | None) -> str:
     raise ValueError(f"Unsupported sales_date format: {value!r}")
 
 
+def _canonical_table_name(table_name: str) -> str:
+    return re.sub(r"\blocal\.monitoring\.", "prod.monitoring.", table_name.strip(), flags=re.I)
+
+
+def _canonicalize_sql(query: str) -> str:
+    return re.sub(r"\blocal\.monitoring\.", "prod.monitoring.", query, flags=re.I)
+
+
 class InvestigationRuntime:
     """Coordinator for autonomous data investigation tasks."""
 
@@ -128,7 +130,8 @@ class InvestigationRuntime:
         self.workspace = WorkspaceManager(root=SESSION_ROOT)
         self.operator = OperatorRuntime(self.workspace)
         self.analyzer = DataAnalyzer()
-        self.engine = AutonomousInvestigationEngine(self)
+        self.max_steps = int(os.getenv("INVESTIGATION_MAX_STEPS", "20"))
+        self.engine = AutonomousInvestigationEngine(self, max_steps=self.max_steps)
         self.approval_policy = os.getenv("INVESTIGATION_APPROVAL_POLICY", "never")
         self.sandbox_mode = os.getenv("INVESTIGATION_SANDBOX_MODE", "workspace-write")
 
@@ -157,9 +160,8 @@ class InvestigationRuntime:
     def resolve_entities(self, input_text: str, sales_date_hint: str | None = None) -> dict[str, Any]:
         return self.resolver.resolve(input_text, sales_date_hint=sales_date_hint)
 
-    def retrieve_knowledge(self, *, intent: str, entities: dict[str, Any], question: str) -> dict[str, Any]:
-        del intent
-        return self.kb.retrieve(question=question, entities=entities)
+    def retrieve_knowledge(self, *, query: str, entities: dict[str, Any], top_k: int = 8) -> dict[str, Any]:
+        return self.kb.retrieve(question=query, entities=entities, top_k=top_k)
 
     def inspect_table_metadata(
         self,
@@ -167,22 +169,23 @@ class InvestigationRuntime:
         datasource: str | None = None,
         capture_example_row: bool = True,
     ) -> dict[str, Any]:
-        source = datasource or self._datasource_for_table(table_name)
-        metadata = self.registry.inspect_table_metadata(table_name, source)
+        canonical_table_name = _canonical_table_name(table_name)
+        source = datasource or self._datasource_for_table(canonical_table_name)
+        metadata = self.registry.inspect_table_metadata(canonical_table_name, source)
 
         sample_row_masked: dict[str, Any] | None = None
         if capture_example_row:
             try:
-                sample = self.registry.execute_sql(source, f"SELECT * FROM {table_name} LIMIT 1")
+                sample = self.registry.execute_sql(source, f"SELECT * FROM {canonical_table_name} LIMIT 1")
                 if not sample.empty:
                     sample_row_masked = _mask_row(sample.iloc[0].to_dict())
             except Exception:
                 sample_row_masked = None
 
-        knowledge = self.kb.retrieve(question=table_name, entities={})
-        tier = "common" if table_name in knowledge.get("candidate_tables", []) else "discovered"
+        knowledge = self.kb.retrieve(question=canonical_table_name, entities={})
+        tier = "common" if canonical_table_name in knowledge.get("candidate_tables", []) else "discovered"
         self.kb.upsert_table_metadata(
-            table_name=table_name,
+            table_name=canonical_table_name,
             datasource=source,
             columns=metadata.get("columns", []),
             partitions=metadata.get("partitions", []),
@@ -193,15 +196,17 @@ class InvestigationRuntime:
 
         return {
             **metadata,
+            "table_name": canonical_table_name,
             "sample_row_masked": sample_row_masked,
             "tier": tier,
         }
 
     @staticmethod
     def _datasource_for_table(table_name: str) -> str:
-        if table_name.startswith("priceeye."):
+        normalized = _canonical_table_name(table_name)
+        if normalized.startswith("priceeye."):
             return "mysql_priceeye"
-        if table_name.startswith("prod.monitoring") or table_name.startswith("local.monitoring"):
+        if normalized.startswith("prod.monitoring"):
             return "redshift_core"
         return "redshift_analytics"
 
@@ -216,7 +221,8 @@ class InvestigationRuntime:
         dataset_name: str | None = None,
     ) -> dict[str, Any]:
         effective_run_id = run_id or self.workspace.start_run(thread_id)
-        validated_query = self.guard.validate(query)
+        canonical_query = _canonicalize_sql(query)
+        validated_query = self.guard.validate(canonical_query)
 
         started = time.time()
         frame = self.registry.execute_sql(datasource, validated_query)
@@ -312,7 +318,7 @@ class InvestigationRuntime:
 
         event = {
             "analysis_id": record["analysis_id"],
-            "analysis_type": payload.get("analysis_type", "summary"),
+            "analysis_mode": payload.get("analysis_mode", "profile_dataset"),
             "dataset_ids": dataset_ids,
         }
         self._log_event(thread_id=thread_id, run_id=run_id, event="analysis_complete", payload=event)
@@ -418,6 +424,17 @@ class InvestigationRuntime:
         analysis = loop_result.get("analysis")
         warnings.extend(loop_result.get("warnings", []))
         clarification = loop_result.get("clarification")
+        observations = list(loop_result.get("observations", []))
+
+        for row in observations:
+            if not isinstance(row, dict):
+                continue
+            self._log_event(
+                thread_id=thread_id,
+                run_id=effective_run_id,
+                event="action_observation",
+                payload=row,
+            )
 
         answer = summarize_answer(
             question=question,
@@ -451,6 +468,7 @@ class InvestigationRuntime:
             "lineage": lineage,
             "partial_result": bool(errors),
             "clarification": clarification,
+            "observations": observations,
             "autonomy_policy": {
                 "approval_policy": self.approval_policy,
                 "sandbox_mode": self.sandbox_mode,
@@ -484,10 +502,9 @@ def ensure_knowledge_layout() -> None:
             json.dumps({"providers": [], "sites": [], "customers": [], "customer_sites": []}, indent=2),
             encoding="utf-8",
         )
-    if not TASK_RECIPES_PATH.exists():
-        TASK_RECIPES_PATH.write_text(json.dumps({"recipes": []}, indent=2), encoding="utf-8")
     if not SQL_BEST_PRACTICES_PATH.exists():
         SQL_BEST_PRACTICES_PATH.write_text("# SQL Best Practices\n", encoding="utf-8")
+    (KNOWLEDGE_ROOT / "task_cards").mkdir(parents=True, exist_ok=True)
 
 
 _RUNTIME: InvestigationRuntime | None = None

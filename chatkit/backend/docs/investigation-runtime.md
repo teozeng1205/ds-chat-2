@@ -16,8 +16,9 @@ The runtime unifies data investigations into a single autonomous shell-first, kn
 ## Knowledge sources
 - `backend/app/investigation/knowledge/tables.md`
 - `backend/app/investigation/knowledge/common_codes.json`
-- `backend/app/investigation/knowledge/task_recipes.json`
+- `backend/app/investigation/knowledge/task_cards/*.md`
 - `backend/app/investigation/knowledge/sql_best_practices.md`
+- `backend/app/investigation/knowledge/docs/*.md`
 
 ## Workspace layout
 `backend/.work/sessions/<thread_id>/<run_id>/`

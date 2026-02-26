@@ -1,23 +1,35 @@
-# DS Chat Next-Gen Knowledge Base
+# DS Chat Investigation Knowledge v3
 
-This local knowledge base powers table routing, relationship mapping, and partition-safe extraction.
+This local knowledge base supports autonomous, generic investigation tasks.
 
-## Core Principles
+## Principles
 
-- Environment is fixed to `3VDEV`.
-- Every DB extraction must use a `table_id` defined in `tables/*.yaml`.
-- Required partitions come from `partition_policy.required_predicates`.
-- If required partition values are missing, request clarification before querying.
-- Multi-source joins are done offline on local dataset artifacts.
+- Environment bootstrap is always `assume 3VDEV`.
+- Guidance is knowledge-driven, not intent-template-driven.
+- Runtime tools are generic primitives: entity resolution, KB retrieval, metadata inspect, SQL/S3 extraction, python analysis, summarization.
+- Partition filters are advisory and should be applied when useful.
+- All fetched data is materialized to local dataset artifacts before downstream analysis.
+- Conclusions must be backed by lineage (`run_id`, datasets, key sources/queries, caveats).
 
-## Artifacts Contract
+## Task Card Guidance
 
-Per user turn, datasets are materialized to:
+- Task cards in `task_cards/*.md` provide natural-language hints, candidate tables, and analysis suggestions.
+- Cards are retrieval context only; they do not hardcode runtime branches.
+- Unknown tables should follow discover-first flow:
+  1. inspect metadata
+  2. run bounded preview
+  3. capture masked sample row
+  4. persist discovered metadata for reuse
 
-`chatkit/backend/.runtime/workspaces/{thread_id}/{turn_id}/datasets/{dataset_id}/`
+## Artifact Contract
 
-Each dataset folder contains:
+Per run, artifacts are stored under:
 
-- `data.parquet`
-- `preview.csv`
+`chatkit/backend/.work/sessions/<thread_id>/<run_id>/`
+
+Key outputs:
+
+- `datasets/<dataset_id>/data.parquet` (or csv fallback)
+- `analysis/<analysis_id>.json`
+- `logs/activity.jsonl`
 - `manifest.json`

@@ -177,7 +177,7 @@ class WorkspaceManager:
             "analysis_id": analysis_id,
             "local_path": str(out_path),
             "created_at": time.time(),
-            "analysis_type": analysis_payload.get("analysis_type", "summary"),
+            "analysis_mode": analysis_payload.get("analysis_mode", "profile_dataset"),
             "summary_stats": analysis_payload.get("summary_stats", {}),
         }
         manifest = self._read_manifest(thread_id, run_id)

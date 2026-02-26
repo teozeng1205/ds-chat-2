@@ -24,6 +24,21 @@
       "name": "combined_audit_deep_eda",
       "thread_id": "thread-combined-audit-eda",
       "question": "can you do a EDA of the table combined_audit"
+    },
+    {
+      "name": "combined_audit_null_patterns_last_3_days",
+      "thread_id": "thread-combined-audit-null-patterns",
+      "question": "analyze null patterns for prod.monitoring.combined_audit for last 3 days"
+    },
+    {
+      "name": "compare_top_issue_reasons_two_providers",
+      "thread_id": "thread-compare-top-issues",
+      "question": "compare top 10 issue reasons between two providers QL2 and LH"
+    },
+    {
+      "name": "generic_outlier_numeric_columns_table_x",
+      "thread_id": "thread-outliers-table-x",
+      "question": "find outliers in any numeric columns for table prod.monitoring.combined_audit"
     }
   ]
 }

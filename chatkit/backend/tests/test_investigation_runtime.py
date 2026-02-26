@@ -38,11 +38,11 @@ class _FakeRuntime:
         del sales_date_hint
         return dict(self.entities)
 
-    def retrieve_knowledge(self, *, intent: str, entities: dict[str, str], question: str):
-        del intent
+    def retrieve_knowledge(self, *, query: str, entities: dict[str, str], top_k: int = 8):
+        del query
         del entities
-        del question
-        return {"candidate_tables": ["prod.monitoring.combined_audit"]}
+        del top_k
+        return {"candidate_tables": ["prod.monitoring.combined_audit"], "task_cards": []}
 
     def inspect_table_metadata(self, table_name: str, datasource: str | None = None, capture_example_row: bool = True):
         del datasource
@@ -78,7 +78,7 @@ class _FakeRuntime:
             "analysis_id": "analysis_1",
             "summary_stats": {"dataset_count": len(dataset_ids)},
             "report_markdown": "analysis",
-            "caveats": [] if analysis_spec.get("type") != "table_eda" else ["sampled"],
+            "caveats": [] if analysis_spec.get("mode") != "profile_dataset" else ["sampled"],
         }
 
 
@@ -205,7 +205,7 @@ def test_autonomous_engine_runs_table_eda_flow():
         constraints={},
     )
 
-    assert result["strategy"] == "table_eda"
+    assert result["strategy"] == "autonomous_general"
     assert len(result["datasets"]) >= 1
     assert result["analysis"] is not None
 

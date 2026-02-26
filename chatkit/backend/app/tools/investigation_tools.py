@@ -86,15 +86,15 @@ async def resolve_entities(
 @function_tool
 async def retrieve_knowledge(
     ctx: RunContextWrapper[AgentContext],
-    intent: str,
+    query: str,
     entities: str,
-    question: str,
+    top_k: int = 8,
 ) -> dict[str, Any]:
     """Retrieve candidate tables/metadata hints from local KB index."""
     await _stream_progress(ctx, "search", "Retrieving KB context.")
     runtime = get_runtime()
     parsed_entities = _parse_json_object(entities, field_name="entities")
-    result = runtime.retrieve_knowledge(intent=intent, entities=parsed_entities, question=question)
+    result = runtime.retrieve_knowledge(query=query, entities=parsed_entities, top_k=top_k)
     await _stream_progress(
         ctx,
         "check-circle",
