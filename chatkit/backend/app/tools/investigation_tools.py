@@ -2,15 +2,29 @@
 
 from __future__ import annotations
 
+import mimetypes
+import base64
 import datetime
 import json
+import re
+from pathlib import Path
 from typing import Any
 
 from agents import RunContextWrapper, function_tool
 from chatkit.agents import AgentContext
-from chatkit.types import ProgressUpdateEvent
+from chatkit.types import AttachmentCreateParams, ProgressUpdateEvent
+from chatkit.widgets import Card
 
+from ..attachment_store import LocalDiskAttachmentStore, default_attachment_dir
 from ..investigation.runtime import cleanup_thread_workspace, get_runtime, is_investigation_engine_enabled
+
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
+IMAGE_PATH_PATTERN = re.compile(r"(/[^)\s]+\.(?:png|jpg|jpeg|gif|webp|svg))", re.IGNORECASE)
+
+
+def _allowed_plot_roots() -> tuple[Path, ...]:
+    backend_root = Path(__file__).resolve().parents[2]
+    return (Path("/tmp").resolve(), (backend_root / ".work").resolve())
 
 
 def _thread_id(ctx: RunContextWrapper[AgentContext]) -> str:
@@ -35,6 +49,205 @@ def _parse_json_object(raw: str | None, *, field_name: str) -> dict[str, Any]:
     return parsed
 
 
+def _path_allowed_for_publish(path: Path) -> bool:
+    resolved = path.expanduser().resolve()
+    for root in _allowed_plot_roots():
+        if resolved == root or root in resolved.parents:
+            return True
+    return False
+
+
+def _normalize_image_path_token(raw: str) -> str:
+    token = raw.strip()
+    if not token:
+        return ""
+    # Handle markdown link wrappers like [label](/tmp/plot.png)
+    link_match = re.search(r"\((/[^)\s]+\.(?:png|jpg|jpeg|gif|webp|svg))\)", token, flags=re.IGNORECASE)
+    if link_match:
+        token = link_match.group(1)
+    for _ in range(3):
+        token = token.strip().strip("`'\"<>[](){}")
+    token = re.sub(r"[,;:.]+$", "", token)
+    return token
+
+
+def _image_path_candidates(raw: str) -> list[str]:
+    candidates: list[str] = []
+    if raw:
+        candidates.append(raw)
+        candidates.extend(IMAGE_PATH_PATTERN.findall(raw))
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in candidates:
+        normalized = _normalize_image_path_token(item)
+        if not normalized or normalized in seen:
+            continue
+        if Path(normalized).suffix.lower() not in IMAGE_EXTENSIONS:
+            continue
+        seen.add(normalized)
+        out.append(normalized)
+    return out
+
+
+def _extract_image_paths(payload: Any) -> list[str]:
+    found: list[str] = []
+
+    def _walk(value: Any) -> None:
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if key.lower() in {"plot_path", "image_path", "chart_path", "figure_path"} and isinstance(item, str):
+                    found.extend(_image_path_candidates(item))
+                _walk(item)
+            return
+        if isinstance(value, list):
+            for item in value:
+                _walk(item)
+            return
+        if isinstance(value, str):
+            found.extend(_image_path_candidates(value))
+
+    _walk(payload)
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for item in found:
+        candidate = _normalize_image_path_token(item)
+        if not candidate or candidate in seen:
+            continue
+        if Path(candidate).suffix.lower() not in IMAGE_EXTENSIONS:
+            continue
+        seen.add(candidate)
+        deduped.append(candidate)
+    return deduped
+
+
+async def _publish_image_widget(
+    ctx: RunContextWrapper[AgentContext],
+    *,
+    path: str,
+    display_name: str | None = None,
+) -> dict[str, Any]:
+    backend_root = Path(__file__).resolve().parents[2]
+    image_path: Path | None = None
+    for candidate in _image_path_candidates(path):
+        raw_candidate = Path(candidate).expanduser()
+        candidate_paths: list[Path] = []
+        if raw_candidate.is_absolute():
+            candidate_paths.append(raw_candidate.resolve())
+        else:
+            candidate_paths.append((backend_root / raw_candidate).resolve())
+            candidate_paths.append((Path.cwd() / raw_candidate).resolve())
+        for resolved in candidate_paths:
+            if resolved.exists() and resolved.is_file():
+                image_path = resolved
+                break
+        if image_path is not None:
+            break
+    if image_path is None:
+        raise ValueError(f"Image path does not exist or is unreadable: {path}")
+    if not _path_allowed_for_publish(image_path):
+        raise ValueError(f"Image path is outside allowed roots (/tmp, .work): {image_path}")
+
+    mime_type, _ = mimetypes.guess_type(str(image_path))
+    if not mime_type or not mime_type.startswith("image/"):
+        raise ValueError(f"File must be an image: {image_path}")
+
+    file_bytes = image_path.read_bytes()
+    if not file_bytes:
+        raise ValueError(f"Image file is empty: {image_path}")
+
+    local_attachment_store = LocalDiskAttachmentStore(default_attachment_dir())
+    attachment = await local_attachment_store.create_attachment(
+        AttachmentCreateParams(
+            name=(display_name or image_path.name),
+            size=len(file_bytes),
+            mime_type=mime_type,
+        ),
+        context=ctx.context.request_context,
+    )
+    await ctx.context.store.save_attachment(attachment, context=ctx.context.request_context)
+    await local_attachment_store.write_attachment_bytes(attachment.id, file_bytes)
+
+    image_url = getattr(attachment, "preview_url", None) or (
+        attachment.upload_descriptor.url if attachment.upload_descriptor else None
+    )
+    if not image_url:
+        raise RuntimeError("Failed to build image URL for published plot.")
+
+    label = display_name or image_path.name
+    inline_data_url = f"data:{mime_type};base64,{base64.b64encode(file_bytes).decode('ascii')}"
+    await ctx.context.stream_widget(
+        Card(
+            size="full",
+            children=[
+                {"type": "Title", "value": "Generated Plot"},
+                {
+                    "type": "Image",
+                    "src": inline_data_url,
+                    "alt": label,
+                    "fit": "contain",
+                    "frame": True,
+                    "radius": "lg",
+                    "width": "100%",
+                    "maxHeight": "78vh",
+                    "minHeight": 360,
+                },
+                {"type": "Caption", "value": label},
+                {
+                    "type": "Row",
+                    "gap": "sm",
+                    "children": [
+                        {
+                            "type": "Button",
+                            "label": "Open Full Size",
+                            "style": "secondary",
+                            "onClickAction": {
+                                "type": "open_url",
+                                "payload": {"url": inline_data_url},
+                            },
+                        },
+                        {
+                            "type": "Button",
+                            "label": "Download PNG",
+                            "style": "secondary",
+                            "onClickAction": {
+                                "type": "download_url",
+                                "payload": {"url": inline_data_url, "filename": image_path.name},
+                            },
+                        },
+                    ],
+                },
+            ]
+        ),
+        copy_text=f"Image: {label}",
+    )
+
+    return {
+        "published": True,
+        "attachment_id": attachment.id,
+        "image_url": image_url,
+        "path": str(image_path),
+        "mime_type": mime_type,
+    }
+
+
+async def _auto_publish_images_from_result(
+    ctx: RunContextWrapper[AgentContext],
+    *,
+    result: dict[str, Any],
+    max_images: int = 4,
+) -> list[dict[str, Any]]:
+    paths = _extract_image_paths(result)
+    published: list[dict[str, Any]] = []
+    for path in paths[:max_images]:
+        try:
+            record = await _publish_image_widget(ctx, path=path)
+            published.append(record)
+        except Exception:
+            continue
+    return published
+
+
 def investigation_instructions() -> str:
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     return (
@@ -45,6 +258,8 @@ def investigation_instructions() -> str:
         "Prefer extract_sql_to_dataset/extract_s3_to_dataset, then run_dataframe_analysis/operator_run_python.\n"
         "Use run_table_eda when the user explicitly asks for EDA/profile exploration of a table.\n"
         "Use inspect_table_metadata for unknown or discovered tables.\n"
+        "If analysis produces plot/image paths, publish them inline with publish_plot_image.\n"
+        "When a plot path is wrapped in markdown or punctuation, normalize the path and still publish it.\n"
         "Use browse_knowledge_files for local docs and KB sources.\n"
         "Keep SQL read-only and call out caveats for sampled or broad scans.\n"
     )
@@ -207,7 +422,16 @@ async def run_dataframe_analysis(
         dataset_ids=dataset_ids,
         analysis_spec=parsed_analysis_spec,
     )
-    await _stream_progress(ctx, "check-circle", f"Dataframe analysis complete: analysis_id={result.get('analysis_id')}.")
+    result["published_images"] = await _auto_publish_images_from_result(ctx, result=result)
+    await _stream_progress(
+        ctx,
+        "check-circle",
+        (
+            "Dataframe analysis complete: "
+            f"analysis_id={result.get('analysis_id')}, "
+            f"images={len(result.get('published_images', []))}."
+        ),
+    )
     return result
 
 
@@ -222,10 +446,16 @@ async def operator_run_python(
     thread_id = _thread_id(ctx)
     await _stream_progress(ctx, "clock", "Running custom Python operator code.")
     result = runtime.operator_run_python(thread_id=thread_id, code=code, run_id=run_id)
+    result["published_images"] = await _auto_publish_images_from_result(ctx, result=result)
     await _stream_progress(
         ctx,
         "check-circle",
-        f"Python operator complete: created_datasets={len(result.get('created_datasets', []))}, run_id={result.get('run_id')}.",
+        (
+            "Python operator complete: "
+            f"created_datasets={len(result.get('created_datasets', []))}, "
+            f"images={len(result.get('published_images', []))}, "
+            f"run_id={result.get('run_id')}."
+        ),
     )
     return result
 
@@ -245,6 +475,19 @@ async def cleanup_session_workspace(
         "check-circle",
         f"Workspace cleanup complete: deleted_files={result.get('deleted_files')}, manifest_retained={result.get('manifest_retained')}.",
     )
+    return result
+
+
+@function_tool
+async def publish_plot_image(
+    ctx: RunContextWrapper[AgentContext],
+    path: str,
+    display_name: str | None = None,
+) -> dict[str, Any]:
+    """Publish an image file from investigation workspace into chat as an inline image widget."""
+    await _stream_progress(ctx, "search", f"Publishing plot image: {path}")
+    result = await _publish_image_widget(ctx, path=path, display_name=display_name)
+    await _stream_progress(ctx, "check-circle", f"Published image to chat: {Path(result['path']).name}")
     return result
 
 
@@ -269,10 +512,16 @@ async def run_table_eda(
         constraints=parsed_constraints,
         run_id=run_id,
     )
+    result["published_images"] = await _auto_publish_images_from_result(ctx, result=result)
     await _stream_progress(
         ctx,
         "check-circle",
-        f"EDA complete: datasets={len(result.get('datasets', []))}, run_id={result.get('run_id')}.",
+        (
+            "EDA complete: "
+            f"datasets={len(result.get('datasets', []))}, "
+            f"images={len(result.get('published_images', []))}, "
+            f"run_id={result.get('run_id')}."
+        ),
     )
     return result
 
@@ -296,10 +545,17 @@ async def investigate_issue(
         sales_date=sales_date,
         constraints=parsed_constraints,
     )
+    result["published_images"] = await _auto_publish_images_from_result(ctx, result=result)
     await _stream_progress(
         ctx,
         "check-circle",
-        f"Investigation complete: strategy={result.get('strategy')}, datasets={len(result.get('datasets', []))}, run_id={result.get('run_id')}.",
+        (
+            "Investigation complete: "
+            f"strategy={result.get('strategy')}, "
+            f"datasets={len(result.get('datasets', []))}, "
+            f"images={len(result.get('published_images', []))}, "
+            f"run_id={result.get('run_id')}."
+        ),
     )
     return result
 
@@ -308,6 +564,7 @@ def investigation_tools() -> list[Any]:
     return [
         investigate_issue,
         run_table_eda,
+        publish_plot_image,
         resolve_entities,
         retrieve_knowledge,
         browse_knowledge_files,

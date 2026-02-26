@@ -56,6 +56,33 @@ export function ChatKitPanel() {
       return;
     }
 
+    if (action.type === "open_url") {
+      const url = typeof action.payload?.url === "string" ? action.payload.url.trim() : "";
+      if (url && typeof window !== "undefined") {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+      return;
+    }
+
+    if (action.type === "download_url") {
+      const url = typeof action.payload?.url === "string" ? action.payload.url.trim() : "";
+      const filename =
+        typeof action.payload?.filename === "string" && action.payload.filename.trim()
+          ? action.payload.filename.trim()
+          : "plot.png";
+      if (url && typeof document !== "undefined") {
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.rel = "noopener noreferrer";
+        anchor.style.display = "none";
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+      }
+      return;
+    }
+
     await api.sendCustomAction(action, widgetItem.id);
   }, []);
 
