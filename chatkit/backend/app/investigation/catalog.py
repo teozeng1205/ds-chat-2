@@ -195,6 +195,25 @@ class KnowledgeBase:
             out.extend(sorted(self.root.glob(pattern)))
         return [p for p in out if p.is_file()]
 
+    def _load_live_table_metadata(self) -> dict[str, dict[str, Any]]:
+        path = self.root / "common_table_live_metadata.json"
+        if not path.exists():
+            return {}
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+        rows = payload.get("tables", []) if isinstance(payload, dict) else []
+        out: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            table_name = str(row.get("table_name", "")).strip()
+            if not table_name:
+                continue
+            out[table_name] = row
+        return out
+
     def _source_hash(self) -> str:
         digest = hashlib.sha256()
         for path in self._source_files():
@@ -299,7 +318,14 @@ class KnowledgeBase:
             conn.execute("DELETE FROM kb_task_cards")
 
             table_rows = self._parse_tables_markdown(self.root / "tables.md")
+            live_meta = self._load_live_table_metadata()
             for table_name, row in table_rows.items():
+                live = live_meta.get(table_name, {})
+                status = str(live.get("status", "")).lower()
+                status_note = ""
+                if status:
+                    status_note = f" | live_status={status}"
+                notes = str(row.get("notes", "") or "") + status_note
                 conn.execute(
                     """
                     INSERT INTO kb_tables (table_name, datasource, tier, notes, query_example, analysis_example, updated_at)
@@ -309,12 +335,49 @@ class KnowledgeBase:
                         table_name,
                         row.get("datasource", "redshift_analytics"),
                         row.get("tier", "common"),
-                        row.get("notes", ""),
+                        notes,
                         row.get("query_example"),
                         row.get("analysis_example"),
                         now,
                     ),
                 )
+                live_columns = live.get("columns", [])
+                live_partitions = live.get("partitions", [])
+                sample_row_masked = live.get("sample_row_masked")
+                if isinstance(live_columns, list):
+                    for col in live_columns:
+                        if not isinstance(col, dict):
+                            continue
+                        conn.execute(
+                            "INSERT INTO kb_columns (table_name, column_name, data_type, nullable, is_key, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                            (
+                                table_name,
+                                str(col.get("column_name", "")),
+                                str(col.get("data_type", "")),
+                                1 if bool(col.get("nullable", True)) else 0,
+                                1 if bool(col.get("is_key", False)) else 0,
+                                now,
+                            ),
+                        )
+                if isinstance(live_partitions, list):
+                    for part in live_partitions:
+                        if not isinstance(part, dict):
+                            continue
+                        conn.execute(
+                            "INSERT INTO kb_partitions (table_name, column_name, role, inferred_type, updated_at) VALUES (?, ?, ?, ?, ?)",
+                            (
+                                table_name,
+                                str(part.get("column", "")),
+                                str(part.get("role", "recommended")),
+                                str(part.get("inferred_type", "unknown")),
+                                now,
+                            ),
+                        )
+                if isinstance(sample_row_masked, dict) and sample_row_masked:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO kb_example_rows (table_name, example_json_masked, captured_at) VALUES (?, ?, ?)",
+                        (table_name, json.dumps(sample_row_masked, ensure_ascii=True), now),
+                    )
 
             for code, code_type, source in catalog.rows():
                 conn.execute(
@@ -421,6 +484,12 @@ class KnowledgeBase:
                     score += 1.0
                 if entities.get("customers") and "customer" in text:
                     score += 1.0
+                if "live_status=error" in text:
+                    score -= 5.0
+                if table_name.startswith("local."):
+                    score -= 2.5
+                if "{" in table_name or "}" in table_name:
+                    score -= 10.0
                 if score <= 0:
                     continue
                 table_scored.append(
@@ -507,6 +576,19 @@ class KnowledgeBase:
                 )
 
             card_scored.sort(key=lambda item: item[0], reverse=True)
+
+            # If top task-card provides candidate tables, prioritize them.
+            preferred_card_tables: list[str] = []
+            if card_scored:
+                top_card = card_scored[0][1]
+                preferred_card_tables = [str(item) for item in (top_card.get("candidate_tables") or []) if str(item).strip()]
+            if preferred_card_tables:
+                boost: dict[str, float] = {name: float(100 - idx) for idx, name in enumerate(preferred_card_tables)}
+                table_scored = sorted(
+                    table_scored,
+                    key=lambda item: (boost.get(item[1]["table_name"], 0.0), item[0]),
+                    reverse=True,
+                )
 
             candidate_tables = [item[1]["table_name"] for item in table_scored[:top_k]]
             table_hints = [item[1] for item in table_scored[:top_k]]

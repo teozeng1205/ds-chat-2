@@ -61,7 +61,10 @@ class LoopContext:
     strategy: str = "autonomous_general"
     observations: list[dict[str, Any]] = field(default_factory=list)
     inspected_tables: set[str] = field(default_factory=set)
+    failed_tables: set[str] = field(default_factory=set)
     ran_python: bool = False
+    action_queue: list[dict[str, Any]] = field(default_factory=list)
+    selected_task_card: dict[str, Any] | None = None
 
 
 class ActionPlanner:
@@ -92,6 +95,16 @@ class ActionPlanner:
         return re.sub(r"\blocal\.monitoring\.", "prod.monitoring.", table_name.strip(), flags=re.I)
 
     @staticmethod
+    def _extract_table_from_sql(query: str) -> str | None:
+        match = re.search(r"\bfrom\s+([A-Za-z0-9_{}.]+)", query, flags=re.I)
+        if not match:
+            return None
+        table = match.group(1).strip()
+        if "{" in table or "}" in table:
+            return None
+        return table
+
+    @staticmethod
     def _sales_date_from_question(question: str, fallback: str) -> str:
         lowered = question.lower()
         if any(token in lowered for token in ["yesterday", "yersterday", "yestarday"]):
@@ -114,15 +127,41 @@ class ActionPlanner:
             return "redshift_core"
         return "redshift_analytics"
 
-    def _resolve_table_from_question(self, ctx: LoopContext) -> str | None:
+    def _candidate_tables(self, ctx: LoopContext) -> list[str]:
+        seen: set[str] = set()
+        ordered: list[str] = []
+
+        def _add(raw: str) -> None:
+            table = self._canonical_table_name(raw)
+            if not table or "{" in table or "}" in table:
+                return
+            if table in seen:
+                return
+            seen.add(table)
+            ordered.append(table)
+
         explicit = self._TABLE_IDENT_RE.search(ctx.question)
         if explicit:
-            return self._canonical_table_name(explicit.group(0))
-        candidates = [str(item) for item in ctx.knowledge.get("candidate_tables", []) if isinstance(item, str)]
-        if candidates:
-            return self._canonical_table_name(candidates[0])
+            _add(explicit.group(0))
+
+        if isinstance(ctx.selected_task_card, dict):
+            for item in ctx.selected_task_card.get("candidate_tables", []) or []:
+                if isinstance(item, str):
+                    _add(item)
+
+        for item in ctx.knowledge.get("candidate_tables", []) or []:
+            if isinstance(item, str):
+                _add(item)
+
         constraints_table = str(ctx.constraints.get("table_name", "")).strip()
-        return self._canonical_table_name(constraints_table) if constraints_table else None
+        if constraints_table:
+            _add(constraints_table)
+
+        return [item for item in ordered if item not in ctx.failed_tables]
+
+    def _resolve_table_from_question(self, ctx: LoopContext) -> str | None:
+        candidates = self._candidate_tables(ctx)
+        return candidates[0] if candidates else None
 
     @staticmethod
     def _recent_actions(ctx: LoopContext, limit: int = 6) -> list[str]:
@@ -147,6 +186,138 @@ class ActionPlanner:
             return "comparison"
         return "general"
 
+    @staticmethod
+    def _entity_value(entities: dict[str, Any], key: str) -> str:
+        rows = entities.get(key, [])
+        if not rows:
+            return ""
+        return str(rows[0])
+
+    def _variables(self, ctx: LoopContext) -> dict[str, str]:
+        sales_date = ctx.sales_date
+        yyyy, mm, dd = sales_date[0:4], sales_date[4:6], sales_date[6:8]
+        provider = self._entity_value(ctx.entities, "providers")
+        site = self._entity_value(ctx.entities, "sites")
+        customer = self._entity_value(ctx.entities, "customers")
+        table = self._resolve_table_from_question(ctx) or ""
+        datasource = self._datasource_for_table(table) if table else "redshift_analytics"
+        sample_rows = max(1000, min(int(ctx.constraints.get("sample_rows", 100000)), 200000))
+        return {
+            "question": ctx.question,
+            "sales_date": sales_date,
+            "yyyy": yyyy,
+            "mm": mm,
+            "dd": dd,
+            "provider": provider,
+            "site": site,
+            "customer": customer,
+            "provider_filter": f"AND providercode = '{provider}'" if provider else "",
+            "site_filter": f"AND sitecode = '{site}'" if site else "",
+            "customer_filter": f"AND customer = '{customer}'" if customer else "",
+            "resolved_table": table,
+            "resolved_datasource": datasource,
+            "sample_rows": str(sample_rows),
+        }
+
+    @classmethod
+    def _render_template(cls, raw: str, variables: dict[str, str]) -> str:
+        pattern = re.compile(r"{{\s*([A-Za-z0-9_]+)\s*}}")
+
+        def _repl(match: re.Match[str]) -> str:
+            key = match.group(1)
+            return str(variables.get(key, ""))
+
+        return pattern.sub(_repl, raw)
+
+    def _queue_from_task_card(self, ctx: LoopContext) -> list[dict[str, Any]]:
+        card = ctx.selected_task_card
+        if not isinstance(card, dict):
+            return []
+        queue: list[dict[str, Any]] = []
+        vars_map = self._variables(ctx)
+        for row in card.get("actions", []) or []:
+            if not isinstance(row, dict):
+                continue
+            action_name = str(row.get("action", "")).strip()
+            inputs = row.get("inputs", {}) if isinstance(row.get("inputs"), dict) else {}
+
+            if action_name == "inspect_table_metadata":
+                table_name = self._render_template(str(inputs.get("table_name", "")), vars_map).strip()
+                datasource = self._render_template(str(inputs.get("datasource", "")), vars_map).strip()
+                if table_name:
+                    queue.append(
+                        {
+                            "action": "inspect_table_metadata",
+                            "inputs": {"table_name": table_name, "datasource": datasource or self._datasource_for_table(table_name)},
+                            "reason": f"Task-card metadata inspection ({card.get('card_id')}).",
+                            "expected_output": "Schema/partition metadata.",
+                        }
+                    )
+                continue
+
+            if action_name == "extract_sql":
+                query = self._render_template(str(inputs.get("query_template", "")), vars_map).strip()
+                datasource = self._render_template(str(inputs.get("datasource", vars_map["resolved_datasource"])), vars_map).strip()
+                if query:
+                    queue.append(
+                        {
+                            "action": "extract_sql",
+                            "inputs": {
+                                "datasource": datasource or "redshift_analytics",
+                                "query": query,
+                                "dataset_name": self._render_template(str(inputs.get("dataset_name", "sql_extract")), vars_map),
+                            },
+                            "reason": f"Task-card SQL extraction ({card.get('card_id')}).",
+                            "expected_output": "Local dataset artifact.",
+                        }
+                    )
+                continue
+
+            if action_name == "extract_s3":
+                bucket = self._render_template(str(inputs.get("bucket", "")), vars_map).strip()
+                key = self._render_template(str(inputs.get("key_template", "")), vars_map).strip()
+                if bucket and key:
+                    queue.append(
+                        {
+                            "action": "extract_s3",
+                            "inputs": {
+                                "bucket": bucket,
+                                "key_or_prefix": key,
+                                "dataset_name": self._render_template(str(inputs.get("dataset_name", "s3_extract")), vars_map),
+                            },
+                            "reason": f"Task-card S3 extraction ({card.get('card_id')}).",
+                            "expected_output": "Local dataset artifact.",
+                        }
+                    )
+                continue
+
+            if action_name == "run_analysis":
+                analysis_spec = inputs.get("analysis_spec", {})
+                if not isinstance(analysis_spec, dict):
+                    analysis_spec = {"mode": "profile_dataset"}
+                queue.append(
+                    {
+                        "action": "run_analysis",
+                        "inputs": {"analysis_spec": analysis_spec},
+                        "reason": f"Task-card analysis ({card.get('card_id')}).",
+                        "expected_output": "Analysis artifact.",
+                    }
+                )
+                continue
+
+            if action_name == "run_python":
+                code = self._render_template(str(inputs.get("code_template", "")), vars_map).strip()
+                if code:
+                    queue.append(
+                        {
+                            "action": "run_python",
+                            "inputs": {"code": code},
+                            "reason": f"Task-card python execution ({card.get('card_id')}).",
+                            "expected_output": "Python analysis or derived dataset.",
+                        }
+                    )
+        return queue
+
     def _fallback_action(self, ctx: LoopContext) -> dict[str, Any]:
         if not ctx.entities:
             return {
@@ -163,6 +334,18 @@ class ActionPlanner:
                 "reason": "Retrieve KB table metadata and task guidance.",
                 "expected_output": "Candidate tables and task cards.",
             }
+
+        if not ctx.action_queue:
+            cards = [item for item in ctx.knowledge.get("task_cards", []) if isinstance(item, dict)]
+            if cards:
+                ctx.selected_task_card = cards[0]
+                ctx.strategy = f"task_card:{ctx.selected_task_card.get('card_id', 'unknown')}"
+                ctx.action_queue = self._queue_from_task_card(ctx)
+            else:
+                ctx.selected_task_card = None
+
+        if ctx.action_queue:
+            return ctx.action_queue.pop(0)
 
         table_name = self._resolve_table_from_question(ctx)
         if table_name and table_name not in ctx.inspected_tables:
@@ -282,10 +465,12 @@ class ActionPlanner:
             "candidate_tables": ctx.knowledge.get("candidate_tables", []),
             "table_hints": ctx.knowledge.get("table_hints", []),
             "task_cards": cards,
+            "selected_task_card": (ctx.selected_task_card or {}).get("card_id"),
             "datasets": datasets,
             "analysis_present": ctx.analysis is not None,
             "warnings": ctx.warnings[-8:],
             "recent_actions": self._recent_actions(ctx),
+            "failed_tables": sorted(ctx.failed_tables),
             "done_criteria": {
                 "needs_dataset_for_data_tasks": True,
                 "needs_analysis_for_data_tasks": True,
@@ -586,6 +771,12 @@ class AutonomousInvestigationEngine:
 
             if not observation.get("ok", False):
                 ctx.warnings.append(f"Step {step} failed for action '{observation.get('action')}': {observation.get('error')}")
+                if str(observation.get("action")) == "extract_sql":
+                    inputs = action.get("inputs", {}) if isinstance(action.get("inputs"), dict) else {}
+                    query = str(inputs.get("query", ""))
+                    failed_table = ActionPlanner._extract_table_from_sql(query or "")
+                    if failed_table:
+                        ctx.failed_tables.add(ActionPlanner._canonical_table_name(failed_table))
 
             recent = [str(item.get("action")) for item in observations[-3:]]
             if len(recent) == 3 and len(set(recent)) == 1:
