@@ -60,6 +60,239 @@ def _load_cases(path: Path) -> list[dict[str, Any]]:
     return [item for item in rows if isinstance(item, dict)]
 
 
+def _normalize_whitespace(value: Any) -> str:
+    return " ".join(str(value or "").split())
+
+
+def _truncate(value: Any, max_len: int = 220) -> str:
+    text = _normalize_whitespace(value)
+    if len(text) <= max_len:
+        return text
+    return f"{text[: max_len - 1]}…"
+
+
+def _parse_activity_log(activity_log: str) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    for raw_line in (activity_log or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict):
+            events.append(event)
+    return events
+
+
+def _event_signature(event: str, payload: dict[str, Any]) -> str:
+    if event == "plan_start":
+        return "plan_start"
+    if event == "extract_sql":
+        return f"extract_sql[{payload.get('dataset_id')}:{payload.get('row_count')}]"
+    if event == "extract_s3":
+        return f"extract_s3[{payload.get('dataset_id')}:{payload.get('row_count')}]"
+    if event == "analysis_complete":
+        return f"analysis_complete[{payload.get('analysis_id')}]"
+    if event == "operator_run_python_start":
+        return "operator_run_python_start"
+    if event == "operator_run_python_done":
+        return "operator_run_python_done"
+    if event == "action_observation":
+        action = str(payload.get("action") or "unknown")
+        if action in {"extract_sql", "extract_s3"}:
+            return f"action:{action}[{payload.get('dataset_id')}:{payload.get('row_count')}]"
+        return f"action:{action}"
+    if event == "investigation_complete":
+        return f"investigation_complete[{payload.get('strategy')}]"
+    return event
+
+
+def _event_details(index: int, event: str, payload: dict[str, Any]) -> list[str]:
+    if event == "plan_start":
+        return [
+            f"{index}. `plan_start(question=..., sales_date={payload.get('sales_date')})`",
+            f"   - question: {_truncate(payload.get('question'), max_len=300)}",
+        ]
+    if event == "extract_sql":
+        return [
+            (
+                f"{index}. `extract_sql(datasource={payload.get('datasource')}, "
+                f"dataset_id={payload.get('dataset_id')}, row_count={payload.get('row_count')}, "
+                f"elapsed_ms={payload.get('elapsed_ms')})`"
+            ),
+            f"   - query: `{_truncate(payload.get('query'), max_len=400)}`",
+        ]
+    if event == "extract_s3":
+        lines = [
+            (
+                f"{index}. `extract_s3(dataset_id={payload.get('dataset_id')}, "
+                f"row_count={payload.get('row_count')}, elapsed_ms={payload.get('elapsed_ms')})`"
+            )
+        ]
+        s3_uri = payload.get("s3_uri")
+        if s3_uri:
+            lines.append(f"   - s3_uri: `{s3_uri}`")
+        return lines
+    if event == "analysis_complete":
+        return [
+            (
+                f"{index}. `analysis_complete(analysis_id={payload.get('analysis_id')}, "
+                f"analysis_mode={payload.get('analysis_mode')}, dataset_ids={payload.get('dataset_ids')})`"
+            )
+        ]
+    if event == "operator_run_python_start":
+        return [
+            (
+                f"{index}. `operator_run_python_start(approval_policy={payload.get('approval_policy')}, "
+                f"sandbox_mode={payload.get('sandbox_mode')})`"
+            )
+        ]
+    if event == "operator_run_python_done":
+        return [
+            (
+                f"{index}. `operator_run_python_done(created_datasets={payload.get('created_datasets')}, "
+                f"created_analyses={payload.get('created_analyses')})`"
+            )
+        ]
+    if event == "action_observation":
+        action = str(payload.get("action") or "unknown")
+        lines = [
+            f"{index}. `action_observation(action={action}, ok={payload.get('ok')}, step={payload.get('step')})`"
+        ]
+        if action == "resolve_entities":
+            entities = payload.get("entities") or {}
+            lines.append(
+                (
+                    "   - entities: "
+                    f"providers={entities.get('providers')}, "
+                    f"sites={entities.get('sites')}, "
+                    f"customers={entities.get('customers')}"
+                )
+            )
+        elif action == "retrieve_knowledge":
+            lines.append(f"   - candidate_tables={len(payload.get('candidate_tables') or [])}")
+            lines.append(f"   - task_cards={payload.get('task_cards')}")
+        elif action == "inspect_table_metadata":
+            lines.append(
+                (
+                    "   - metadata: "
+                    f"table={payload.get('table_name')}, "
+                    f"columns={payload.get('columns')}, "
+                    f"partitions={payload.get('partitions')}"
+                )
+            )
+        elif action in {"extract_sql", "extract_s3"}:
+            lines.append(
+                f"   - dataset_id={payload.get('dataset_id')}, row_count={payload.get('row_count')}"
+            )
+        elif action == "run_analysis":
+            lines.append(f"   - analysis_id={payload.get('analysis_id')}")
+        elif action == "run_python":
+            lines.append(
+                (
+                    "   - run_python: "
+                    f"created_datasets={payload.get('created_datasets')}, "
+                    f"stdout={_truncate(payload.get('stdout'), max_len=200)!r}"
+                )
+            )
+        return lines
+    if event == "investigation_complete":
+        return [
+            (
+                f"{index}. `investigation_complete(strategy={payload.get('strategy')}, "
+                f"dataset_count={payload.get('dataset_count')}, error_count={payload.get('error_count')})`"
+            )
+        ]
+    return [f"{index}. `{event}({_truncate(payload, max_len=240)})`"]
+
+
+def _render_readable_report(payload: dict[str, Any], source_json_path: Path) -> str:
+    lines: list[str] = [
+        "# Smoke Test Function Calls and Outputs",
+        "",
+        f"- Source report: `{source_json_path}`",
+        f"- Generated at: `{payload.get('generated_at')}`",
+        "",
+    ]
+    for report in payload.get("reports", []):
+        if not isinstance(report, dict):
+            continue
+        scenario = str(report.get("scenario") or "unknown_scenario")
+        result = report.get("result") if isinstance(report.get("result"), dict) else {}
+
+        lines.extend(
+            [
+                f"## {scenario}",
+                "",
+                f"- Thread: `{report.get('thread_id')}`",
+                f"- Run ID: `{result.get('run_id')}`",
+                f"- Question: {report.get('question')}",
+                "",
+            ]
+        )
+
+        events = _parse_activity_log(str(report.get("activity_log") or ""))
+        if events:
+            sequence = []
+            for event in events:
+                event_name = str(event.get("event") or "")
+                event_payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+                sequence.append(_event_signature(event_name, event_payload))
+            lines.extend(
+                [
+                    "### Call Sequence",
+                    "",
+                    f"`{' -> '.join(sequence)}`",
+                    "",
+                    "### Calls (ordered)",
+                    "",
+                ]
+            )
+            for index, event in enumerate(events, start=1):
+                event_name = str(event.get("event") or "")
+                event_payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+                lines.extend(_event_details(index, event_name, event_payload))
+        else:
+            lines.extend(
+                [
+                    "### Call Sequence",
+                    "",
+                    "`<no activity log events captured>`",
+                    "",
+                ]
+            )
+
+        answer = str(result.get("answer") or "").strip()
+        if "\\n" in answer and "\n" not in answer:
+            answer = answer.replace("\\n", "\n")
+        lines.extend(
+            [
+                "",
+                "### Output",
+                "",
+                "```markdown",
+                answer or "<empty>",
+                "```",
+                "",
+            ]
+        )
+        if isinstance(report.get("error"), dict):
+            lines.extend(
+                [
+                    "### Runtime Error",
+                    "",
+                    "```text",
+                    str(report.get("error")),
+                    "```",
+                    "",
+                ]
+            )
+
+    return "\n".join(lines)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run investigation pipeline smoke scenarios.")
     parser.add_argument("--profile", default="3VDEV", help="Credential profile for `assume` (default: 3VDEV)")
@@ -154,14 +387,18 @@ def main() -> int:
     run_stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     json_path = report_dir / f"smoke_investigation_{run_stamp}.json"
     log_path = report_dir / f"smoke_investigation_{run_stamp}.log"
+    markdown_path = report_dir / f"smoke_investigation_{run_stamp}.md"
 
     json_text = json.dumps(payload, indent=2, default=str)
     json_path.write_text(json_text, encoding="utf-8")
     log_path.write_text(json_text, encoding="utf-8")
+    markdown_text = _render_readable_report(payload=payload, source_json_path=json_path)
+    markdown_path.write_text(markdown_text, encoding="utf-8")
 
     print(json.dumps({
         "report_json": str(json_path),
         "report_log": str(log_path),
+        "report_readable_markdown": str(markdown_path),
         "failed_scenarios": [item.get("scenario") for item in reports if item.get("failed")],
     }, indent=2))
 

@@ -203,6 +203,8 @@ async def _publish_image_widget(
                             "style": "secondary",
                             "onClickAction": {
                                 "type": "open_url",
+                                "handler": "client",
+                                "loadingBehavior": "none",
                                 "payload": {"url": inline_data_url},
                             },
                         },
@@ -212,6 +214,8 @@ async def _publish_image_widget(
                             "style": "secondary",
                             "onClickAction": {
                                 "type": "download_url",
+                                "handler": "client",
+                                "loadingBehavior": "none",
                                 "payload": {"url": inline_data_url, "filename": image_path.name},
                             },
                         },
