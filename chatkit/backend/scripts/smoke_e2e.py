@@ -370,7 +370,12 @@ async def run_all(args: argparse.Namespace) -> int:
     cases_path = Path(args.cases_file).expanduser().resolve()
     cases = _load_cases(cases_path)
 
-    if args.scenarios:
+    if args.master:
+        cases = [c for c in cases if c.get("master")]
+        if args.model == "gpt-5-mini":  # override default only when --master is passed
+            args.model = "gpt-5.2"
+        args.max_turns = max(args.max_turns, 50)
+    elif args.scenarios:
         selected = {s.strip() for s in args.scenarios.split(",") if s.strip()}
         cases = [c for c in cases if str(c.get("name")) in selected]
 
@@ -456,6 +461,7 @@ def main() -> int:
         help="Directory for report output",
     )
     parser.add_argument("--concurrency", type=int, default=5, help="Max parallel cases (default: 5)")
+    parser.add_argument("--master", action="store_true", help="Run only master-tagged cases with gpt-5.2 and 50 max turns")
     parser.add_argument("--skip-bootstrap", action="store_true", help="Skip AWS credential bootstrap")
     args = parser.parse_args()
 
