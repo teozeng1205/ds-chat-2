@@ -164,7 +164,7 @@
       "name": "smartest_customer_master_question",
       "thread_id": "thread-smartest-customer",
       "master": true,
-      "question": "use all of your knowledge of priceeye and query their data partitions, which customer we have do you think is the smartest one?",
+      "question": "use all of your knowledge of priceeye and query their data partitions for yesterday. Define your own criteria for what makes a customer smart (e.g. billing efficiency, collection health, anomaly program quality, competitive coverage), query the relevant tables for each customer, then rank all customers with supporting data and a clear justification. Do not ask for clarification — pick your own criteria and run the queries.",
       "assertions": {
         "min_tool_calls": 5,
         "required_tools": ["execute_sql"],
