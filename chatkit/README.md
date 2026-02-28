@@ -74,6 +74,19 @@ backend/scripts/verify_investigation.sh --profile 3VDEV --max-turns 40
 backend/scripts/verify_investigation.sh --scenarios top_site_issues,market_anomalies_distribution
 ```
 
+Direct interactive CLI chat (no frontend required):
+
+```bash
+cd backend
+.venv/bin/python tests/cli_chat.py --model gpt-5-mini
+```
+
+CLI notes:
+
+- Tool calls are logged in the terminal by default (`[tool-call ...]`, `[tool-output ...]`).
+- Use `--no-log-tools` to disable tool-call logging.
+- Built-in commands: `/thread`, `/reset`, `/quit`.
+
 E2E smoke reports with full model output and debug steps are written under:
 
 - `backend/.runtime/smoke_reports/*.md`
