@@ -402,7 +402,7 @@ async def search_kb(
     Args:
         query: Natural language search query (e.g. 'market anomalies', 'site issues', 'combined audit').
 
-    Returns: candidate_tables, table_hints (with partition info), task_cards.
+    Returns: candidate_tables, table_hints (with partition info).
     """
     try:
         await _stream_progress(ctx, "search", f"Searching KB for: {query}")

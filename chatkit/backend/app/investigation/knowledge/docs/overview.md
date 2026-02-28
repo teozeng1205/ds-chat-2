@@ -6,20 +6,18 @@ This local knowledge base supports autonomous, generic investigation tasks.
 
 - Environment bootstrap is always `assume 3VDEV`.
 - Guidance is knowledge-driven, not intent-template-driven.
-- Runtime tools are generic primitives: entity resolution, KB retrieval, metadata inspect, SQL/S3 extraction, python analysis, summarization.
+- Runtime tools are generic primitives: entity resolution, KB retrieval, metadata inspect, SQL/S3 extraction, python analysis.
 - Partition filters are advisory and should be applied when useful.
 - All fetched data is materialized to local dataset artifacts before downstream analysis.
-- Conclusions must be backed by lineage (`run_id`, datasets, key sources/queries, caveats).
+- The agent has full freedom to decide tool call order based on rich system instructions.
 
-## Task Card Guidance
+## Discovery Flow
 
-- Task cards in `task_cards/*.md` provide natural-language hints, candidate tables, and analysis suggestions.
-- Cards are retrieval context only; they do not hardcode runtime branches.
-- Unknown tables should follow discover-first flow:
-  1. inspect metadata
-  2. run bounded preview
-  3. capture masked sample row
-  4. persist discovered metadata for reuse
+For unknown tables, the agent should follow discover-first flow:
+1. inspect metadata
+2. run bounded preview
+3. capture masked sample row
+4. persist discovered metadata for reuse
 
 ## Artifact Contract
 

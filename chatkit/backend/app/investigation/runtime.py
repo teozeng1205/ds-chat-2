@@ -380,7 +380,6 @@ def ensure_knowledge_layout() -> None:
         )
     if not SQL_BEST_PRACTICES_PATH.exists():
         SQL_BEST_PRACTICES_PATH.write_text("# SQL Best Practices\n", encoding="utf-8")
-    (KNOWLEDGE_ROOT / "task_cards").mkdir(parents=True, exist_ok=True)
 
 
 _RUNTIME: InvestigationRuntime | None = None

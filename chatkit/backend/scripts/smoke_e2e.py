@@ -117,21 +117,22 @@ class _MinimalStore:
 def _extract_tool_calls(result: Any) -> list[dict[str, Any]]:
     """Extract tool call info from a Runner.run() result."""
     tool_calls: list[dict[str, Any]] = []
-    # Walk through new_items looking for tool call outputs
     for item in getattr(result, "new_items", []):
         item_type = getattr(item, "type", "")
         if item_type == "tool_call_item":
-            tool_calls.append({
-                "tool": getattr(item, "name", getattr(item, "tool_name", "unknown")),
-                "call_id": getattr(item, "call_id", ""),
-            })
-        elif item_type == "function_call_output":
-            # Match back to existing tool calls if possible
-            call_id = getattr(item, "call_id", "")
+            # Tool name is on raw_item.name (ResponseFunctionToolCall)
+            raw = getattr(item, "raw_item", None)
+            name = getattr(raw, "name", None) or getattr(item, "name", "unknown")
+            call_id = getattr(raw, "call_id", "") or getattr(item, "call_id", "")
+            tool_calls.append({"tool": name, "call_id": call_id})
+        elif item_type == "tool_call_output_item":
+            # Match output back to existing tool calls
+            raw = getattr(item, "raw_item", None)
+            call_id = getattr(raw, "call_id", "") if raw else ""
             output = getattr(item, "output", "")
             for tc in tool_calls:
                 if tc.get("call_id") == call_id:
-                    tc["output_preview"] = str(output)[:200]
+                    tc["output_preview"] = str(output)[:500]
                     break
     return tool_calls
 

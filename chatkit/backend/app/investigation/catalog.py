@@ -12,12 +12,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-try:
-    import yaml
-except Exception:  # pragma: no cover
-    yaml = None
-
-
 @dataclass(frozen=True)
 class TableKnowledge:
     table_name: str
@@ -162,20 +156,6 @@ class KnowledgeBase:
                     content TEXT NOT NULL,
                     updated_at REAL NOT NULL
                 );
-                CREATE TABLE IF NOT EXISTS kb_task_cards (
-                    card_id TEXT PRIMARY KEY,
-                    title TEXT NOT NULL,
-                    signals_json TEXT NOT NULL,
-                    required_entities_json TEXT NOT NULL,
-                    candidate_tables_json TEXT NOT NULL,
-                    actions_json TEXT NOT NULL,
-                    analysis_mode TEXT NOT NULL,
-                    analysis_instructions TEXT NOT NULL,
-                    python_template TEXT NOT NULL,
-                    body TEXT NOT NULL,
-                    source_path TEXT NOT NULL,
-                    updated_at REAL NOT NULL
-                );
                 """
             )
             conn.commit()
@@ -188,7 +168,6 @@ class KnowledgeBase:
             "*.json",
             "docs/**/*.md",
             "docs/**/*.txt",
-            "task_cards/**/*.md",
         ]
         out: list[Path] = []
         for pattern in patterns:
@@ -257,48 +236,6 @@ class KnowledgeBase:
             )
         return out
 
-    @staticmethod
-    def _parse_markdown_frontmatter(text: str) -> tuple[dict[str, Any], str]:
-        if not text.startswith("---\n"):
-            return {}, text
-        end = text.find("\n---\n", 4)
-        if end <= 0:
-            return {}, text
-        frontmatter_raw = text[4:end]
-        body = text[end + 5 :]
-        if yaml is None:
-            return {}, body
-        data = yaml.safe_load(frontmatter_raw) or {}
-        if not isinstance(data, dict):
-            data = {}
-        return data, body
-
-    def _load_task_cards(self) -> list[dict[str, Any]]:
-        cards_dir = self.root / "task_cards"
-        if not cards_dir.exists():
-            return []
-
-        cards: list[dict[str, Any]] = []
-        for path in sorted(cards_dir.rglob("*.md")):
-            text = path.read_text(encoding="utf-8", errors="replace")
-            fm, body = self._parse_markdown_frontmatter(text)
-            card_id = str(fm.get("id") or path.stem)
-            card = {
-                "card_id": card_id,
-                "title": str(fm.get("title") or card_id),
-                "signals": [str(item).strip().lower() for item in (fm.get("signals") or []) if str(item).strip()],
-                "required_entities": [str(item).strip().lower() for item in (fm.get("required_entities") or []) if str(item).strip()],
-                "candidate_tables": [str(item).strip() for item in (fm.get("candidate_tables") or []) if str(item).strip()],
-                "actions": list(fm.get("actions") or []),
-                "analysis_mode": str(fm.get("analysis_mode") or "profile_dataset"),
-                "analysis_instructions": str(fm.get("analysis_instructions") or ""),
-                "python_template": str(fm.get("python_template") or ""),
-                "body": body.strip(),
-                "source_path": str(path),
-            }
-            cards.append(card)
-        return cards
-
     def refresh(self, *, force: bool, catalog: LocalCodeCatalog) -> dict[str, Any]:
         now = time.time()
         source_hash = self._source_hash()
@@ -315,7 +252,8 @@ class KnowledgeBase:
             conn.execute("DELETE FROM kb_example_rows")
             conn.execute("DELETE FROM kb_codes")
             conn.execute("DELETE FROM kb_documents")
-            conn.execute("DELETE FROM kb_task_cards")
+            # Drop legacy task_cards table if it exists from prior versions
+            conn.execute("DROP TABLE IF EXISTS kb_task_cards")
 
             table_rows = self._parse_tables_markdown(self.root / "tables.md")
             live_meta = self._load_live_table_metadata()
@@ -394,32 +332,6 @@ class KnowledgeBase:
                     (doc_id, str(file_path), content, now),
                 )
 
-            task_cards = self._load_task_cards()
-            for card in task_cards:
-                conn.execute(
-                    """
-                    INSERT INTO kb_task_cards (
-                        card_id, title, signals_json, required_entities_json, candidate_tables_json,
-                        actions_json, analysis_mode, analysis_instructions, python_template,
-                        body, source_path, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        card["card_id"],
-                        card["title"],
-                        json.dumps(card.get("signals", []), ensure_ascii=True),
-                        json.dumps(card.get("required_entities", []), ensure_ascii=True),
-                        json.dumps(card.get("candidate_tables", []), ensure_ascii=True),
-                        json.dumps(card.get("actions", []), ensure_ascii=True),
-                        card.get("analysis_mode", "profile_dataset"),
-                        card.get("analysis_instructions", ""),
-                        card.get("python_template", ""),
-                        card.get("body", ""),
-                        card.get("source_path", ""),
-                        now,
-                    ),
-                )
-
             conn.execute("INSERT OR REPLACE INTO kb_meta (key, value) VALUES ('source_hash', ?)", (source_hash,))
             conn.execute("INSERT OR REPLACE INTO kb_meta (key, value) VALUES ('last_refresh', ?)", (str(now),))
             conn.commit()
@@ -430,7 +342,6 @@ class KnowledgeBase:
                 "source_hash": source_hash,
                 "tables_indexed": len(table_rows),
                 "codes_indexed": len(catalog.rows()),
-                "task_cards_indexed": len(task_cards),
             }
         finally:
             conn.close()
@@ -520,97 +431,12 @@ class KnowledgeBase:
                 )
             table_scored.sort(key=lambda item: item[0], reverse=True)
 
-            card_rows = conn.execute(
-                """
-                SELECT card_id, title, signals_json, required_entities_json, candidate_tables_json,
-                       actions_json, analysis_mode, analysis_instructions, python_template, body, source_path
-                FROM kb_task_cards
-                """
-            ).fetchall()
-
-            card_scored: list[tuple[float, dict[str, Any]]] = []
-            for (
-                card_id,
-                title,
-                signals_json,
-                required_entities_json,
-                candidate_tables_json,
-                actions_json,
-                analysis_mode,
-                analysis_instructions,
-                python_template,
-                body,
-                source_path,
-            ) in card_rows:
-                signals = json.loads(signals_json or "[]")
-                required_entities = json.loads(required_entities_json or "[]")
-                candidate_tables = json.loads(candidate_tables_json or "[]")
-                actions = json.loads(actions_json or "[]")
-
-                score = 0.0
-                title_body = f"{title} {body}".lower()
-                for tok in tokens:
-                    if tok in title_body:
-                        score += 0.7
-                for signal in signals:
-                    signal_text = str(signal).strip().lower()
-                    if signal_text and signal_text in question.lower():
-                        score += 2.0
-                for ent in required_entities:
-                    if ent == "provider" and entities.get("providers"):
-                        score += 1.0
-                    if ent == "site" and entities.get("sites"):
-                        score += 1.0
-                    if ent == "customer" and entities.get("customers"):
-                        score += 1.0
-                for table_name, _datasource, _tier, _notes, _q, _a in table_rows:
-                    if table_name in candidate_tables and any(tok in table_name.lower() for tok in tokens):
-                        score += 0.5
-                if score <= 0:
-                    continue
-
-                card_scored.append(
-                    (
-                        score,
-                        {
-                            "card_id": card_id,
-                            "title": title,
-                            "signals": signals,
-                            "required_entities": required_entities,
-                            "candidate_tables": candidate_tables,
-                            "actions": actions,
-                            "analysis_mode": analysis_mode,
-                            "analysis_instructions": analysis_instructions,
-                            "python_template": python_template,
-                            "body": body,
-                            "source_path": source_path,
-                        },
-                    )
-                )
-
-            card_scored.sort(key=lambda item: item[0], reverse=True)
-
-            # If top task-card provides candidate tables, prioritize them.
-            preferred_card_tables: list[str] = []
-            if card_scored:
-                top_card = card_scored[0][1]
-                preferred_card_tables = [str(item) for item in (top_card.get("candidate_tables") or []) if str(item).strip()]
-            if preferred_card_tables:
-                boost: dict[str, float] = {name: float(100 - idx) for idx, name in enumerate(preferred_card_tables)}
-                table_scored = sorted(
-                    table_scored,
-                    key=lambda item: (boost.get(item[1]["table_name"], 0.0), item[0]),
-                    reverse=True,
-                )
-
             candidate_tables = [item[1]["table_name"] for item in table_scored[:top_k]]
             table_hints = [item[1] for item in table_scored[:top_k]]
-            task_cards = [item[1] for item in card_scored[:top_k]]
 
             return {
                 "candidate_tables": candidate_tables,
                 "table_hints": table_hints,
-                "task_cards": task_cards,
             }
         finally:
             conn.close()
