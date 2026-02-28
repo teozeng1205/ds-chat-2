@@ -3,52 +3,102 @@
     {
       "name": "top_site_issues_with_impact",
       "thread_id": "thread-top-site-impact",
-      "question": "what are the top site issues for QL2|AV, and what is the impact?"
+      "question": "what are the top site issues for QL2|AV, and what is the impact?",
+      "assertions": {
+        "min_tool_calls": 2,
+        "required_tools": ["resolve_codes", "execute_sql"],
+        "answer_contains": ["QL2", "AV", "issue"]
+      }
     },
     {
       "name": "customer_collection_anomalies_yesterday",
       "thread_id": "thread-customer-anom",
-      "question": "what were the customer collection anomalies yersterday?"
+      "question": "what were the customer collection anomalies yesterday?",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["fetch_s3"],
+        "answer_contains": ["anomal"]
+      }
     },
     {
       "name": "market_anomalies_distribution_b6_today",
       "thread_id": "thread-market-dist",
-      "question": "what are the market anomalies today for customer B6, can you give me a distribution of impact score?"
+      "question": "what are the market anomalies today for customer B6, can you give me a distribution of impact score?",
+      "assertions": {
+        "min_tool_calls": 2,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["B6", "impact"]
+      }
     },
     {
       "name": "combined_audit_head_query",
       "thread_id": "thread-combined-audit-head",
-      "question": "query the head of the table combined audit"
+      "question": "query the head of the table combined audit",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["execute_sql"],
+        "answer_contains": []
+      }
     },
     {
       "name": "combined_audit_deep_eda",
       "thread_id": "thread-combined-audit-eda",
-      "question": "can you do a EDA of the table combined_audit"
+      "question": "can you do a EDA of the table combined_audit",
+      "assertions": {
+        "min_tool_calls": 2,
+        "required_tools": ["execute_sql", "run_python"],
+        "answer_contains": ["combined_audit"]
+      }
     },
     {
       "name": "combined_audit_null_patterns_last_3_days",
       "thread_id": "thread-combined-audit-null-patterns",
-      "question": "analyze null patterns for prod.monitoring.combined_audit for last 3 days"
+      "question": "analyze null patterns for prod.monitoring.combined_audit for last 3 days",
+      "assertions": {
+        "min_tool_calls": 2,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["null"]
+      }
     },
     {
       "name": "compare_top_issue_reasons_two_providers",
       "thread_id": "thread-compare-top-issues",
-      "question": "compare top 10 issue reasons between two providers QL2 and LH"
+      "question": "compare top 10 issue reasons between two providers QL2 and LH",
+      "assertions": {
+        "min_tool_calls": 2,
+        "required_tools": ["resolve_codes", "execute_sql"],
+        "answer_contains": ["QL2", "LH"]
+      }
     },
     {
       "name": "generic_outlier_numeric_columns_table_x",
       "thread_id": "thread-outliers-table-x",
-      "question": "find outliers in any numeric columns for table prod.monitoring.combined_audit"
+      "question": "find outliers in any numeric columns for table prod.monitoring.combined_audit",
+      "assertions": {
+        "min_tool_calls": 2,
+        "required_tools": ["execute_sql", "run_python"],
+        "answer_contains": ["outlier"]
+      }
     },
     {
       "name": "derived_common_output_eda_b6_yesterday_price_outlook_plot",
       "thread_id": "thread-derived-common-output-eda",
-      "question": "make a EDA of derived common output for customer B6 and yesterday, and can you make a plot of price outlook?"
+      "question": "make a EDA of derived common output for customer B6 and yesterday, and can you make a plot of price outlook?",
+      "assertions": {
+        "min_tool_calls": 3,
+        "required_tools": ["execute_sql", "run_python"],
+        "answer_contains": ["B6", "price"]
+      }
     },
     {
       "name": "detailed_competitive_position_analysis",
       "thread_id": "thread-competitive-position-detailed",
-      "question": "make a detailed analysis of competitive position for customer B6 yesterday"
+      "question": "make a detailed analysis of competitive position for customer B6 yesterday",
+      "assertions": {
+        "min_tool_calls": 2,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["B6", "competitive"]
+      }
     }
   ]
 }

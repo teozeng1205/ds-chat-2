@@ -132,6 +132,7 @@ class WorkspaceManager:
             "dataset_id": dataset_id,
             "row_count": int(len(df)),
             "columns": [str(col) for col in df.columns],
+            "column_types": {str(col): str(df[col].dtype) for col in df.columns},
             "local_path": str(local_path),
             "format": file_format,
             "source_metadata": source_metadata,

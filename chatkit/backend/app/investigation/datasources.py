@@ -10,7 +10,6 @@ import re
 import subprocess
 import threading
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -53,13 +52,31 @@ class TableRef:
     table: str
 
 
+# Canonical datasource routing table
+_TABLE_ROUTING: list[tuple[str, str]] = [
+    ("priceeye.", "mysql_priceeye"),
+    ("prod.monitoring", "redshift_core"),
+    ("local.monitoring", "redshift_core"),
+    ("collection_optimizer.", "redshift_core"),
+    ("local.site_metrics", "redshift_core"),
+]
+
+
+def datasource_for_table(table_name: str) -> str:
+    """Single canonical routing function: table name -> datasource key."""
+    normalized = table_name.strip().lower()
+    for prefix, ds in _TABLE_ROUTING:
+        if normalized.startswith(prefix):
+            return ds
+    return "redshift_analytics"
+
+
 class DatasourceRegistry:
     """Unified read access for SQL and S3 with always-on 3VDEV bootstrap."""
 
     _DANGEROUS_SQL = re.compile(r"\b(insert|update|delete|drop|alter|truncate|create|grant|revoke|call)\b", re.I)
 
-    def __init__(self, *, default_profile: str = "3VDEV") -> None:
-        self.default_profile = default_profile
+    def __init__(self) -> None:
         self._cred_lock = threading.Lock()
         self._creds_ready = False
         self._s3 = s3_util.S3Util() if s3_util else None
@@ -83,9 +100,9 @@ class DatasourceRegistry:
         """Run `assume 3VDEV` once and load AWS env into current process."""
         with self._cred_lock:
             if self._creds_ready:
-                return {"ok": True, "profile": self.default_profile, "cached": True}
+                return {"ok": True, "profile": "3VDEV", "cached": True}
 
-            cmd = f"assume {self.default_profile} >/dev/null 2>&1; env -0"
+            cmd = "assume 3VDEV >/dev/null 2>&1; env -0"
             proc = subprocess.run(
                 ["zsh", "-lc", cmd],
                 capture_output=True,
@@ -94,7 +111,7 @@ class DatasourceRegistry:
             if proc.returncode != 0:
                 stderr = proc.stderr.decode("utf-8", errors="replace") if proc.stderr else ""
                 raise CredentialsBootstrapError(
-                    f"Credential bootstrap failed for profile {self.default_profile}: {stderr.strip() or 'unknown error'}"
+                    f"Credential bootstrap failed for profile 3VDEV: {stderr.strip() or 'unknown error'}"
                 )
 
             output = proc.stdout.decode("utf-8", errors="replace")
@@ -108,11 +125,9 @@ class DatasourceRegistry:
                     loaded += 1
             os.environ.setdefault("AWS_REGION", "us-east-1")
 
-            # In some environments, `assume` points to granted CLI and does not export env vars.
-            # Always run assume first (above), then fall back to credential-process when needed.
             if loaded == 0:
                 fallback = subprocess.run(
-                    ["granted", "credential-process", "--profile", self.default_profile, "--auto-login"],
+                    ["granted", "credential-process", "--profile", "3VDEV", "--auto-login"],
                     capture_output=True,
                     text=True,
                 )
@@ -127,7 +142,7 @@ class DatasourceRegistry:
                 os.environ["AWS_SESSION_TOKEN"] = str(payload.get("SessionToken") or "")
                 loaded = 3
             self._creds_ready = True
-            return {"ok": True, "profile": self.default_profile, "cached": False, "env_keys_loaded": loaded}
+            return {"ok": True, "profile": "3VDEV", "cached": False, "env_keys_loaded": loaded}
 
     @staticmethod
     def _query_df(connector: Any, query: str) -> pd.DataFrame:
@@ -219,7 +234,7 @@ class DatasourceRegistry:
         }
 
     def mysql_lookup_codes(self, tokens: list[str]) -> dict[str, list[str]]:
-        out = {"providers": [], "sites": [], "customers": []}
+        out: dict[str, list[str]] = {"providers": [], "sites": [], "customers": []}
         cleaned = sorted({t.strip().upper() for t in tokens if t and t.strip()})
         if not cleaned:
             return out
@@ -245,7 +260,10 @@ class DatasourceRegistry:
         out["customers"] = _lookup("priceeye.customer", ["customer", "customercode", "customer_code", "code", "name"])
         return out
 
-    def fetch_s3_csv(self, bucket: str, key_or_prefix: str, *, max_files: int = 30) -> tuple[pd.DataFrame, list[str]]:
+    def fetch_s3_data(
+        self, bucket: str, key_or_prefix: str, *, max_files: int = 30
+    ) -> tuple[pd.DataFrame, list[str]]:
+        """Fetch CSV, Parquet, or JSONL data from S3."""
         self.ensure_credentials()
         if self._s3 is None:
             raise DatasourceDependencyError("ds-threevictors s3_util is not installed")
@@ -255,10 +273,14 @@ class DatasourceRegistry:
             s3_client = self._s3.get_s3_client()
         if s3_client is None:
             raise DatasourceDependencyError("Unable to initialize S3 client from ds-threevictors S3Util")
+
         key = key_or_prefix.strip()
+        supported_extensions = {".csv", ".parquet", ".jsonl", ".json"}
         keys: list[str] = []
 
-        if key.lower().endswith(".csv"):
+        # Check if key is a direct file reference
+        lower_key = key.lower()
+        if any(lower_key.endswith(ext) for ext in supported_extensions):
             keys = [key]
         else:
             continuation: str | None = None
@@ -269,7 +291,7 @@ class DatasourceRegistry:
                 response = s3_client.list_objects_v2(**kwargs)
                 for item in response.get("Contents", []) or []:
                     k = str(item.get("Key", ""))
-                    if k.lower().endswith(".csv"):
+                    if any(k.lower().endswith(ext) for ext in supported_extensions):
                         keys.append(k)
                         if len(keys) >= max_files:
                             break
@@ -280,7 +302,7 @@ class DatasourceRegistry:
                     break
 
         if not keys:
-            raise FileNotFoundError(f"No CSV objects found at s3://{bucket}/{key_or_prefix}")
+            raise FileNotFoundError(f"No supported data files found at s3://{bucket}/{key_or_prefix}")
 
         frames: list[pd.DataFrame] = []
         for object_key in keys:
@@ -288,17 +310,33 @@ class DatasourceRegistry:
             body = obj["Body"].read()
             if not body:
                 continue
-            text = body.decode("utf-8", errors="replace")
-            if not text.strip():
-                continue
-            # Sniff delimiter to support comma/pipe/tsv inputs.
-            dialect = csv.Sniffer().sniff(text[: min(len(text), 4096)], delimiters=",|\t;")
-            frame = pd.read_csv(io.StringIO(text), sep=dialect.delimiter)
+
+            lower_obj_key = object_key.lower()
+            if lower_obj_key.endswith(".parquet"):
+                frame = pd.read_parquet(io.BytesIO(body))
+            elif lower_obj_key.endswith(".jsonl"):
+                text = body.decode("utf-8", errors="replace").strip()
+                if not text:
+                    continue
+                frame = pd.read_json(io.StringIO(text), lines=True)
+            elif lower_obj_key.endswith(".json"):
+                text = body.decode("utf-8", errors="replace").strip()
+                if not text:
+                    continue
+                frame = pd.read_json(io.StringIO(text))
+            else:
+                # CSV with delimiter sniffing
+                text = body.decode("utf-8", errors="replace")
+                if not text.strip():
+                    continue
+                dialect = csv.Sniffer().sniff(text[: min(len(text), 4096)], delimiters=",|\t;")
+                frame = pd.read_csv(io.StringIO(text), sep=dialect.delimiter)
+
             frame["_s3_key"] = object_key
             frames.append(frame)
 
         if not frames:
-            raise FileNotFoundError(f"CSV files were found but empty at s3://{bucket}/{key_or_prefix}")
+            raise FileNotFoundError(f"Data files were found but empty at s3://{bucket}/{key_or_prefix}")
 
         merged = pd.concat(frames, ignore_index=True)
         return merged, keys
@@ -308,4 +346,5 @@ __all__ = [
     "CredentialsBootstrapError",
     "DatasourceDependencyError",
     "DatasourceRegistry",
+    "datasource_for_table",
 ]

@@ -25,12 +25,12 @@ Usage: backend/scripts/verify_investigation.sh [options]
 
 Options:
   --profile <name>       AWS profile for granted credential-process (default: 3VDEV)
-  --model <name>         Model for smoke_investigation_pipeline.py (default: gpt-4.1-mini)
+  --model <name>         Model for smoke_e2e.py (default: gpt-4.1-mini)
   --max-turns <n>        Max turns per scenario for E2E smoke (default: 40)
   --scenarios <csv>      Optional scenario filter for E2E smoke
   --skip-unit            Skip pytest unit/integration tests
   --skip-connectivity    Skip smoke_threevictors.py
-  --skip-e2e             Skip smoke_investigation_pipeline.py
+  --skip-e2e             Skip smoke_e2e.py
   --quick                Fast smoke mode (skip unit/connectivity, one default scenario)
   -h, --help             Show help
 
@@ -154,7 +154,7 @@ fi
 if [[ "$SKIP_E2E" -eq 0 ]]; then
   echo "==> Running investigation E2E smoke"
   E2E_CMD=(
-    python scripts/smoke_investigation_pipeline.py
+    python scripts/smoke_e2e.py
     --profile "$PROFILE"
     --model "$MODEL"
     --max-turns "$MAX_TURNS"

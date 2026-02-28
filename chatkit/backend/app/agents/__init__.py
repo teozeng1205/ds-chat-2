@@ -1,5 +1,5 @@
-"""Agent builders for DS Chat investigation and codebase routes."""
+"""Agent builders for DS Chat investigation."""
 
-from .orchestrator import build_agent
+from .investigation_agent import build_investigation_agent
 
-__all__ = ["build_agent"]
+__all__ = ["build_investigation_agent"]

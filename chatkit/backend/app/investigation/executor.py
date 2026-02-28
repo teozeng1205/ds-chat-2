@@ -1,4 +1,4 @@
-"""Execution primitives: SQL guard and Python operator runtime."""
+"""Execution primitives: SQL guard, partition guard, and Python operator runtime."""
 
 from __future__ import annotations
 
@@ -72,6 +72,63 @@ class SqlGuard:
         return self._apply_limit(cleaned)
 
 
+class PartitionGuard:
+    """Validates that queries include required partition predicates in WHERE clause."""
+
+    # Known table -> required partition columns mapping
+    _REQUIRED_PARTITIONS: dict[str, list[str]] = {
+        "analytics.market_level_anomalies_v3": ["sales_date", "customer"],
+        "analytics.market_level_anomalies_v4": ["sales_date", "customer"],
+        "analytics.market_level_analysis_v2": ["sales_date", "customer"],
+        "analytics.segment_level_analysis_v2": ["sales_date", "customer"],
+        "prod.monitoring.provider_combined_audit": ["sales_date"],
+        "prod.monitoring.combined_audit": ["sales_date"],
+        "prod.common_output.common_output_format": ["sales_date"],
+    }
+
+    @classmethod
+    def check(cls, query: str, table_name: str | None = None) -> list[str]:
+        """Check if query includes required partition filters.
+
+        Returns list of warnings (empty if all required partitions are present).
+        """
+        warnings: list[str] = []
+        if table_name is None:
+            # Try to extract table name from query
+            tables = cls._extract_table_names(query)
+        else:
+            tables = [table_name.strip().lower()]
+
+        lowered_query = query.lower()
+
+        for table in tables:
+            # Try exact match first, then suffix match
+            required = cls._REQUIRED_PARTITIONS.get(table)
+            if required is None:
+                for known_table, partitions in cls._REQUIRED_PARTITIONS.items():
+                    if table.endswith(known_table) or known_table.endswith(table):
+                        required = partitions
+                        break
+
+            if required is None:
+                continue
+
+            for partition_col in required:
+                if partition_col not in lowered_query:
+                    warnings.append(
+                        f"Query on {table} is missing required partition filter: {partition_col}. "
+                        f"Add WHERE {partition_col} = <value> to avoid full table scan."
+                    )
+
+        return warnings
+
+    @staticmethod
+    def _extract_table_names(query: str) -> list[str]:
+        """Extract table names from FROM/JOIN clauses."""
+        pattern = re.compile(r"\b(?:from|join)\s+([a-zA-Z_][a-zA-Z0-9_.]*)", re.I)
+        return [m.group(1).lower() for m in pattern.finditer(query)]
+
+
 class OperatorRuntime:
     """Pandas-first Python executor over run-local dataset artifacts."""
 
@@ -122,6 +179,15 @@ class OperatorRuntime:
                 dataset_name=dataset_name,
             )
 
+        def save_plot(fig: Any, name: str) -> str:
+            """Save a matplotlib figure and return the file path."""
+            plot_path = f"/tmp/{name}.png"
+            fig.tight_layout()
+            fig.savefig(plot_path, dpi=120)
+            if plt:
+                plt.close(fig)
+            return plot_path
+
         def save_analysis(payload: dict[str, Any]) -> dict[str, Any]:
             return self.workspace.record_analysis(thread_id=thread_id, run_id=run_id, analysis_payload=payload)
 
@@ -135,6 +201,7 @@ class OperatorRuntime:
             "list_datasets": list_datasets,
             "load_dataset": load_dataset,
             "save_dataframe": save_dataframe,
+            "save_plot": save_plot,
             "save_analysis": save_analysis,
         }
 
@@ -155,4 +222,4 @@ class OperatorRuntime:
         }
 
 
-__all__ = ["OperatorRuntime", "SqlGuard"]
+__all__ = ["OperatorRuntime", "PartitionGuard", "SqlGuard"]

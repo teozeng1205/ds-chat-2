@@ -21,9 +21,9 @@ from chatkit.types import (
 )
 from openai import AsyncOpenAI
 
-from .agents.orchestrator import build_agent
+from .agents.investigation_agent import build_investigation_agent
 from .persistent_store import SQLiteStore, default_sqlite_path
-from .investigation.runtime import cleanup_thread_workspace, is_investigation_engine_enabled
+from .investigation.runtime import cleanup_thread_workspace
 from .attachment_store import LocalDiskAttachmentStore, default_attachment_dir
 
 
@@ -288,20 +288,14 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
             store=self.store,
             request_context=context,
         )
-        # Read tool and model choices from the incoming user message
-        # Inference options may be absent; treat as an untyped payload to avoid tight coupling
+        # Read model choice from the incoming user message
         options: Optional[Any] = item.inference_options if item else None
         selected_model: str = (
             options.model if options and getattr(options, "model", None) else DEFAULT_MODEL
         )
-        tool_choice_id: Optional[str] = (
-            options.tool_choice.id
-            if options and getattr(options, "tool_choice", None)
-            else None
-        )
 
-        # Build the appropriate agent based on user selections
-        agent = build_agent(tool_choice_id, selected_model)
+        # Build the investigation agent directly (no orchestrator)
+        agent = build_investigation_agent(selected_model)
 
         result = Runner.run_streamed(
             agent,
@@ -314,11 +308,10 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
         async for event in stream_agent_response(agent_context, compatible_result):
             yield event
 
-        if is_investigation_engine_enabled():
-            try:
-                cleanup_thread_workspace(thread.id, mode="ephemeral_manifest")
-            except Exception as exc:  # noqa: BLE001
-                log.warning("Post-session workspace cleanup failed for thread %s: %s", thread.id, exc)
+        try:
+            cleanup_thread_workspace(thread.id, mode="ephemeral_manifest")
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Post-session workspace cleanup failed for thread %s: %s", thread.id, exc)
 
         title_task = asyncio.create_task(self._maybe_set_thread_title(thread.id, context))
         title_task.add_done_callback(self._log_background_error)

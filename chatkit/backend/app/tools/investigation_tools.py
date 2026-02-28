@@ -1,12 +1,13 @@
-"""Function tools exposed to the autonomous investigation agent."""
+"""Six atomic tools for the DS Chat investigation agent."""
 
 from __future__ import annotations
 
-import mimetypes
 import base64
-import datetime
-import json
+import logging
+import mimetypes
 import re
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -16,9 +17,31 @@ from chatkit.types import AttachmentCreateParams, ProgressUpdateEvent
 from chatkit.widgets import Card
 
 from ..attachment_store import LocalDiskAttachmentStore, default_attachment_dir
-from ..investigation.runtime import cleanup_thread_workspace, get_runtime, is_investigation_engine_enabled
+from ..investigation.runtime import cleanup_thread_workspace, get_runtime
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
+log = logging.getLogger(__name__)
+
+# ── Run-id cache: one run per thread per agent turn ──
+# Entries expire after _RUN_TTL_SECONDS so a new conversation turn gets a fresh run.
+_RUN_TTL_SECONDS = 120
+_run_cache: dict[str, tuple[str, float]] = {}
+_run_cache_lock = threading.Lock()
+
+
+def _get_or_create_run_id(thread_id: str) -> str:
+    """Return the current run_id for *thread_id*, creating one if needed or expired."""
+    now = time.monotonic()
+    with _run_cache_lock:
+        entry = _run_cache.get(thread_id)
+        if entry is not None:
+            run_id, created_at = entry
+            if now - created_at < _RUN_TTL_SECONDS:
+                return run_id
+        runtime = get_runtime()
+        run_id = runtime.start_run(thread_id)
+        _run_cache[thread_id] = (run_id, now)
+        return run_id
 IMAGE_PATH_PATTERN = re.compile(r"(/[^)\s]+\.(?:png|jpg|jpeg|gif|webp|svg))", re.IGNORECASE)
 
 
@@ -37,18 +60,6 @@ async def _stream_progress(ctx: RunContextWrapper[AgentContext], icon: str, text
     await ctx.context.stream(ProgressUpdateEvent(icon=icon, text=text))
 
 
-def _parse_json_object(raw: str | None, *, field_name: str) -> dict[str, Any]:
-    if not raw:
-        return {}
-    try:
-        parsed = json.loads(raw)
-    except Exception as exc:  # noqa: BLE001
-        raise ValueError(f"{field_name} must be a JSON object string") from exc
-    if not isinstance(parsed, dict):
-        raise ValueError(f"{field_name} must decode to a JSON object")
-    return parsed
-
-
 def _path_allowed_for_publish(path: Path) -> bool:
     resolved = path.expanduser().resolve()
     for root in _allowed_plot_roots():
@@ -61,7 +72,6 @@ def _normalize_image_path_token(raw: str) -> str:
     token = raw.strip()
     if not token:
         return ""
-    # Handle markdown link wrappers like [label](/tmp/plot.png)
     link_match = re.search(r"\((/[^)\s]+\.(?:png|jpg|jpeg|gif|webp|svg))\)", token, flags=re.IGNORECASE)
     if link_match:
         token = link_match.group(1)
@@ -252,338 +262,205 @@ async def _auto_publish_images_from_result(
     return published
 
 
-def investigation_instructions() -> str:
-    current_date = datetime.date.today().strftime("%Y-%m-%d")
-    return (
-        f"You are an autonomous investigation operator. Today is {current_date}.\n"
-        "Operate in iterative plan/act/observe loops using tools until done criteria are met.\n"
-        "Do not rely on predefined intent labels; infer strategy from evidence and KB context.\n"
-        "Always ground conclusions in local artifacts and include lineage with run_id and dataset IDs.\n"
-        "Prefer extract_sql_to_dataset/extract_s3_to_dataset, then run_dataframe_analysis/operator_run_python.\n"
-        "Use run_table_eda when the user explicitly asks for EDA/profile exploration of a table.\n"
-        "Use inspect_table_metadata for unknown or discovered tables.\n"
-        "If analysis produces plot/image paths, publish them inline with publish_plot_image.\n"
-        "When a plot path is wrapped in markdown or punctuation, normalize the path and still publish it.\n"
-        "Use browse_knowledge_files for local docs and KB sources.\n"
-        "Keep SQL read-only and call out caveats for sampled or broad scans.\n"
-    )
-
+# ── Tool 1: execute_sql ──
 
 @function_tool
-async def browse_knowledge_files(ctx: RunContextWrapper[AgentContext], path_or_glob: str) -> dict[str, Any]:
-    """Browse local KB source files directly (tables/docs/codes/practices)."""
-    await _stream_progress(ctx, "search", f"Browsing knowledge files for: {path_or_glob}")
-    runtime = get_runtime()
-    result = runtime.browse_knowledge_files(path_or_glob)
-    await _stream_progress(ctx, "check-circle", f"Knowledge browse complete: {result.get('count', 0)} file(s).")
-    return result
-
-
-@function_tool
-async def resolve_entities(
-    ctx: RunContextWrapper[AgentContext],
-    input_text: str,
-    sales_date_hint: str | None = None,
-) -> dict[str, Any]:
-    """Resolve provider/site/customer entities via common codes + MySQL fallback."""
-    await _stream_progress(ctx, "search", "Resolving entities and code references.")
-    runtime = get_runtime()
-    result = runtime.resolve_entities(input_text, sales_date_hint=sales_date_hint)
-    await _stream_progress(
-        ctx,
-        "check-circle",
-        (
-            "Entity resolution complete: "
-            f"providers={len(result.get('providers', []))}, "
-            f"sites={len(result.get('sites', []))}, "
-            f"customers={len(result.get('customers', []))}."
-        ),
-    )
-    return result
-
-
-@function_tool
-async def retrieve_knowledge(
+async def execute_sql(
     ctx: RunContextWrapper[AgentContext],
     query: str,
-    entities: str,
-    top_k: int = 8,
-) -> dict[str, Any]:
-    """Retrieve candidate tables/metadata hints from local KB index."""
-    await _stream_progress(ctx, "search", "Retrieving KB context.")
-    runtime = get_runtime()
-    parsed_entities = _parse_json_object(entities, field_name="entities")
-    result = runtime.retrieve_knowledge(query=query, entities=parsed_entities, top_k=top_k)
-    await _stream_progress(
-        ctx,
-        "check-circle",
-        f"Knowledge retrieval complete: tables={len(result.get('candidate_tables', []))}.",
-    )
-    return result
-
-
-@function_tool
-async def inspect_table_metadata(
-    ctx: RunContextWrapper[AgentContext],
-    table_name: str,
     datasource: str | None = None,
-    capture_example_row: bool = True,
 ) -> dict[str, Any]:
-    """Inspect schema/partitions and cache unknown tables as discovered metadata."""
-    await _stream_progress(ctx, "search", f"Inspecting metadata for table {table_name}.")
-    runtime = get_runtime()
-    result = runtime.inspect_table_metadata(
-        table_name=table_name,
-        datasource=datasource,
-        capture_example_row=capture_example_row,
-    )
-    await _stream_progress(
-        ctx,
-        "check-circle",
-        f"Table inspection complete: columns={len(result.get('columns', []))}.",
-    )
-    return result
+    """Execute a read-only SQL query and save the result as a dataset.
 
+    Args:
+        query: The SQL SELECT/WITH query to execute. Must include partition filters.
+        datasource: One of 'redshift_analytics', 'redshift_core', 'mysql_priceeye'. Auto-detected if omitted.
+
+    Returns: columns, row_count, preview rows (first 20), dataset_id, partition_warnings.
+    """
+    try:
+        runtime = get_runtime()
+        thread_id = _thread_id(ctx)
+        run_id = _get_or_create_run_id(thread_id)
+        await _stream_progress(ctx, "clock", f"Running SQL on {datasource or 'auto-detected datasource'}.")
+        result = runtime.execute_sql(thread_id=thread_id, run_id=run_id, query=query, datasource=datasource)
+        await _stream_progress(
+            ctx, "check-circle",
+            f"SQL complete: {result.get('row_count')} rows, dataset_id={result.get('dataset_id')}.",
+        )
+        return result
+    except Exception as exc:
+        log.exception("execute_sql failed")
+        return {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
+
+
+# ── Tool 2: fetch_s3 ──
 
 @function_tool
-async def extract_sql_to_dataset(
-    ctx: RunContextWrapper[AgentContext],
-    query: str,
-    datasource: str,
-    run_id: str | None = None,
-    metadata: str | None = None,
-    dataset_name: str | None = None,
-) -> dict[str, Any]:
-    """Execute read-only SQL and persist result to local dataset artifact."""
-    runtime = get_runtime()
-    thread_id = _thread_id(ctx)
-    parsed_metadata = _parse_json_object(metadata, field_name="metadata") if metadata else {}
-
-    await _stream_progress(ctx, "clock", f"Running SQL extract on {datasource}.")
-    result = runtime.extract_sql_to_dataset(
-        thread_id=thread_id,
-        query=query,
-        datasource=datasource,
-        run_id=run_id,
-        metadata=parsed_metadata,
-        dataset_name=dataset_name,
-    )
-    await _stream_progress(
-        ctx,
-        "check-circle",
-        f"SQL extraction complete: dataset_id={result.get('dataset_id')}, rows={result.get('row_count')}.",
-    )
-    return result
-
-
-@function_tool
-async def extract_s3_to_dataset(
+async def fetch_s3(
     ctx: RunContextWrapper[AgentContext],
     bucket: str,
     key_or_prefix: str,
-    run_id: str | None = None,
-    metadata: str | None = None,
-    dataset_name: str | None = None,
 ) -> dict[str, Any]:
-    """Fetch CSV object(s) from S3 and persist result to local dataset artifact."""
-    runtime = get_runtime()
-    thread_id = _thread_id(ctx)
-    parsed_metadata = _parse_json_object(metadata, field_name="metadata") if metadata else {}
+    """Fetch CSV/Parquet/JSONL data from S3 and save as a dataset.
 
-    await _stream_progress(ctx, "clock", f"Running S3 extraction from {bucket}.")
-    result = runtime.extract_s3_to_dataset(
-        thread_id=thread_id,
-        bucket=bucket,
-        key_or_prefix=key_or_prefix,
-        run_id=run_id,
-        metadata=parsed_metadata,
-        dataset_name=dataset_name,
-    )
-    await _stream_progress(
-        ctx,
-        "check-circle",
-        f"S3 extraction complete: dataset_id={result.get('dataset_id')}, rows={result.get('row_count')}.",
-    )
-    return result
+    Args:
+        bucket: S3 bucket name (e.g. 's3-atp-3victors-3vdev-use1-collection-anomalies').
+        key_or_prefix: S3 key or prefix path (e.g. 'collection-customer/v1/2026/02/26/').
 
+    Returns: columns, row_count, preview rows (first 20), dataset_id, s3_keys.
+    """
+    try:
+        runtime = get_runtime()
+        thread_id = _thread_id(ctx)
+        run_id = _get_or_create_run_id(thread_id)
+        await _stream_progress(ctx, "clock", f"Fetching S3 data from {bucket}.")
+        result = runtime.fetch_s3(thread_id=thread_id, run_id=run_id, bucket=bucket, key_or_prefix=key_or_prefix)
+        await _stream_progress(
+            ctx, "check-circle",
+            f"S3 fetch complete: {result.get('row_count')} rows, {len(result.get('s3_keys', []))} files.",
+        )
+        return result
+    except Exception as exc:
+        log.exception("fetch_s3 failed")
+        return {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
+
+
+# ── Tool 3: run_python ──
 
 @function_tool
-async def run_dataframe_analysis(
-    ctx: RunContextWrapper[AgentContext],
-    run_id: str,
-    dataset_ids: list[str],
-    analysis_spec: str,
-) -> dict[str, Any]:
-    """Run built-in dataframe analyses on dataset artifacts."""
-    runtime = get_runtime()
-    thread_id = _thread_id(ctx)
-    parsed_analysis_spec = _parse_json_object(analysis_spec, field_name="analysis_spec")
-
-    await _stream_progress(ctx, "clock", "Running dataframe analysis.")
-    result = runtime.run_dataframe_analysis(
-        thread_id=thread_id,
-        run_id=run_id,
-        dataset_ids=dataset_ids,
-        analysis_spec=parsed_analysis_spec,
-    )
-    result["published_images"] = await _auto_publish_images_from_result(ctx, result=result)
-    await _stream_progress(
-        ctx,
-        "check-circle",
-        (
-            "Dataframe analysis complete: "
-            f"analysis_id={result.get('analysis_id')}, "
-            f"images={len(result.get('published_images', []))}."
-        ),
-    )
-    return result
-
-
-@function_tool
-async def operator_run_python(
+async def run_python(
     ctx: RunContextWrapper[AgentContext],
     code: str,
-    run_id: str | None = None,
 ) -> dict[str, Any]:
-    """Run pandas-focused Python analysis over saved dataset artifacts."""
-    runtime = get_runtime()
-    thread_id = _thread_id(ctx)
-    await _stream_progress(ctx, "clock", "Running custom Python operator code.")
-    result = runtime.operator_run_python(thread_id=thread_id, code=code, run_id=run_id)
-    result["published_images"] = await _auto_publish_images_from_result(ctx, result=result)
-    await _stream_progress(
-        ctx,
-        "check-circle",
-        (
-            "Python operator complete: "
-            f"created_datasets={len(result.get('created_datasets', []))}, "
-            f"images={len(result.get('published_images', []))}, "
-            f"run_id={result.get('run_id')}."
-        ),
-    )
-    return result
+    """Execute Python/pandas code against workspace datasets.
 
+    Available in scope: load_dataset(id), list_datasets(), save_dataframe(df, name),
+    save_plot(fig, name), pd, np, plt, sns, json, Path.
+
+    Args:
+        code: Python code to execute. Use load_dataset(dataset_id) to load saved data.
+
+    Returns: stdout output, created_datasets, created_analyses, and any published images.
+    """
+    try:
+        runtime = get_runtime()
+        thread_id = _thread_id(ctx)
+        run_id = _get_or_create_run_id(thread_id)
+        await _stream_progress(ctx, "clock", "Running Python code.")
+        result = runtime.run_python(thread_id=thread_id, run_id=run_id, code=code)
+        result["published_images"] = await _auto_publish_images_from_result(ctx, result=result)
+        await _stream_progress(
+            ctx, "check-circle",
+            f"Python complete: {len(result.get('created_datasets', []))} datasets, {len(result.get('published_images', []))} images.",
+        )
+        return result
+    except Exception as exc:
+        log.exception("run_python failed")
+        return {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
+
+
+# ── Tool 4: inspect_table ──
 
 @function_tool
-async def cleanup_session_workspace(
-    ctx: RunContextWrapper[AgentContext],
-    thread_id: str | None = None,
-    mode: str = "ephemeral_manifest",
-) -> dict[str, Any]:
-    """Clean local workspace artifacts while retaining compact manifests for lineage."""
-    target_thread = thread_id or _thread_id(ctx)
-    await _stream_progress(ctx, "search", f"Cleaning workspace for thread {target_thread}.")
-    result = cleanup_thread_workspace(thread_id=target_thread, mode=mode)
-    await _stream_progress(
-        ctx,
-        "check-circle",
-        f"Workspace cleanup complete: deleted_files={result.get('deleted_files')}, manifest_retained={result.get('manifest_retained')}.",
-    )
-    return result
-
-
-@function_tool
-async def publish_plot_image(
-    ctx: RunContextWrapper[AgentContext],
-    path: str,
-    display_name: str | None = None,
-) -> dict[str, Any]:
-    """Publish an image file from investigation workspace into chat as an inline image widget."""
-    await _stream_progress(ctx, "search", f"Publishing plot image: {path}")
-    result = await _publish_image_widget(ctx, path=path, display_name=display_name)
-    await _stream_progress(ctx, "check-circle", f"Published image to chat: {Path(result['path']).name}")
-    return result
-
-
-@function_tool
-async def run_table_eda(
+async def inspect_table(
     ctx: RunContextWrapper[AgentContext],
     table_name: str,
     datasource: str | None = None,
-    constraints: str | None = None,
-    run_id: str | None = None,
 ) -> dict[str, Any]:
-    """Run deep autonomous EDA for a table and return markdown report + lineage."""
-    runtime = get_runtime()
-    thread_id = _thread_id(ctx)
-    parsed_constraints = _parse_json_object(constraints, field_name="constraints") if constraints else {}
+    """Get schema, partition info, and a masked sample row for a table.
 
-    await _stream_progress(ctx, "search", f"Running deep table EDA for {table_name}.")
-    result = runtime.run_table_eda(
-        thread_id=thread_id,
-        table_name=table_name,
-        datasource=datasource,
-        constraints=parsed_constraints,
-        run_id=run_id,
-    )
-    result["published_images"] = await _auto_publish_images_from_result(ctx, result=result)
-    await _stream_progress(
-        ctx,
-        "check-circle",
-        (
-            "EDA complete: "
-            f"datasets={len(result.get('datasets', []))}, "
-            f"images={len(result.get('published_images', []))}, "
-            f"run_id={result.get('run_id')}."
-        ),
-    )
-    return result
+    Args:
+        table_name: Fully qualified table name (e.g. 'prod.monitoring.provider_combined_audit').
+        datasource: Optional datasource override. Auto-detected if omitted.
 
+    Returns: columns, partitions, sample_row_masked, tier.
+    """
+    try:
+        await _stream_progress(ctx, "search", f"Inspecting table {table_name}.")
+        runtime = get_runtime()
+        result = runtime.inspect_table(table_name=table_name, datasource=datasource)
+        await _stream_progress(
+            ctx, "check-circle",
+            f"Table inspection complete: {len(result.get('columns', []))} columns.",
+        )
+        return result
+    except Exception as exc:
+        log.exception("inspect_table failed")
+        return {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
+
+
+# ── Tool 5: search_kb ──
 
 @function_tool
-async def investigate_issue(
+async def search_kb(
     ctx: RunContextWrapper[AgentContext],
-    question: str,
-    sales_date: str | None = None,
-    constraints: str | None = None,
+    query: str,
 ) -> dict[str, Any]:
-    """Autonomous investigation dispatcher (no predefined intent recipes)."""
-    runtime = get_runtime()
-    thread_id = _thread_id(ctx)
-    parsed_constraints = _parse_json_object(constraints, field_name="constraints") if constraints else None
+    """Search the local knowledge base for matching tables, docs, and investigation patterns.
 
-    await _stream_progress(ctx, "search", "Starting autonomous investigation.")
-    result = runtime.investigate_issue(
-        thread_id=thread_id,
-        question=question,
-        sales_date=sales_date,
-        constraints=parsed_constraints,
-    )
-    result["published_images"] = await _auto_publish_images_from_result(ctx, result=result)
-    await _stream_progress(
-        ctx,
-        "check-circle",
-        (
-            "Investigation complete: "
-            f"strategy={result.get('strategy')}, "
-            f"datasets={len(result.get('datasets', []))}, "
-            f"images={len(result.get('published_images', []))}, "
-            f"run_id={result.get('run_id')}."
-        ),
-    )
-    return result
+    Args:
+        query: Natural language search query (e.g. 'market anomalies', 'site issues', 'combined audit').
+
+    Returns: candidate_tables, table_hints (with partition info), task_cards.
+    """
+    try:
+        await _stream_progress(ctx, "search", f"Searching KB for: {query}")
+        runtime = get_runtime()
+        result = runtime.search_kb(query=query)
+        await _stream_progress(
+            ctx, "check-circle",
+            f"KB search complete: {len(result.get('candidate_tables', []))} tables found.",
+        )
+        return result
+    except Exception as exc:
+        log.exception("search_kb failed")
+        return {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
+
+
+# ── Tool 6: resolve_codes ──
+
+@function_tool
+async def resolve_codes(
+    ctx: RunContextWrapper[AgentContext],
+    text: str,
+) -> dict[str, Any]:
+    """Resolve provider/site/customer codes from natural language text.
+
+    Handles airline codes (AA, DL, B6), names (JetBlue, Delta), and pipe-separated pairs (QL2|AV).
+
+    Args:
+        text: Text containing entity references to resolve.
+
+    Returns: {providers: [...], sites: [...], customers: [...], unknown_tokens: [...]}.
+    """
+    try:
+        await _stream_progress(ctx, "search", "Resolving entity codes.")
+        runtime = get_runtime()
+        result = runtime.resolve_codes(text=text)
+        await _stream_progress(
+            ctx, "check-circle",
+            f"Resolved: providers={len(result.get('providers', []))}, sites={len(result.get('sites', []))}, customers={len(result.get('customers', []))}.",
+        )
+        return result
+    except Exception as exc:
+        log.exception("resolve_codes failed")
+        return {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
 
 
 def investigation_tools() -> list[Any]:
+    """Return the 6 atomic tools for the investigation agent."""
     return [
-        investigate_issue,
-        run_table_eda,
-        publish_plot_image,
-        resolve_entities,
-        retrieve_knowledge,
-        browse_knowledge_files,
-        inspect_table_metadata,
-        extract_sql_to_dataset,
-        extract_s3_to_dataset,
-        run_dataframe_analysis,
-        operator_run_python,
-        cleanup_session_workspace,
+        execute_sql,
+        fetch_s3,
+        run_python,
+        inspect_table,
+        search_kb,
+        resolve_codes,
     ]
 
 
 __all__ = [
-    "investigation_instructions",
-    "investigation_tools",
     "cleanup_thread_workspace",
-    "is_investigation_engine_enabled",
+    "investigation_tools",
 ]

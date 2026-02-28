@@ -1,32 +1,63 @@
 {
   "providers": [
-    "AA",
-    "BA",
-    "DL",
-    "LH",
-    "QL2",
-    "SK",
-    "UA"
+    {"code": "AA", "name": "American Airlines", "aliases": ["American", "AAL"]},
+    {"code": "AF", "name": "Air France", "aliases": ["AirFrance"]},
+    {"code": "AS", "name": "Alaska Airlines", "aliases": ["Alaska"]},
+    {"code": "B6", "name": "JetBlue Airways", "aliases": ["JetBlue", "Jet Blue"]},
+    {"code": "BA", "name": "British Airways", "aliases": ["British"]},
+    {"code": "DL", "name": "Delta Air Lines", "aliases": ["Delta", "DAL"]},
+    {"code": "EK", "name": "Emirates", "aliases": []},
+    {"code": "F9", "name": "Frontier Airlines", "aliases": ["Frontier"]},
+    {"code": "LH", "name": "Lufthansa", "aliases": []},
+    {"code": "NK", "name": "Spirit Airlines", "aliases": ["Spirit"]},
+    {"code": "QF", "name": "Qantas", "aliases": []},
+    {"code": "QL2", "name": "QL2 Software", "aliases": ["QL2"]},
+    {"code": "SK", "name": "SAS Scandinavian", "aliases": ["SAS", "Scandinavian"]},
+    {"code": "UA", "name": "United Airlines", "aliases": ["United", "UAL"]},
+    {"code": "WN", "name": "Southwest Airlines", "aliases": ["Southwest"]},
+    {"code": "AC", "name": "Air Canada", "aliases": []},
+    {"code": "CX", "name": "Cathay Pacific", "aliases": ["Cathay"]},
+    {"code": "HA", "name": "Hawaiian Airlines", "aliases": ["Hawaiian"]},
+    {"code": "JL", "name": "Japan Airlines", "aliases": ["JAL"]},
+    {"code": "KL", "name": "KLM Royal Dutch", "aliases": ["KLM"]},
+    {"code": "LA", "name": "LATAM Airlines", "aliases": ["LATAM"]},
+    {"code": "NH", "name": "ANA All Nippon", "aliases": ["ANA"]},
+    {"code": "SQ", "name": "Singapore Airlines", "aliases": ["Singapore"]},
+    {"code": "TK", "name": "Turkish Airlines", "aliases": ["Turkish"]},
+    {"code": "VS", "name": "Virgin Atlantic", "aliases": ["Virgin"]}
   ],
   "sites": [
-    "AV",
-    "DF",
-    "DY",
-    "NY",
-    "QF"
+    {"code": "AV", "name": "Aviasales", "aliases": []},
+    {"code": "DF", "name": "Duffel", "aliases": []},
+    {"code": "DY", "name": "Dynamic site", "aliases": []},
+    {"code": "NY", "name": "New York site", "aliases": []},
+    {"code": "QF", "name": "Qantas site", "aliases": []},
+    {"code": "GG", "name": "Google Flights", "aliases": ["Google"]},
+    {"code": "KK", "name": "Kayak", "aliases": ["KAYAK"]},
+    {"code": "SK", "name": "Skyscanner", "aliases": []},
+    {"code": "EX", "name": "Expedia", "aliases": []},
+    {"code": "MA", "name": "Matrix/ITA", "aliases": ["ITA", "Matrix"]}
   ],
   "customers": [
-    "AA",
-    "B6",
-    "DL",
-    "LH",
-    "SK",
-    "UA"
+    {"code": "AA", "name": "American Airlines", "aliases": ["American"]},
+    {"code": "B6", "name": "JetBlue Airways", "aliases": ["JetBlue", "Jet Blue"]},
+    {"code": "DL", "name": "Delta Air Lines", "aliases": ["Delta"]},
+    {"code": "LH", "name": "Lufthansa", "aliases": []},
+    {"code": "SK", "name": "SAS Scandinavian", "aliases": ["SAS"]},
+    {"code": "UA", "name": "United Airlines", "aliases": ["United"]},
+    {"code": "AF", "name": "Air France", "aliases": ["AirFrance"]},
+    {"code": "BA", "name": "British Airways", "aliases": ["British"]},
+    {"code": "QF", "name": "Qantas", "aliases": []},
+    {"code": "EK", "name": "Emirates", "aliases": []}
   ],
   "customer_sites": [
     "AA|AV",
     "B6|QF",
     "DL|DY",
-    "LH|AV"
+    "LH|AV",
+    "UA|AV",
+    "SK|AV",
+    "AA|GG",
+    "DL|GG"
   ]
 }

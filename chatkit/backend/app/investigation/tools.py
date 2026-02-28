@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from ..tools.investigation_tools import investigation_instructions, investigation_tools
+from ..tools.investigation_tools import investigation_tools
 
-__all__ = ["investigation_instructions", "investigation_tools"]
+__all__ = ["investigation_tools"]

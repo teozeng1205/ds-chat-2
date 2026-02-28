@@ -464,10 +464,22 @@ class KnowledgeBase:
     def _tokens(cls, text: str) -> list[str]:
         return [m.group(0).lower() for m in cls._TOKEN_RE.finditer(text or "")]
 
+    def _load_partition_info(self, conn: sqlite3.Connection) -> dict[str, list[dict[str, Any]]]:
+        """Load partition info keyed by table name."""
+        rows = conn.execute("SELECT table_name, column_name, role, inferred_type FROM kb_partitions").fetchall()
+        out: dict[str, list[dict[str, Any]]] = {}
+        for table_name, column_name, role, inferred_type in rows:
+            out.setdefault(table_name, []).append(
+                {"column": column_name, "role": role, "inferred_type": inferred_type}
+            )
+        return out
+
     def retrieve(self, *, question: str, entities: dict[str, Any], top_k: int = 8) -> dict[str, Any]:
         tokens = self._tokens(question)
         conn = sqlite3.connect(self.db_path)
         try:
+            partition_info = self._load_partition_info(conn)
+
             table_rows = conn.execute(
                 "SELECT table_name, datasource, tier, notes, query_example, analysis_example FROM kb_tables"
             ).fetchall()
@@ -502,6 +514,7 @@ class KnowledgeBase:
                             "notes": notes,
                             "query_example": query_example,
                             "analysis_example": analysis_example,
+                            "partitions": partition_info.get(table_name, []),
                         },
                     )
                 )

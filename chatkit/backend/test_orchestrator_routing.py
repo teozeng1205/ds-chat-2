@@ -1,25 +1,21 @@
 from __future__ import annotations
 
-from app.agents.orchestrator import build_agent
+from app.agents.investigation_agent import build_investigation_agent
 
 
-def _handoff_names(agent) -> set[str]:
-    return {str(getattr(handoff, "name", "")) for handoff in getattr(agent, "handoffs", [])}
+def test_build_investigation_agent() -> None:
+    agent = build_investigation_agent("gpt-4.1-mini")
+    assert agent.name == "DS Chat Investigation Agent"
+    tool_names = {str(getattr(tool, "name", "")) for tool in agent.tools}
+    assert "execute_sql" in tool_names
+    assert "resolve_codes" in tool_names
+    assert len(tool_names) == 6
 
 
-def test_orchestrator_routes_to_investigation_and_codebase() -> None:
-    orchestrator = build_agent(None, "gpt-4.1-mini")
-    assert orchestrator.name == "Multi-Agent Orchestrator"
-    names = _handoff_names(orchestrator)
-    assert "Investigation Operator Agent" in names
-    assert "Codebase Explanation Agent" in names
-
-
-def test_tool_choice_codebase_routes_to_codebase_agent() -> None:
-    codebase = build_agent("codebase_explainer", "gpt-4.1-mini")
-    assert codebase.name == "Codebase Explanation Agent"
-
-
-def test_tool_choice_investigation_routes_to_investigation_agent() -> None:
-    investigation = build_agent("investigation", "gpt-4.1-mini")
-    assert investigation.name == "Investigation Operator Agent"
+def test_investigation_agent_has_rich_instructions() -> None:
+    agent = build_investigation_agent("gpt-4.1-mini")
+    instructions = agent.instructions
+    assert "partition" in instructions.lower()
+    assert "redshift_analytics" in instructions
+    assert "redshift_core" in instructions
+    assert "mysql_priceeye" in instructions

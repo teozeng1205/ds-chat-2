@@ -1,4 +1,4 @@
-"""Autonomous shell-first investigation runtime for DS Chat."""
+"""Thin service layer for DS Chat investigation tools."""
 
 from __future__ import annotations
 
@@ -16,13 +16,10 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .analysis import DataAnalyzer
 from .catalog import KnowledgeBase, LocalCodeCatalog
-from .datasources import DatasourceRegistry
+from .datasources import DatasourceRegistry, datasource_for_table
 from .entity_resolution import EntityResolver
-from .executor import OperatorRuntime, SqlGuard
-from .planner import AutonomousInvestigationEngine
-from .reporting import build_lineage, summarize_answer
+from .executor import OperatorRuntime, PartitionGuard, SqlGuard
 from .workspace import WorkspaceManager
 
 log = logging.getLogger(__name__)
@@ -42,6 +39,35 @@ TABLES_DOC_PATH = KNOWLEDGE_ROOT / "tables.md"
 
 DEFAULT_SQL_LIMIT = 1000
 MAX_SQL_LIMIT = 120000
+
+
+def _format_preview_table(df: pd.DataFrame, max_rows: int = 20) -> str:
+    """Return a compact markdown-style table string from a DataFrame preview.
+
+    Produces output that is easy for the LLM to pattern-match on (structured
+    plain text, not raw JSON).
+    """
+    if df.empty:
+        return "(empty result set)"
+    preview = df.head(max_rows)
+    # Truncate long cell values to keep the table readable
+    formatted = preview.copy()
+    for col in formatted.columns:
+        formatted[col] = formatted[col].apply(
+            lambda v: str(v) if len(str(v)) <= 60 else str(v)[:57] + "..."
+        )
+    try:
+        table = formatted.to_markdown(index=False)
+    except ImportError:
+        # Fallback: build a simple pipe-delimited table without tabulate
+        cols = list(formatted.columns)
+        lines = ["| " + " | ".join(str(c) for c in cols) + " |"]
+        lines.append("| " + " | ".join("---" for _ in cols) + " |")
+        for _, row in formatted.iterrows():
+            lines.append("| " + " | ".join(str(row[c]) for c in cols) + " |")
+        table = "\n".join(lines)
+    suffix = f"\n... ({len(df)} rows total)" if len(df) > max_rows else ""
+    return (table or "(empty)") + suffix
 
 
 def _bool_env(name: str, default: bool) -> bool:
@@ -105,16 +131,8 @@ def _coerce_sales_date(value: str | dt.date | dt.datetime | None) -> str:
     raise ValueError(f"Unsupported sales_date format: {value!r}")
 
 
-def _canonical_table_name(table_name: str) -> str:
-    return re.sub(r"\blocal\.monitoring\.", "prod.monitoring.", table_name.strip(), flags=re.I)
-
-
-def _canonicalize_sql(query: str) -> str:
-    return re.sub(r"\blocal\.monitoring\.", "prod.monitoring.", query, flags=re.I)
-
-
 class InvestigationRuntime:
-    """Coordinator for autonomous data investigation tasks."""
+    """Service layer providing tool implementations for the agentic investigation agent."""
 
     def __init__(self) -> None:
         WORK_ROOT.mkdir(parents=True, exist_ok=True)
@@ -122,18 +140,13 @@ class InvestigationRuntime:
         KNOWLEDGE_ROOT.mkdir(parents=True, exist_ok=True)
         KB_RUNTIME_ROOT.mkdir(parents=True, exist_ok=True)
 
-        self.registry = DatasourceRegistry(default_profile="3VDEV")
+        self.registry = DatasourceRegistry()
         self.catalog = LocalCodeCatalog(path=COMMON_CODES_PATH)
         self.kb = KnowledgeBase(root=KNOWLEDGE_ROOT, db_path=KB_DB_PATH)
         self.resolver = EntityResolver(catalog=self.catalog, registry=self.registry)
         self.guard = SqlGuard(default_limit=DEFAULT_SQL_LIMIT, max_limit=MAX_SQL_LIMIT)
         self.workspace = WorkspaceManager(root=SESSION_ROOT)
         self.operator = OperatorRuntime(self.workspace)
-        self.analyzer = DataAnalyzer()
-        self.max_steps = int(os.getenv("INVESTIGATION_MAX_STEPS", "20"))
-        self.engine = AutonomousInvestigationEngine(self, max_steps=self.max_steps)
-        self.approval_policy = os.getenv("INVESTIGATION_APPROVAL_POLICY", "never")
-        self.sandbox_mode = os.getenv("INVESTIGATION_SANDBOX_MODE", "workspace-write")
 
     @staticmethod
     def _mirror_log_path(thread_id: str, run_id: str) -> Path:
@@ -150,146 +163,94 @@ class InvestigationRuntime:
     def ensure_kb_ready(self) -> dict[str, Any]:
         return self.kb.refresh(force=False, catalog=self.catalog)
 
-    def refresh_knowledge_index(self, force: bool = True) -> dict[str, Any]:
-        return self.kb.refresh(force=force, catalog=self.catalog)
+    # ── Tool implementation: execute_sql ──
 
-    def browse_knowledge_files(self, path_or_glob: str) -> dict[str, Any]:
-        result = self.kb.browse_files(path_or_glob)
-        return result
-
-    def resolve_entities(self, input_text: str, sales_date_hint: str | None = None) -> dict[str, Any]:
-        return self.resolver.resolve(input_text, sales_date_hint=sales_date_hint)
-
-    def retrieve_knowledge(self, *, query: str, entities: dict[str, Any], top_k: int = 8) -> dict[str, Any]:
-        return self.kb.retrieve(question=query, entities=entities, top_k=top_k)
-
-    def inspect_table_metadata(
-        self,
-        table_name: str,
-        datasource: str | None = None,
-        capture_example_row: bool = True,
-    ) -> dict[str, Any]:
-        canonical_table_name = _canonical_table_name(table_name)
-        source = datasource or self._datasource_for_table(canonical_table_name)
-        metadata = self.registry.inspect_table_metadata(canonical_table_name, source)
-
-        sample_row_masked: dict[str, Any] | None = None
-        if capture_example_row:
-            try:
-                sample = self.registry.execute_sql(source, f"SELECT * FROM {canonical_table_name} LIMIT 1")
-                if not sample.empty:
-                    sample_row_masked = _mask_row(sample.iloc[0].to_dict())
-            except Exception:
-                sample_row_masked = None
-
-        knowledge = self.kb.retrieve(question=canonical_table_name, entities={})
-        tier = "common" if canonical_table_name in knowledge.get("candidate_tables", []) else "discovered"
-        self.kb.upsert_table_metadata(
-            table_name=canonical_table_name,
-            datasource=source,
-            columns=metadata.get("columns", []),
-            partitions=metadata.get("partitions", []),
-            sample_row_masked=sample_row_masked,
-            tier=tier,
-            notes="Discovered from metadata inspection" if tier == "discovered" else "Common table",
-        )
-
-        return {
-            **metadata,
-            "table_name": canonical_table_name,
-            "sample_row_masked": sample_row_masked,
-            "tier": tier,
-        }
-
-    @staticmethod
-    def _datasource_for_table(table_name: str) -> str:
-        normalized = _canonical_table_name(table_name)
-        if normalized.startswith("priceeye."):
-            return "mysql_priceeye"
-        if normalized.startswith("prod.monitoring"):
-            return "redshift_core"
-        return "redshift_analytics"
-
-    def extract_sql_to_dataset(
+    def execute_sql(
         self,
         *,
         thread_id: str,
+        run_id: str,
         query: str,
-        datasource: str,
-        run_id: str | None = None,
-        metadata: dict[str, Any] | None = None,
-        dataset_name: str | None = None,
+        datasource: str | None = None,
     ) -> dict[str, Any]:
-        effective_run_id = run_id or self.workspace.start_run(thread_id)
-        canonical_query = _canonicalize_sql(query)
-        validated_query = self.guard.validate(canonical_query)
+        """Execute read-only SQL, validate with guards, save result as dataset."""
+        effective_datasource = datasource or datasource_for_table(query)
+        validated_query = self.guard.validate(query)
+
+        # Partition guard warnings
+        partition_warnings = PartitionGuard.check(validated_query)
 
         started = time.time()
-        frame = self.registry.execute_sql(datasource, validated_query)
+        frame = self.registry.execute_sql(effective_datasource, validated_query)
         elapsed_ms = int((time.time() - started) * 1000)
 
-        source_metadata = dict(metadata or {})
-        source_metadata.update(
-            {
-                "type": "sql",
-                "datasource": datasource,
-                "query": validated_query,
-                "query_hash": hex(abs(hash(validated_query)))[2:],
-                "elapsed_ms": elapsed_ms,
-            }
-        )
+        source_metadata = {
+            "type": "sql",
+            "datasource": effective_datasource,
+            "query": validated_query,
+            "query_hash": hex(abs(hash(validated_query)))[2:],
+            "elapsed_ms": elapsed_ms,
+        }
 
         record = self.workspace.save_dataset(
             thread_id=thread_id,
-            run_id=effective_run_id,
+            run_id=run_id,
             df=frame,
             source_metadata=source_metadata,
-            dataset_name=dataset_name,
         )
 
         query_entry = {
-            "datasource": datasource,
+            "datasource": effective_datasource,
             "query": validated_query,
             "row_count": int(len(frame)),
             "elapsed_ms": elapsed_ms,
             "dataset_id": record["dataset_id"],
         }
-        self.workspace.append_query(thread_id, effective_run_id, query_entry)
-        self._log_event(thread_id=thread_id, run_id=effective_run_id, event="extract_sql", payload=query_entry)
-        return record
+        self.workspace.append_query(thread_id, run_id, query_entry)
+        self._log_event(thread_id=thread_id, run_id=run_id, event="execute_sql", payload=query_entry)
 
-    def extract_s3_to_dataset(
+        # Build summary for LLM observation
+        columns = list(frame.columns)
+        preview_rows = frame.head(20).to_dict(orient="records") if not frame.empty else []
+        return {
+            "dataset_id": record["dataset_id"],
+            "row_count": int(len(frame)),
+            "columns": columns,
+            "column_types": {col: str(frame[col].dtype) for col in columns},
+            "preview": preview_rows,
+            "preview_text": _format_preview_table(frame),
+            "elapsed_ms": elapsed_ms,
+            "partition_warnings": partition_warnings,
+        }
+
+    # ── Tool implementation: fetch_s3 ──
+
+    def fetch_s3(
         self,
         *,
         thread_id: str,
+        run_id: str,
         bucket: str,
         key_or_prefix: str,
-        run_id: str | None = None,
-        metadata: dict[str, Any] | None = None,
-        dataset_name: str | None = None,
     ) -> dict[str, Any]:
-        effective_run_id = run_id or self.workspace.start_run(thread_id)
+        """Fetch S3 data and save as dataset."""
         started = time.time()
-        frame, keys = self.registry.fetch_s3_csv(bucket, key_or_prefix)
+        frame, keys = self.registry.fetch_s3_data(bucket, key_or_prefix)
         elapsed_ms = int((time.time() - started) * 1000)
 
-        source_metadata = dict(metadata or {})
-        source_metadata.update(
-            {
-                "type": "s3",
-                "bucket": bucket,
-                "key_or_prefix": key_or_prefix,
-                "keys": keys,
-                "elapsed_ms": elapsed_ms,
-            }
-        )
+        source_metadata = {
+            "type": "s3",
+            "bucket": bucket,
+            "key_or_prefix": key_or_prefix,
+            "keys": keys,
+            "elapsed_ms": elapsed_ms,
+        }
 
         record = self.workspace.save_dataset(
             thread_id=thread_id,
-            run_id=effective_run_id,
+            run_id=run_id,
             df=frame,
             source_metadata=source_metadata,
-            dataset_name=dataset_name,
         )
 
         source_entry = {
@@ -300,208 +261,108 @@ class InvestigationRuntime:
             "dataset_id": record["dataset_id"],
             "elapsed_ms": elapsed_ms,
         }
-        self.workspace.append_source(thread_id, effective_run_id, source_entry)
-        self._log_event(thread_id=thread_id, run_id=effective_run_id, event="extract_s3", payload=source_entry)
-        return record
+        self.workspace.append_source(thread_id, run_id, source_entry)
+        self._log_event(thread_id=thread_id, run_id=run_id, event="fetch_s3", payload=source_entry)
 
-    def run_dataframe_analysis(
+        columns = list(frame.columns)
+        preview_rows = frame.head(20).to_dict(orient="records") if not frame.empty else []
+        return {
+            "dataset_id": record["dataset_id"],
+            "row_count": int(len(frame)),
+            "columns": columns,
+            "column_types": {col: str(frame[col].dtype) for col in columns},
+            "preview": preview_rows,
+            "preview_text": _format_preview_table(frame),
+            "s3_keys": keys,
+            "elapsed_ms": elapsed_ms,
+        }
+
+    # ── Tool implementation: run_python ──
+
+    def run_python(
         self,
         *,
         thread_id: str,
         run_id: str,
-        dataset_ids: list[str],
-        analysis_spec: dict[str, Any],
+        code: str,
     ) -> dict[str, Any]:
-        frames = self.workspace.read_datasets(thread_id=thread_id, run_id=run_id, dataset_ids=dataset_ids)
-        payload = self.analyzer.analyze(frames=frames, analysis_spec=analysis_spec)
-        record = self.workspace.record_analysis(thread_id=thread_id, run_id=run_id, analysis_payload=payload)
-
-        event = {
-            "analysis_id": record["analysis_id"],
-            "analysis_mode": payload.get("analysis_mode", "profile_dataset"),
-            "dataset_ids": dataset_ids,
-        }
-        self._log_event(thread_id=thread_id, run_id=run_id, event="analysis_complete", payload=event)
-        return {
-            "analysis_id": record["analysis_id"],
-            "local_path": record["local_path"],
-            "results": payload.get("results", {}),
-            "summary_stats": payload.get("summary_stats", {}),
-            "report_markdown": payload.get("report_markdown", ""),
-            "caveats": payload.get("caveats", []),
-        }
-
-    def operator_run_python(self, *, thread_id: str, code: str, run_id: str | None = None) -> dict[str, Any]:
-        effective_run_id = run_id or self.workspace.start_run(thread_id)
+        """Execute Python/pandas code against workspace datasets."""
         self._log_event(
             thread_id=thread_id,
-            run_id=effective_run_id,
-            event="operator_run_python_start",
-            payload={"approval_policy": self.approval_policy, "sandbox_mode": self.sandbox_mode},
+            run_id=run_id,
+            event="run_python_start",
+            payload={},
         )
-        result = self.operator.run_python(thread_id=thread_id, run_id=effective_run_id, code=code)
-        latest_analysis: dict[str, Any] | None = None
-        created_analyses = [item for item in result.get("created_analyses", []) if isinstance(item, dict)]
-        if created_analyses:
-            latest = created_analyses[-1]
-            path = Path(str(latest.get("local_path", "")))
-            if path.exists():
-                try:
-                    latest_analysis = json.loads(path.read_text(encoding="utf-8"))
-                except Exception:
-                    latest_analysis = None
+        result = self.operator.run_python(thread_id=thread_id, run_id=run_id, code=code)
         self._log_event(
             thread_id=thread_id,
-            run_id=effective_run_id,
-            event="operator_run_python_done",
+            run_id=run_id,
+            event="run_python_done",
             payload={
                 "created_datasets": len(result.get("created_datasets", [])),
-                "created_analyses": len(created_analyses),
+                "created_analyses": len(result.get("created_analyses", [])),
             },
         )
-        if latest_analysis is not None:
-            result["latest_analysis"] = latest_analysis
         return result
 
-    def run_table_eda(
+    # ── Tool implementation: inspect_table ──
+
+    def inspect_table(
         self,
-        *,
-        thread_id: str,
         table_name: str,
         datasource: str | None = None,
-        constraints: dict[str, Any] | None = None,
-        run_id: str | None = None,
     ) -> dict[str, Any]:
-        effective_run_id = run_id or self.workspace.start_run(thread_id)
-        question = f"can you do a EDA of the table {table_name}"
-        result = self.investigate_issue(
-            thread_id=thread_id,
-            question=question,
-            sales_date=None,
-            constraints={**(constraints or {}), "table_name": table_name, "datasource": datasource},
-            run_id=effective_run_id,
-        )
-        return result
+        """Get schema, partitions, and masked sample row for a table."""
+        source = datasource or datasource_for_table(table_name)
+        metadata = self.registry.inspect_table_metadata(table_name, source)
 
-    def cleanup_session_workspace(self, thread_id: str, mode: str = "ephemeral_manifest") -> dict[str, Any]:
-        return self.workspace.cleanup_thread(thread_id=thread_id, mode=mode)
-
-    @staticmethod
-    def _should_retry_on_missing_key(error: Exception) -> bool:
-        message = str(error).lower()
-        return "nosuchkey" in message or "404" in message
-
-    def investigate_issue(
-        self,
-        *,
-        thread_id: str,
-        question: str,
-        sales_date: str | None = None,
-        constraints: dict[str, Any] | None = None,
-        run_id: str | None = None,
-    ) -> dict[str, Any]:
-        self.ensure_kb_ready()
-        effective_run_id = run_id or self.workspace.start_run(thread_id)
-        effective_sales_date = _coerce_sales_date(sales_date)
-
-        self._log_event(
-            thread_id=thread_id,
-            run_id=effective_run_id,
-            event="plan_start",
-            payload={"question": question, "sales_date": effective_sales_date},
-        )
-
-        errors: list[dict[str, Any]] = []
-        warnings: list[str] = []
-
+        sample_row_masked: dict[str, Any] | None = None
         try:
-            loop_result = self.engine.run(
-                thread_id=thread_id,
-                run_id=effective_run_id,
-                question=question,
-                sales_date=effective_sales_date,
-                constraints=constraints or {},
-            )
-        except Exception as exc:  # noqa: BLE001
-            errors.append({"error": type(exc).__name__, "message": str(exc)})
-            loop_result = {
-                "strategy": "autonomous",
-                "sales_date": effective_sales_date,
-                "entities": {},
-                "knowledge": {},
-                "datasets": [],
-                "analysis": None,
-                "warnings": [],
-                "clarification": None,
-            }
+            sample = self.registry.execute_sql(source, f"SELECT * FROM {table_name} LIMIT 1")
+            if not sample.empty:
+                sample_row_masked = _mask_row(sample.iloc[0].to_dict())
+        except Exception:
+            sample_row_masked = None
 
-        datasets = list(loop_result.get("datasets", []))
-        analysis = loop_result.get("analysis")
-        warnings.extend(loop_result.get("warnings", []))
-        clarification = loop_result.get("clarification")
-        observations = list(loop_result.get("observations", []))
-
-        for row in observations:
-            if not isinstance(row, dict):
-                continue
-            self._log_event(
-                thread_id=thread_id,
-                run_id=effective_run_id,
-                event="action_observation",
-                payload=row,
-            )
-
-        answer = summarize_answer(
-            question=question,
-            strategy=str(loop_result.get("strategy", "autonomous")),
-            datasets=datasets,
-            analysis=analysis if isinstance(analysis, dict) else None,
-            warnings=warnings,
-            clarification=clarification,
+        knowledge = self.kb.retrieve(question=table_name, entities={})
+        tier = "common" if table_name in knowledge.get("candidate_tables", []) else "discovered"
+        self.kb.upsert_table_metadata(
+            table_name=table_name,
+            datasource=source,
+            columns=metadata.get("columns", []),
+            partitions=metadata.get("partitions", []),
+            sample_row_masked=sample_row_masked,
+            tier=tier,
+            notes="Discovered from metadata inspection" if tier == "discovered" else "Common table",
         )
 
-        lineage = build_lineage(
-            run_id=effective_run_id,
-            datasets=datasets,
-            analysis=analysis if isinstance(analysis, dict) else None,
-            warnings=warnings,
-        )
-
-        result = {
-            "thread_id": thread_id,
-            "run_id": effective_run_id,
-            "strategy": loop_result.get("strategy", "autonomous"),
-            "sales_date": loop_result.get("sales_date", effective_sales_date),
-            "question": question,
-            "entities": loop_result.get("entities", {}),
-            "knowledge": loop_result.get("knowledge", {}),
-            "datasets": datasets,
-            "analysis": analysis,
-            "warnings": warnings,
-            "errors": errors,
-            "answer": answer,
-            "lineage": lineage,
-            "partial_result": bool(errors),
-            "clarification": clarification,
-            "observations": observations,
-            "autonomy_policy": {
-                "approval_policy": self.approval_policy,
-                "sandbox_mode": self.sandbox_mode,
-            },
+        return {
+            **metadata,
+            "table_name": table_name,
+            "sample_row_masked": sample_row_masked,
+            "tier": tier,
         }
 
-        self._log_event(
-            thread_id=thread_id,
-            run_id=effective_run_id,
-            event="investigation_complete",
-            payload={
-                "strategy": result["strategy"],
-                "dataset_count": len(datasets),
-                "error_count": len(errors),
-            },
-        )
+    # ── Tool implementation: search_kb ──
 
-        return result
+    def search_kb(self, query: str) -> dict[str, Any]:
+        """Search local knowledge base for matching tables and docs."""
+        self.ensure_kb_ready()
+        return self.kb.retrieve(question=query, entities={})
+
+    # ── Tool implementation: resolve_codes ──
+
+    def resolve_codes(self, text: str) -> dict[str, Any]:
+        """Resolve provider/site/customer from text."""
+        return self.resolver.resolve(text)
+
+    # ── Workspace management ──
+
+    def cleanup(self, thread_id: str, mode: str = "ephemeral_manifest") -> dict[str, Any]:
+        return self.workspace.cleanup_thread(thread_id=thread_id, mode=mode)
+
+    def start_run(self, thread_id: str) -> str:
+        return self.workspace.start_run(thread_id)
 
 
 def ensure_knowledge_layout() -> None:
@@ -536,25 +397,19 @@ def get_runtime() -> InvestigationRuntime:
 
 
 def cleanup_thread_workspace(thread_id: str, mode: str = "ephemeral_manifest") -> dict[str, Any]:
-    return get_runtime().cleanup_session_workspace(thread_id=thread_id, mode=mode)
-
-
-def is_investigation_engine_enabled() -> bool:
-    return _bool_env("INVESTIGATION_ENGINE_ENABLED", True)
+    return get_runtime().cleanup(thread_id=thread_id, mode=mode)
 
 
 __all__ = [
-    "AutonomousInvestigationEngine",
-    "DataAnalyzer",
     "DatasourceRegistry",
     "EntityResolver",
     "InvestigationRuntime",
     "KnowledgeBase",
     "LocalCodeCatalog",
     "OperatorRuntime",
+    "PartitionGuard",
     "SqlGuard",
     "WorkspaceManager",
     "cleanup_thread_workspace",
     "get_runtime",
-    "is_investigation_engine_enabled",
 ]
