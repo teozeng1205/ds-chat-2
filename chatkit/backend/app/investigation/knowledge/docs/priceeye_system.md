@@ -64,7 +64,8 @@ priceeye-v2 (Java Lambda/ECS)
 - `s3-atp-3victors-{env}-use1-dataset-ingest/delta/search-with-itineraries/v1/{YYYY}/{MM}/{DD}/` — Delta SWIA Avro
 
 **Key columns in `combined_audit`:**
-`id`, `inputrequestid`, `customer`, `customercollectionid`, `providercode`, `sitecode`, `pos`, `carriercodes`, `originairportcode`, `destinationairportcode`, `departdate`, `cabin`, `passengercount`, `response_status`, `response_itinerarycount`, `issue_source`, `issue_reason`, `filterreason`, `retry_reason`, `enrichment_success_count`, `enrichment_failure_count`, `cache_itinerarycount`, `packager_fileuri`, `delivery_status`, `delivery_failurereason`, `sales_date`
+`id`, `inputrequestid`, `customer`, `customercollectionid`, `providercode`, `sitecode`, `pos`, `carriercodes`, `originairportcode`, `destinationairportcode`, `departdate`, `cabin`, `passengercount`, `response_status`, `response_itinerarycount`, `issue_source`, `issue_reason`, `filterreason`, `retry_reason`, `cache_itinerarycount`, `delivery_status`, `delivery_failurereason`, `sales_date`
+**NOTE:** uses singular `issue_source` / `issue_reason` (not plural). Always `inspect_table` first to confirm exact column names.
 
 **Key columns in `provider_combined_audit`:**
 `providercode`, `sitecode`, `sales_date`, `pos`, `carriercodes`, `issue_sources`, `issue_reasons`, `filterreason`, `response_status`, `itinerarycount`, `origin`, `destination`, `ap` (advance purchase), `los` (length of stay)

@@ -7,7 +7,7 @@ Runs test cases through the actual agentic loop using Runner.run().
 Usage:
     cd chatkit/backend
     eval "$(assume 3VDEV)"
-    .venv/bin/python scripts/smoke_e2e.py --profile 3VDEV --model gpt-4.1-mini
+    .venv/bin/python scripts/smoke_e2e.py --profile 3VDEV --model gpt-5-mini
 """
 
 from __future__ import annotations
@@ -124,7 +124,8 @@ def _extract_tool_calls(result: Any) -> list[dict[str, Any]]:
             raw = getattr(item, "raw_item", None)
             name = getattr(raw, "name", None) or getattr(item, "name", "unknown")
             call_id = getattr(raw, "call_id", "") or getattr(item, "call_id", "")
-            tool_calls.append({"tool": name, "call_id": call_id})
+            arguments = getattr(raw, "arguments", "") or ""
+            tool_calls.append({"tool": name, "call_id": call_id, "arguments": arguments})
         elif item_type == "tool_call_output_item":
             # Match output back to existing tool calls
             raw = getattr(item, "raw_item", None)
@@ -132,7 +133,7 @@ def _extract_tool_calls(result: Any) -> list[dict[str, Any]]:
             output = getattr(item, "output", "")
             for tc in tool_calls:
                 if tc.get("call_id") == call_id:
-                    tc["output_preview"] = str(output)[:500]
+                    tc["output"] = str(output)
                     break
     return tool_calls
 
@@ -246,7 +247,7 @@ async def run_case(
 
 
 def _render_markdown_report(payload: dict[str, Any]) -> str:
-    """Render a human-readable markdown report."""
+    """Render a human-readable markdown report with full output and tool traces."""
     lines: list[str] = [
         "# E2E Smoke Test Report",
         "",
@@ -255,44 +256,106 @@ def _render_markdown_report(payload: dict[str, Any]) -> str:
         f"- Cases: {len(payload.get('reports', []))}",
         "",
     ]
+
+    # Summary table
+    lines.append("## Summary")
+    lines.append("")
+    lines.append("| # | Case | Status | Elapsed | Tools |")
+    lines.append("|---|------|--------|---------|-------|")
+    for idx, report in enumerate(payload.get("reports", []), 1):
+        name = report.get("name", "unknown")
+        status = "FAIL" if report.get("failed") else "PASS"
+        elapsed = report.get("elapsed_seconds", "?")
+        tc_count = report.get("tool_call_count", 0)
+        lines.append(f"| {idx} | {name} | {status} | {elapsed}s | {tc_count} |")
+    lines.append("")
+
+    # Detailed per-case sections
     for report in payload.get("reports", []):
         name = report.get("name", "unknown")
         failed = report.get("failed", False)
         status = "FAIL" if failed else "PASS"
         lines.append(f"## [{status}] {name}")
         lines.append("")
-        lines.append(f"- Question: {report.get('question')}")
-        lines.append(f"- Elapsed: {report.get('elapsed_seconds', '?')}s")
-        lines.append(f"- Tool calls: {report.get('tool_call_count', 0)}")
+        lines.append(f"- **Question:** {report.get('question')}")
+        lines.append(f"- **Elapsed:** {report.get('elapsed_seconds', '?')}s")
+        lines.append(f"- **Tool calls:** {report.get('tool_call_count', 0)}")
         lines.append("")
 
         if report.get("error"):
             lines.append(f"**Error:** `{report['error'].get('error_type')}: {report['error'].get('message')}`")
+            tb = report["error"].get("traceback", "")
+            if tb:
+                lines.append("")
+                lines.append("<details><summary>Traceback</summary>")
+                lines.append("")
+                lines.append("```")
+                lines.append(tb.strip())
+                lines.append("```")
+                lines.append("</details>")
             lines.append("")
 
-        tool_calls = report.get("tool_calls", [])
-        if tool_calls:
-            tool_names = [tc.get("tool", "?") for tc in tool_calls]
-            lines.append(f"**Tool sequence:** {' -> '.join(tool_names)}")
-            lines.append("")
-
+        # Assertions
         assertions = report.get("assertions", {})
         if assertions.get("checked"):
             passed = assertions.get("passed", False)
-            lines.append(f"**Assertions:** {'ALL PASSED' if passed else 'SOME FAILED'}")
+            lines.append(f"### Assertions: {'ALL PASSED' if passed else 'SOME FAILED'}")
+            lines.append("")
             for detail in assertions.get("details", []):
                 mark = "pass" if detail.get("passed") else "FAIL"
-                lines.append(f"  - [{mark}] {detail.get('assertion')}: {json.dumps({k: v for k, v in detail.items() if k not in ('assertion', 'passed')})}")
+                info = json.dumps({k: v for k, v in detail.items() if k not in ("assertion", "passed")})
+                lines.append(f"  - [{mark}] {detail.get('assertion')}: {info}")
             lines.append("")
 
+        # Tool call traces
+        tool_calls = report.get("tool_calls", [])
+        if tool_calls:
+            tool_names = [tc.get("tool", "?") for tc in tool_calls]
+            lines.append(f"### Tool Trace ({len(tool_calls)} calls)")
+            lines.append("")
+            lines.append(f"**Sequence:** {' -> '.join(tool_names)}")
+            lines.append("")
+            for i, tc in enumerate(tool_calls, 1):
+                tool_name = tc.get("tool", "?")
+                lines.append(f"#### {i}. `{tool_name}`")
+                lines.append("")
+                # Arguments
+                args_str = tc.get("arguments", "")
+                if args_str:
+                    try:
+                        args_obj = json.loads(args_str)
+                        args_formatted = json.dumps(args_obj, indent=2)
+                    except (json.JSONDecodeError, TypeError):
+                        args_formatted = args_str
+                    lines.append("**Input:**")
+                    lines.append("```json")
+                    lines.append(args_formatted)
+                    lines.append("```")
+                    lines.append("")
+                # Output
+                output = tc.get("output", "")
+                if output:
+                    # Truncate very long outputs for readability
+                    display = output if len(output) <= 2000 else output[:2000] + f"\n... ({len(output)} chars total)"
+                    lines.append("**Output:**")
+                    lines.append("```")
+                    lines.append(display)
+                    lines.append("```")
+                    lines.append("")
+            lines.append("")
+
+        # Full agent answer
         answer = report.get("answer", "")
         if answer:
-            truncated = answer[:500] + ("..." if len(answer) > 500 else "")
-            lines.append("**Answer preview:**")
+            lines.append("### Final Agent Output")
+            lines.append("")
             lines.append("```")
-            lines.append(truncated)
+            lines.append(answer)
             lines.append("```")
             lines.append("")
+
+        lines.append("---")
+        lines.append("")
 
     return "\n".join(lines)
 
@@ -371,7 +434,7 @@ async def run_all(args: argparse.Namespace) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run E2E smoke tests for DS Chat investigation agent.")
     parser.add_argument("--profile", default="3VDEV", help="Credential profile for assume (default: 3VDEV)")
-    parser.add_argument("--model", default="gpt-4.1-mini", help="Model to use for the agent (default: gpt-4.1-mini)")
+    parser.add_argument("--model", default="gpt-5-mini", help="Model to use for the agent (default: gpt-5-mini)")
     parser.add_argument("--max-turns", type=int, default=30, help="Max agentic turns per case (default: 30)")
     parser.add_argument(
         "--cases-file",

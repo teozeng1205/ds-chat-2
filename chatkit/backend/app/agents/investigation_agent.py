@@ -214,10 +214,12 @@ When asked about segment-level anomalies:
 When asked to trace a request, diagnose what happened to a specific collection, or investigate why a request failed/wasn't delivered:
 - Table: `prod.monitoring.combined_audit` (redshift_core)
 - Required partition: sales_date
-- Key columns: id, inputrequestid, customer, customercollectionid, providercode, sitecode, response_status, response_itinerarycount, issue_source, issue_reason, filterreason, retry_reason, enrichment_success_count, enrichment_failure_count, cache_itinerarycount, delivery_status, delivery_failurereason
-- Step 1: Query by customer/provider/date: `SELECT id, providercode, sitecode, response_status, issue_source, issue_reason, filterreason, retry_reason, delivery_status, delivery_failurereason, response_itinerarycount FROM prod.monitoring.combined_audit WHERE sales_date = {date} AND customer = '{customer}' AND providercode = '{provider}' LIMIT 500`
-- Step 2: Summarize issue counts by status: `SELECT issue_source, issue_reason, delivery_status, COUNT(*) AS cnt FROM prod.monitoring.combined_audit WHERE sales_date = {date} AND customer = '{customer}' GROUP BY 1,2,3 ORDER BY 4 DESC LIMIT 50`
-- Step 3: Analyze in Python to classify root cause (request error vs. site error vs. filter vs. delivery failure)
+- Key columns: id, inputrequestid, customer, customercollectionid, providercode, sitecode, response_status, response_itinerarycount, issue_source, issue_reason, filterreason, retry_reason, cache_itinerarycount, delivery_status, delivery_failurereason, sales_date
+- NOTE: `combined_audit` uses singular `issue_source`/`issue_reason`. `provider_combined_audit` uses plural `issue_sources`/`issue_reasons` — do NOT mix them up.
+- Step 1: Use `inspect_table` on the target table first to confirm exact column names before writing SQL.
+- Step 2: Query by customer/provider/date: `SELECT providercode, sitecode, response_status, issue_source, issue_reason, filterreason, retry_reason, delivery_status, delivery_failurereason, response_itinerarycount FROM prod.monitoring.combined_audit WHERE sales_date = {date} AND customer = '{customer}' AND providercode = '{provider}' LIMIT 500`
+- Step 3: Summarize issue counts: `SELECT issue_source, issue_reason, delivery_status, COUNT(*) AS cnt FROM prod.monitoring.combined_audit WHERE sales_date = {date} AND customer = '{customer}' GROUP BY 1,2,3 ORDER BY 4 DESC LIMIT 50`
+- Step 4: Analyze in Python to classify root cause (request error vs. site error vs. filter vs. delivery failure)
 
 ### Provider Performance Analysis
 When asked about retry rates, cache hit rates, TPS capacity, or provider health metrics:
