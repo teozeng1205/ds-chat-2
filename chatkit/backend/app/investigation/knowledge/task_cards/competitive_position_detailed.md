@@ -49,7 +49,7 @@ python_template: |
               "rows": int(len(df)),
               "distinct_competitive_positions": int(len(cp_counts)),
           },
-          "report_markdown": "## Competitive Position Detailed Analysis\\n- Rows: {}\\n- Distinct competitive positions: {}\\n- Top offenders captured: {}".format(len(df), len(cp_counts), len(top_offenders)),
+          "report_markdown": "## Competitive Position Detailed Analysis\n- Rows: {}\n- Distinct competitive positions: {}\n- Top offenders captured: {}".format(len(df), len(cp_counts), len(top_offenders)),
           "caveats": [],
       }
       save_analysis(payload)

@@ -15,6 +15,9 @@ SCENARIOS=""
 SKIP_UNIT=0
 SKIP_CONNECTIVITY=0
 SKIP_E2E=0
+QUICK=0
+QUICK_SCENARIOS_DEFAULT="combined_audit_head_query"
+QUICK_MAX_TURNS=12
 
 usage() {
   cat <<'EOF'
@@ -28,11 +31,13 @@ Options:
   --skip-unit            Skip pytest unit/integration tests
   --skip-connectivity    Skip smoke_threevictors.py
   --skip-e2e             Skip smoke_investigation_pipeline.py
+  --quick                Fast smoke mode (skip unit/connectivity, one default scenario)
   -h, --help             Show help
 
 Examples:
   backend/scripts/verify_investigation.sh
   backend/scripts/verify_investigation.sh --skip-unit
+  backend/scripts/verify_investigation.sh --quick
   backend/scripts/verify_investigation.sh --scenarios top_site_issues,market_anomalies_distribution
 EOF
 }
@@ -67,6 +72,10 @@ while [[ $# -gt 0 ]]; do
       SKIP_E2E=1
       shift
       ;;
+    --quick)
+      QUICK=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -78,6 +87,17 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "$QUICK" -eq 1 ]]; then
+  SKIP_UNIT=1
+  SKIP_CONNECTIVITY=1
+  if [[ -z "$SCENARIOS" ]]; then
+    SCENARIOS="$QUICK_SCENARIOS_DEFAULT"
+  fi
+  if [[ "$MAX_TURNS" -eq 40 ]]; then
+    MAX_TURNS="$QUICK_MAX_TURNS"
+  fi
+fi
 
 cd "$BACKEND_ROOT"
 
@@ -115,6 +135,7 @@ echo "  profile=${PROFILE}"
 echo "  model=${MODEL}"
 echo "  max_turns=${MAX_TURNS}"
 echo "  scenarios=${SCENARIOS:-<all>}"
+echo "  quick=${QUICK}"
 echo "  run_unit=$((1-SKIP_UNIT))"
 echo "  run_connectivity=$((1-SKIP_CONNECTIVITY))"
 echo "  run_e2e=$((1-SKIP_E2E))"

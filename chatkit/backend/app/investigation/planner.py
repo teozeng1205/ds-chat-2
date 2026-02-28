@@ -187,6 +187,74 @@ class ActionPlanner:
         return "general"
 
     @staticmethod
+    def _merge_python_analysis(
+        existing: dict[str, Any] | None,
+        latest: dict[str, Any],
+    ) -> dict[str, Any]:
+        def _normalize_report(text: Any) -> str:
+            rendered = str(text or "")
+            if "\\n" in rendered and "\n" not in rendered:
+                rendered = rendered.replace("\\n", "\n")
+            return rendered.strip()
+
+        latest_report = _normalize_report(latest.get("report_markdown"))
+        latest_results = latest.get("results", {}) if isinstance(latest.get("results"), dict) else {}
+        latest_summary = latest.get("summary_stats", {}) if isinstance(latest.get("summary_stats"), dict) else {}
+        latest_caveats = [str(item) for item in (latest.get("caveats") or []) if str(item).strip()]
+
+        if not isinstance(existing, dict):
+            return {
+                "analysis_id": "python_generated",
+                "results": latest_results,
+                "summary_stats": latest_summary,
+                "report_markdown": latest_report,
+                "caveats": latest_caveats,
+            }
+
+        merged = dict(existing)
+        base_report = _normalize_report(existing.get("report_markdown"))
+        if latest_report:
+            if not base_report:
+                merged_report = latest_report
+            elif latest_report in base_report:
+                merged_report = base_report
+            else:
+                merged_report = f"{base_report}\n\n### Python Extras\n\n{latest_report}"
+        else:
+            merged_report = base_report
+
+        base_results = existing.get("results", {}) if isinstance(existing.get("results"), dict) else {}
+        merged_results = dict(base_results)
+        if latest_results:
+            merged_results["python_extras"] = latest_results
+
+        base_summary = existing.get("summary_stats", {}) if isinstance(existing.get("summary_stats"), dict) else {}
+        merged_summary = dict(base_summary)
+        for key, value in latest_summary.items():
+            if key in merged_summary and merged_summary.get(key) != value:
+                merged_summary[f"python_{key}"] = value
+            else:
+                merged_summary[key] = value
+
+        seen_caveats: set[str] = set()
+        merged_caveats: list[str] = []
+        for row in [*(existing.get("caveats", []) or []), *latest_caveats]:
+            text = str(row).strip()
+            if not text or text in seen_caveats:
+                continue
+            seen_caveats.add(text)
+            merged_caveats.append(text)
+
+        merged["results"] = merged_results
+        merged["summary_stats"] = merged_summary
+        merged["report_markdown"] = merged_report
+        merged["caveats"] = merged_caveats
+        merged["python_latest_analysis_mode"] = latest.get("analysis_mode")
+        if "analysis_id" not in merged:
+            merged["analysis_id"] = "python_generated"
+        return merged
+
+    @staticmethod
     def _entity_value(entities: dict[str, Any], key: str) -> str:
         rows = entities.get(key, [])
         if not rows:
@@ -689,13 +757,7 @@ class AutonomousInvestigationEngine:
                 ctx.datasets.append(row)
             latest_analysis = py_result.get("latest_analysis")
             if isinstance(latest_analysis, dict):
-                ctx.analysis = {
-                    "analysis_id": "python_generated",
-                    "results": latest_analysis.get("results", {}),
-                    "summary_stats": latest_analysis.get("summary_stats", {}),
-                    "report_markdown": latest_analysis.get("report_markdown", ""),
-                    "caveats": latest_analysis.get("caveats", []),
-                }
+                ctx.analysis = self._merge_python_analysis(existing=ctx.analysis, latest=latest_analysis)
             ctx.ran_python = True
             return {
                 "action": name,

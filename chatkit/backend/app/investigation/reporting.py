@@ -27,10 +27,16 @@ def summarize_answer(
     warnings: list[str],
     clarification: str | None,
 ) -> str:
+    def _normalize_report_text(text: Any) -> str:
+        rendered = str(text or "")
+        if "\\n" in rendered and "\n" not in rendered:
+            rendered = rendered.replace("\\n", "\n")
+        return rendered
+
     if clarification:
         return clarification
     if analysis and analysis.get("report_markdown"):
-        return str(analysis["report_markdown"])
+        return _normalize_report_text(analysis["report_markdown"])
 
     lines = [
         "## Investigation Result",

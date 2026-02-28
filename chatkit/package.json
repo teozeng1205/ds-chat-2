@@ -7,6 +7,7 @@
     "backend": "./backend/scripts/run.sh",
     "backend:test": "bash ./backend/scripts/verify_investigation.sh --skip-connectivity --skip-e2e",
     "backend:smoke": "bash ./backend/scripts/verify_investigation.sh --skip-unit",
+    "backend:smoke:quick": "bash ./backend/scripts/verify_investigation.sh --quick",
     "backend:verify": "bash ./backend/scripts/verify_investigation.sh"
   },
   "devDependencies": {

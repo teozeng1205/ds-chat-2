@@ -60,7 +60,7 @@ python_template: |
               "rows": int(len(df)),
               "price_inc_count": int(series.count()),
           },
-          "report_markdown": "## Derived Common Output EDA\\n- Rows: {}\\n- price_inc count: {}\\n- Plot: {}".format(len(df), int(series.count()), plot_path or "not generated"),
+          "report_markdown": "## Derived Common Output EDA\n- Rows: {}\n- price_inc count: {}\n- Plot: {}".format(len(df), int(series.count()), plot_path or "not generated"),
           "caveats": [],
       }
       save_analysis(payload)
