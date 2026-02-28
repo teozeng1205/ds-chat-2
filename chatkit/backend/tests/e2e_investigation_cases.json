@@ -161,6 +161,17 @@
       }
     },
     {
+      "name": "aa_06utc_request_spike_investigation",
+      "thread_id": "thread-aa-spike-investigation",
+      "master": true,
+      "question": "We are seeing a huge spike in the provider monitoring dashboard for Provider AA at the 06:00 UTC hour over at least the past 4 days. It is showing roughly 20,000 requests in a single minute for 1-3 minutes, which is way beyond our internal cap of 90 TPS (5,400 requests per minute). Please investigate using the underlying data: query prod.monitoring.provider_combined_audit and prod.monitoring.combined_audit, look at the request volume broken down by hour and minute for provider AA over the last 4 days, confirm whether this spike is real traffic or a data aggregation / display artifact, identify the root cause, and tell us what to do about it.",
+      "assertions": {
+        "min_tool_calls": 5,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["AA", "spike"]
+      }
+    },
+    {
       "name": "smartest_customer_master_question",
       "thread_id": "thread-smartest-customer",
       "master": true,
