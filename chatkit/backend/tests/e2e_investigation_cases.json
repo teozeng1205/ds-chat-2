@@ -139,6 +139,26 @@
         "required_tools": ["execute_sql"],
         "answer_contains": ["deliver"]
       }
+    },
+    {
+      "name": "explain_analytics_pipeline",
+      "thread_id": "thread-analytics-pipeline",
+      "question": "tell me about the analytics pipeline",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["search_kb"],
+        "answer_contains": ["analytic"]
+      }
+    },
+    {
+      "name": "biggest_customers_threevictors",
+      "thread_id": "thread-biggest-customers",
+      "question": "what are the biggest customers of threevictors?",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["execute_sql"],
+        "answer_contains": []
+      }
     }
   ]
 }
