@@ -380,25 +380,29 @@ async def run_all(args: argparse.Namespace) -> int:
 
     agent = build_investigation_agent(args.model)
     print(f"Agent: {agent.name}, tools: {len(agent.tools)}, model: {args.model}")
-    print(f"Running {len(cases)} E2E test cases...\n")
+    print(f"Running {len(cases)} E2E test cases (concurrency={args.concurrency})...\n")
 
-    reports: list[dict[str, Any]] = []
-    for idx, case in enumerate(cases, 1):
-        name = case.get("name", f"case_{idx}")
-        print(f"[{idx}/{len(cases)}] {name} ...", flush=True)
-        report = await run_case(agent, case, max_turns=args.max_turns)
-        status = "FAIL" if report.get("failed") else "PASS"
-        elapsed = report.get("elapsed_seconds", "?")
-        tc_count = report.get("tool_call_count", 0)
-        print(f"  -> [{status}] {elapsed}s, {tc_count} tool calls")
+    sem = asyncio.Semaphore(args.concurrency)
+    total = len(cases)
 
-        assertions = report.get("assertions", {})
-        if assertions.get("checked") and not assertions.get("passed"):
-            for detail in assertions.get("details", []):
-                if not detail.get("passed"):
-                    print(f"  -> ASSERTION FAIL: {detail}")
+    async def _run_with_sem(idx: int, case: dict[str, Any]) -> dict[str, Any]:
+        async with sem:
+            name = case.get("name", f"case_{idx}")
+            print(f"[{idx}/{total}] {name} starting ...", flush=True)
+            report = await run_case(agent, case, max_turns=args.max_turns)
+            status = "FAIL" if report.get("failed") else "PASS"
+            elapsed = report.get("elapsed_seconds", "?")
+            tc_count = report.get("tool_call_count", 0)
+            print(f"[{idx}/{total}] {name} -> [{status}] {elapsed}s, {tc_count} tool calls", flush=True)
+            assertions = report.get("assertions", {})
+            if assertions.get("checked") and not assertions.get("passed"):
+                for detail in assertions.get("details", []):
+                    if not detail.get("passed"):
+                        print(f"  [{idx}] ASSERTION FAIL: {detail}", flush=True)
+            return report
 
-        reports.append(report)
+    tasks = [_run_with_sem(idx, case) for idx, case in enumerate(cases, 1)]
+    reports: list[dict[str, Any]] = list(await asyncio.gather(*tasks))
 
     # Write reports
     generated_at = datetime.now(timezone.utc).isoformat()
@@ -451,6 +455,7 @@ def main() -> int:
         default=str(BACKEND_ROOT / ".runtime" / "e2e_reports"),
         help="Directory for report output",
     )
+    parser.add_argument("--concurrency", type=int, default=5, help="Max parallel cases (default: 5)")
     parser.add_argument("--skip-bootstrap", action="store_true", help="Skip AWS credential bootstrap")
     args = parser.parse_args()
 
