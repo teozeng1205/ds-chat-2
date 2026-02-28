@@ -99,6 +99,46 @@
         "required_tools": ["execute_sql"],
         "answer_contains": ["B6", "competitive"]
       }
+    },
+    {
+      "name": "site_issues_ql2",
+      "thread_id": "thread-site-issues-ql2",
+      "question": "what is the site issues for QL2?",
+      "assertions": {
+        "min_tool_calls": 2,
+        "required_tools": ["resolve_codes", "execute_sql"],
+        "answer_contains": ["QL2"]
+      }
+    },
+    {
+      "name": "top_site_issues_customer_aa",
+      "thread_id": "thread-site-issues-aa",
+      "question": "what are the top site issues for customer AA?",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["AA"]
+      }
+    },
+    {
+      "name": "b6_request_count_and_quality_today",
+      "thread_id": "thread-b6-requests-today",
+      "question": "how many requests did B6 make today and what is the quality?",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["B6"]
+      }
+    },
+    {
+      "name": "delivery_issues_today",
+      "thread_id": "thread-delivery-issues-today",
+      "question": "what are the delivery issues we have today?",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["deliver"]
+      }
     }
   ]
 }
