@@ -31,23 +31,13 @@
       }
     },
     {
-      "name": "combined_audit_head_query",
-      "thread_id": "thread-combined-audit-head",
-      "question": "query the head of the table combined audit",
+      "name": "billing_breakdown_b6_yesterday",
+      "thread_id": "thread-billing-b6",
+      "question": "what was the billing breakdown for customer B6 yesterday? show GDS, OTA, MSE scheduled counts and total billable requests",
       "assertions": {
         "min_tool_calls": 1,
         "required_tools": ["execute_sql"],
-        "answer_contains": []
-      }
-    },
-    {
-      "name": "combined_audit_deep_eda",
-      "thread_id": "thread-combined-audit-eda",
-      "question": "can you do a EDA of the table combined_audit",
-      "assertions": {
-        "min_tool_calls": 2,
-        "required_tools": ["execute_sql", "run_python"],
-        "answer_contains": ["combined_audit"]
+        "answer_contains": ["B6", "billable"]
       }
     },
     {
@@ -81,13 +71,23 @@
       }
     },
     {
-      "name": "derived_common_output_eda_b6_yesterday_price_outlook_plot",
-      "thread_id": "thread-derived-common-output-eda",
-      "question": "make a EDA of derived common output for customer B6 and yesterday, and can you make a plot of price outlook?",
+      "name": "b6_top_undercut_markets_yesterday",
+      "thread_id": "thread-b6-undercut-markets",
+      "question": "what markets was customer B6 most undercut on yesterday, and what is the price gap compared to competitors?",
       "assertions": {
-        "min_tool_calls": 3,
-        "required_tools": ["execute_sql", "run_python"],
-        "answer_contains": ["B6", "price"]
+        "min_tool_calls": 2,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["B6", "undercut"]
+      }
+    },
+    {
+      "name": "provider_retry_cache_performance_ql2",
+      "thread_id": "thread-ql2-perf",
+      "question": "what are the retry rate and cache hit rate for provider QL2 on the latest available date?",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["QL2"]
       }
     },
     {
