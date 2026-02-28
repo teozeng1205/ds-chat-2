@@ -241,16 +241,14 @@ priceeye-v2 (Java Lambda/ECS)
 → Cross-reference `site_metrics.cache_metrics_v1` and `retry_metrics_v1` for deeper analysis
 
 ### "What are the pricing anomalies for customer X?"
-→ Market level: `analytics.market_level_anomalies_v4` (sales_date + customer)
-→ Segment level: `analytics.segment_level_anomalies_v2` (sales_date + customer)
-→ Competitive position: `analytics.market_level_analysis_v2` (sales_date + customer)
+→ Market level: `prod.analytics.market_level_anomalies_v3` (sales_date + customer)
+→ Segment level: `prod.analytics.segment_level_anomalies_v3` (sales_date + customer)
+→ Competitive position: `prod.analytics.competitive_position` (sales_date + customer)
 
 ### "Show me the price outlook / common output for customer X"
-→ `prod.common_output.common_output_format` (sales_date required)
-→ Or S3 DCO: `s3-atp-3victors-3vdev-use1-derived-common-output/v1/{customer}/`
+→ `prod.common_output.common_output_format`  partitioned by customer and sales date
+→ Or `prod.analytics.derived_common_output`
 
-### "How often is a provider's data changing?"
-→ `collection_optimizer.ingest_ttl_v1` — `ttl_hours` column per carrier/POS/OD
 
 ### "What is the billing for customer X?"
 → `billing_db.customer_daily_requests_v3` for most detail (sales_date required)
