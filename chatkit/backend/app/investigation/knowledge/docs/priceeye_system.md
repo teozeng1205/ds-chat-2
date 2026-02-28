@@ -64,8 +64,10 @@ priceeye-v2 (Java Lambda/ECS)
 - `s3-atp-3victors-{env}-use1-dataset-ingest/delta/search-with-itineraries/v1/{YYYY}/{MM}/{DD}/` — Delta SWIA Avro
 
 **Key columns in `combined_audit`:**
-`id`, `inputrequestid`, `customer`, `customercollectionid`, `providercode`, `sitecode`, `pos`, `carriercodes`, `originairportcode`, `destinationairportcode`, `departdate`, `cabin`, `passengercount`, `response_status`, `response_itinerarycount`, `issue_source`, `issue_reason`, `filterreason`, `retry_reason`, `cache_itinerarycount`, `delivery_status`, `delivery_failurereason`, `sales_date`
-**NOTE:** uses singular `issue_source` / `issue_reason` (not plural). Always `inspect_table` first to confirm exact column names.
+`id`, `inputrequestid`, `customer`, `customercollectionid`, `customercollectionname`, `reference`, `sitecategory`, `customersitecode`, `customerpos`, `providercode`, `sitecode`, `pos`, `carriercodes`, `originairportcode`, `destinationairportcode`, `departdate`, `returndate`, `triptype`, `cabin`, `passengercount`, `filterreason`, `response_status`, `response_itinerarycount`, `response_lastupdated`, `issue_source`, `issue_reason`, `itins_after_filtering`, `retry_response_status`, `retry_response_timestamp`, `retry_site`, `packager_recordcount`, `packager_substituteused`, `packager_timestamp`, `delivery_status`, `delivery_type`, `delivery_lastupdated`, `customer_salesdate`, `scheduledate`, `scheduletime`, `observationtimestamp`, `sales_date`
+**NOTE:** `combined_audit` uses singular `issue_source` / `issue_reason`. `provider_combined_audit` uses plural `issue_sources` / `issue_reasons`. Do NOT mix them up.
+
+**Combined audit is built by LEFT JOINing all 9 deduped tables on `providerrequestauditid`, with `deduped_provider_request_audit_detail` as the base.**
 
 **Key columns in `provider_combined_audit`:**
 `providercode`, `sitecode`, `sales_date`, `pos`, `carriercodes`, `issue_sources`, `issue_reasons`, `filterreason`, `response_status`, `itinerarycount`, `origin`, `destination`, `ap` (advance purchase), `los` (length of stay)
@@ -205,9 +207,22 @@ priceeye-v2 (Java Lambda/ECS)
 
 | Table | Description |
 |-------|-------------|
-| `billing_db.customer_daily_requests_v1` | Basic billing: total_reqs, GDS_scheduled, OTA_scheduled, MSE_scheduled, polled, cached, filtered, success, failed, billable_requests |
+| `billing_db.customer_daily_requests_v1` | Daily billing per customer |
 | `billing_db.customer_daily_requests_v2` | V1 + site code enrichment |
-| `billing_db.customer_daily_requests_v3` | Most granular: broken down by site category |
+| `billing_db.customer_daily_requests_v3` | Most granular: broken down by providercode, customersitecode, customercollectionname, reference |
+
+**Exact metric definitions (from billing SQL):**
+- `GDS_scheduled` = sitecode = `'1G'`
+- `OTA_scheduled` = sitecode IN `('EXP','DES','BKG','OBZ','PLN','TCY','EDR')`
+- `MSE_scheduled` = sitecode IN `('SKYS','GGL','KYK')`
+- `polled` = filterreason = `''` (sent to provider)
+- `cached` = filterreason = `'Cache'` (served from cache)
+- `filtered` = filterreason NOT IN `('', 'Cache')` (blocked: OAG, cabin, blacklist, etc.)
+- `success` = response_status LIKE `'success%'` OR filterreason = `'Cache'`
+- `site_failed` = failed AND issue_source = `'site'`
+- `bad_requests` = failed AND issue_source = `'request'`
+- `true_site_issues` = response_status=`'failed'` AND issue_source=`'site'` AND filterreason≠`'Cache'` AND (retry_response_status=`'failed'` OR IS NULL)
+- `billable_requests` = `requested_by_customers` − `true_site_issues`
 
 **Monitoring views (Redshift materialized views):**
 - `monitoring_metadata_prod.customer_site_rollup_granularity` — Per-site metrics with airport+cabin granularity

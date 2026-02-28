@@ -214,12 +214,11 @@ When asked about segment-level anomalies:
 When asked to trace a request, diagnose what happened to a specific collection, or investigate why a request failed/wasn't delivered:
 - Table: `prod.monitoring.combined_audit` (redshift_core)
 - Required partition: sales_date
-- Key columns: id, inputrequestid, customer, customercollectionid, providercode, sitecode, response_status, response_itinerarycount, issue_source, issue_reason, filterreason, retry_reason, cache_itinerarycount, delivery_status, delivery_failurereason, sales_date
+- Key columns: id, inputrequestid, customer, customercollectionid, customercollectionname, reference, sitecategory, customersitecode, providercode, sitecode, pos, originairportcode, destinationairportcode, triptype, cabin, filterreason, response_status, response_itinerarycount, response_lastupdated, issue_source, issue_reason, itins_after_filtering, retry_response_status, retry_response_timestamp, retry_site, packager_recordcount, packager_substituteused, packager_timestamp, delivery_status, delivery_type, delivery_lastupdated, customer_salesdate, scheduledate, scheduletime, sales_date
 - NOTE: `combined_audit` uses singular `issue_source`/`issue_reason`. `provider_combined_audit` uses plural `issue_sources`/`issue_reasons` — do NOT mix them up.
-- Step 1: Use `inspect_table` on the target table first to confirm exact column names before writing SQL.
-- Step 2: Query by customer/provider/date: `SELECT providercode, sitecode, response_status, issue_source, issue_reason, filterreason, retry_reason, delivery_status, delivery_failurereason, response_itinerarycount FROM prod.monitoring.combined_audit WHERE sales_date = {date} AND customer = '{customer}' AND providercode = '{provider}' LIMIT 500`
-- Step 3: Summarize issue counts: `SELECT issue_source, issue_reason, delivery_status, COUNT(*) AS cnt FROM prod.monitoring.combined_audit WHERE sales_date = {date} AND customer = '{customer}' GROUP BY 1,2,3 ORDER BY 4 DESC LIMIT 50`
-- Step 4: Analyze in Python to classify root cause (request error vs. site error vs. filter vs. delivery failure)
+- Step 1: Query by customer/provider/date: `SELECT providercode, sitecode, response_status, issue_source, issue_reason, filterreason, retry_response_status, delivery_status, delivery_type, response_itinerarycount FROM prod.monitoring.combined_audit WHERE sales_date = {date} AND customer = '{customer}' AND providercode = '{provider}' LIMIT 500`
+- Step 2: Summarize issue counts: `SELECT issue_source, issue_reason, delivery_status, COUNT(*) AS cnt FROM prod.monitoring.combined_audit WHERE sales_date = {date} AND customer = '{customer}' GROUP BY 1,2,3 ORDER BY 4 DESC LIMIT 50`
+- Step 3: Analyze in Python to classify root cause (request error vs. site error vs. filter vs. delivery failure)
 
 ### Provider Performance Analysis
 When asked about retry rates, cache hit rates, TPS capacity, or provider health metrics:
@@ -234,8 +233,10 @@ When asked about billing, request counts, billable requests, or GDS/OTA/MSE brea
 - Table: `billing_db.customer_daily_requests_v3` (redshift_analytics) -- most granular; broken down by site category
 - Also available: `billing_db.customer_daily_requests_v1` (basic), `billing_db.customer_daily_requests_v2` (+ site code)
 - Required partition: sales_date
-- Key columns: customer, sales_date, site_category, total_reqs, requested_by_customers, GDS_scheduled, OTA_scheduled, MSE_scheduled, polled, cached, filtered, enrichment, success, failed, site_failed, bad_requests, true_site_issues, billable_requests
-- Example: `SELECT customer, SUM(total_reqs), SUM(billable_requests), SUM(site_failed) FROM billing_db.customer_daily_requests_v3 WHERE sales_date = {date} GROUP BY customer ORDER BY 2 DESC`
+- Key columns: customer, cust_run_dt, total_reqs, requested_by_customers, GDS_scheduled, OTA_scheduled, MSE_scheduled, polled, cached, filtered, success, failed, site_failed, bad_requests, true_site_issues, billable_requests (v3 also has: providercode, customersitecode, customercollectionname, reference)
+- **Metric definitions:** GDS_scheduled=sitecode `1G`; OTA_scheduled=sitecode IN `EXP/DES/BKG/OBZ/PLN/TCY/EDR`; MSE_scheduled=sitecode IN `SKYS/GGL/KYK`; polled=filterreason empty; cached=filterreason `Cache`; true_site_issues=failed+site issue+retry also failed; billable_requests=requested_by_customers−true_site_issues
+- NOTE: billing_db is a Glue external schema — use `billing_db` as the schema name in Redshift Spectrum queries
+- Example: `SELECT customer, SUM(total_reqs), SUM(billable_requests), SUM(site_failed) FROM billing_db.customer_daily_requests_v1 WHERE sales_date = {date} GROUP BY customer ORDER BY 2 DESC`
 
 ### Collection Optimization & Ingest TTL
 When asked about collection frequency, how often prices change, or TTL (time-to-live) for a carrier:

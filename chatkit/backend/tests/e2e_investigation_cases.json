@@ -159,6 +159,16 @@
         "required_tools": ["execute_sql"],
         "answer_contains": []
       }
+    },
+    {
+      "name": "smartest_customer_master_question",
+      "thread_id": "thread-smartest-customer",
+      "question": "use all of your knowledge of priceeye, which customer we have do you think is the smartest one?",
+      "assertions": {
+        "min_tool_calls": 2,
+        "required_tools": ["execute_sql"],
+        "answer_contains": []
+      }
     }
   ]
 }
