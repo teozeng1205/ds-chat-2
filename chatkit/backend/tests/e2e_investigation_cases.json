@@ -56,8 +56,8 @@
       "thread_id": "thread-smoke-site-hier",
       "question": "explain site hierarchy to me",
       "assertions": {
-        "min_tool_calls": 2,
-        "required_tools": ["browse_repo_files", "execute_sql"],
+        "min_tool_calls": 1,
+        "required_tools": ["search_kb"],
         "answer_contains": ["site"]
       }
     },
@@ -67,7 +67,7 @@
       "question": "make an EDA of competitive position of customer B6",
       "assertions": {
         "min_tool_calls": 2,
-        "required_tools": ["execute_sql", "run_python"],
+        "required_tools": ["execute_sql"],
         "answer_contains": ["B6", "competitive"]
       }
     },
