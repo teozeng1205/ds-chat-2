@@ -16,3 +16,4 @@ knowledgebase/.index/*
 !knowledgebase/.index/.gitkeep
 !knowledgebase/.index/vector/.gitkeep
 .work/
+tests/smoke_reports/
