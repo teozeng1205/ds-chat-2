@@ -448,8 +448,54 @@ async def resolve_codes(
         return {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
 
 
+@function_tool
+async def browse_repo_files(
+    ctx: RunContextWrapper[AgentContext],
+    path_or_glob: str,
+) -> dict[str, Any]:
+    """Browse source files and documentation under ~/git/ for code explanation.
+
+    Args:
+        path_or_glob: Path relative to ~/git/ or a glob pattern.
+          Examples: 'documentations/ds-priceeye-analytics.md'
+                    'ds-priceeye-analytics/src/**/*.py'
+                    'documentations/*.md'  (list all docs)
+
+    Returns: {count, files: [{path, size, content (first 8000 chars), truncated}]}
+    """
+    import glob as _glob
+    base = Path("~/git").expanduser().resolve()
+    pattern = path_or_glob.strip() or "*"
+    if any(ch in pattern for ch in "*?[]"):
+        matches = [Path(p) for p in _glob.glob(str(base / pattern), recursive=True)]
+    else:
+        target = (base / pattern).resolve()
+        matches = [target] if target.exists() else []
+
+    entries: list[dict[str, Any]] = []
+    for p in matches[:20]:
+        if not p.is_file():
+            continue
+        try:
+            p.relative_to(base)
+        except ValueError:
+            continue
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+        entries.append({
+            "path": str(p.relative_to(base)),
+            "size": p.stat().st_size,
+            "content": text[:8000],
+            "truncated": len(text) > 8000,
+        })
+
+    return {"count": len(entries), "files": entries}
+
+
 def investigation_tools() -> list[Any]:
-    """Return the 6 atomic tools for the investigation agent."""
+    """Return the 7 atomic tools for the investigation agent."""
     return [
         execute_sql,
         fetch_s3,
@@ -457,6 +503,7 @@ def investigation_tools() -> list[Any]:
         inspect_table,
         search_kb,
         resolve_codes,
+        browse_repo_files,
     ]
 
 

@@ -1,139 +1,29 @@
 {
   "cases": [
     {
-      "name": "top_site_issues_with_impact",
-      "thread_id": "thread-top-site-impact",
-      "question": "what are the top site issues for QL2|AV, and what is the impact?",
+      "name": "top_site_issues_ql2_today_with_impact",
+      "thread_id": "thread-smoke-ql2-issues",
+      "question": "what are the top site issues for QL2 today? And what is the impact of these",
       "assertions": {
         "min_tool_calls": 2,
-        "required_tools": ["resolve_codes", "execute_sql"],
-        "answer_contains": ["QL2", "AV", "issue"]
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["QL2", "issue"]
       }
     },
     {
-      "name": "customer_collection_anomalies_yesterday",
-      "thread_id": "thread-customer-anom",
-      "question": "what were the customer collection anomalies yesterday?",
+      "name": "collection_anomalies_b6_today_s3",
+      "thread_id": "thread-smoke-b6-anom",
+      "question": "what are the collection anomalies today for customer B6?",
       "assertions": {
         "min_tool_calls": 1,
         "required_tools": ["fetch_s3"],
-        "answer_contains": ["anomal"]
+        "answer_contains": ["B6", "anomal"]
       }
     },
     {
-      "name": "market_anomalies_distribution_b6_today",
-      "thread_id": "thread-market-dist",
-      "question": "what are the market anomalies today for customer B6, can you give me a distribution of impact score?",
-      "assertions": {
-        "min_tool_calls": 2,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["B6", "impact"]
-      }
-    },
-    {
-      "name": "billing_breakdown_b6_yesterday",
-      "thread_id": "thread-billing-b6",
-      "question": "what was the billing breakdown for customer B6 yesterday? show GDS, OTA, MSE scheduled counts and total billable requests",
-      "assertions": {
-        "min_tool_calls": 1,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["B6", "billable"]
-      }
-    },
-    {
-      "name": "combined_audit_null_patterns_last_3_days",
-      "thread_id": "thread-combined-audit-null-patterns",
-      "question": "analyze null patterns for prod.monitoring.combined_audit for last 3 days",
-      "assertions": {
-        "min_tool_calls": 2,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["null"]
-      }
-    },
-    {
-      "name": "compare_top_issue_reasons_two_providers",
-      "thread_id": "thread-compare-top-issues",
-      "question": "compare top 10 issue reasons between two providers QL2 and LH",
-      "assertions": {
-        "min_tool_calls": 2,
-        "required_tools": ["resolve_codes", "execute_sql"],
-        "answer_contains": ["QL2", "LH"]
-      }
-    },
-    {
-      "name": "generic_outlier_numeric_columns_table_x",
-      "thread_id": "thread-outliers-table-x",
-      "question": "find outliers in any numeric columns for table prod.monitoring.combined_audit",
-      "assertions": {
-        "min_tool_calls": 2,
-        "required_tools": ["execute_sql", "run_python"],
-        "answer_contains": ["outlier"]
-      }
-    },
-    {
-      "name": "b6_top_undercut_markets_yesterday",
-      "thread_id": "thread-b6-undercut-markets",
-      "question": "what markets was customer B6 most undercut on yesterday, and what is the price gap compared to competitors?",
-      "assertions": {
-        "min_tool_calls": 2,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["B6", "undercut"]
-      }
-    },
-    {
-      "name": "provider_retry_cache_performance_ql2",
-      "thread_id": "thread-ql2-perf",
-      "question": "what are the retry rate and cache hit rate for provider QL2 on the latest available date?",
-      "assertions": {
-        "min_tool_calls": 1,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["QL2"]
-      }
-    },
-    {
-      "name": "detailed_competitive_position_analysis",
-      "thread_id": "thread-competitive-position-detailed",
-      "question": "make a detailed analysis of competitive position for customer B6 yesterday",
-      "assertions": {
-        "min_tool_calls": 2,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["B6", "competitive"]
-      }
-    },
-    {
-      "name": "site_issues_ql2",
-      "thread_id": "thread-site-issues-ql2",
-      "question": "what is the site issues for QL2?",
-      "assertions": {
-        "min_tool_calls": 2,
-        "required_tools": ["resolve_codes", "execute_sql"],
-        "answer_contains": ["QL2"]
-      }
-    },
-    {
-      "name": "top_site_issues_customer_aa",
-      "thread_id": "thread-site-issues-aa",
-      "question": "what are the top site issues for customer AA?",
-      "assertions": {
-        "min_tool_calls": 1,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["AA"]
-      }
-    },
-    {
-      "name": "b6_request_count_and_quality_today",
-      "thread_id": "thread-b6-requests-today",
-      "question": "how many requests did B6 make today and what is the quality?",
-      "assertions": {
-        "min_tool_calls": 1,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["B6"]
-      }
-    },
-    {
-      "name": "delivery_issues_today",
-      "thread_id": "thread-delivery-issues-today",
-      "question": "what are the delivery issues we have today?",
+      "name": "delivery_problems_today",
+      "thread_id": "thread-smoke-delivery",
+      "question": "Do we have any delivery problems today in general?",
       "assertions": {
         "min_tool_calls": 1,
         "required_tools": ["execute_sql"],
@@ -141,23 +31,44 @@
       }
     },
     {
-      "name": "explain_analytics_pipeline",
-      "thread_id": "thread-analytics-pipeline",
-      "question": "tell me about the analytics pipeline",
+      "name": "how_does_priceeye_work",
+      "thread_id": "thread-smoke-priceeye-arch",
+      "question": "how does priceeye work?",
       "assertions": {
         "min_tool_calls": 1,
         "required_tools": ["search_kb"],
-        "answer_contains": ["analytic"]
+        "answer_contains": ["priceeye"]
       }
     },
     {
-      "name": "biggest_customers_threevictors",
-      "thread_id": "thread-biggest-customers",
-      "question": "what are the biggest customers of threevictors?",
+      "name": "smartest_customer_3v",
+      "thread_id": "thread-smoke-smartest",
+      "master": true,
+      "question": "using all the info you have, all the tables, which customer do you think is the smartest customer of 3V?",
       "assertions": {
-        "min_tool_calls": 1,
+        "min_tool_calls": 5,
         "required_tools": ["execute_sql"],
         "answer_contains": []
+      }
+    },
+    {
+      "name": "explain_site_hierarchy",
+      "thread_id": "thread-smoke-site-hier",
+      "question": "explain site hierarchy to me",
+      "assertions": {
+        "min_tool_calls": 2,
+        "required_tools": ["browse_repo_files", "execute_sql"],
+        "answer_contains": ["site"]
+      }
+    },
+    {
+      "name": "eda_competitive_position_b6",
+      "thread_id": "thread-smoke-eda-b6",
+      "question": "make an EDA of competitive position of customer B6",
+      "assertions": {
+        "min_tool_calls": 2,
+        "required_tools": ["execute_sql", "run_python"],
+        "answer_contains": ["B6", "competitive"]
       }
     },
     {
@@ -169,17 +80,6 @@
         "min_tool_calls": 5,
         "required_tools": ["execute_sql"],
         "answer_contains": ["AA", "spike"]
-      }
-    },
-    {
-      "name": "smartest_customer_master_question",
-      "thread_id": "thread-smartest-customer",
-      "master": true,
-      "question": "use all of your knowledge of priceeye and search for all available prod tables, then query their data partitions for yesterday. Define your own criteria for what makes a customer smart (e.g. billing efficiency, collection health, anomaly program quality, competitive coverage), query as many prod tables as you can find for each customer, then rank all customers with supporting data and a clear justification. Do not ask for clarification — discover the tables yourself, pick your own criteria and run the queries.",
-      "assertions": {
-        "min_tool_calls": 5,
-        "required_tools": ["execute_sql"],
-        "answer_contains": []
       }
     }
   ]

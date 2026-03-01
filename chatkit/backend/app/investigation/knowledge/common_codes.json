@@ -49,15 +49,5 @@
     {"code": "BA", "name": "British Airways", "aliases": ["British"]},
     {"code": "QF", "name": "Qantas", "aliases": []},
     {"code": "EK", "name": "Emirates", "aliases": []}
-  ],
-  "customer_sites": [
-    "AA|AV",
-    "B6|QF",
-    "DL|DY",
-    "LH|AV",
-    "UA|AV",
-    "SK|AV",
-    "AA|GG",
-    "DL|GG"
   ]
 }

@@ -146,8 +146,26 @@ Use `resolve_codes` to resolve natural language names (e.g. "JetBlue" -> B6, "Am
 - **ALWAYS filter by partition columns.** For tables partitioned by sales_date, include `WHERE sales_date = YYYYMMDD`. For tables partitioned by customer, include `AND customer = 'XX'`. Missing partition filters cause full table scans and will generate warnings.
 - **Use LIMIT** for exploration (200-1000 rows). Remove LIMIT only when you need full aggregation.
 - **Use fully qualified table names** (schema.table or catalog.schema.table).
+- **Prefer prod.* over local.* tables.** When a prod.* equivalent exists (e.g. prod.monitoring.*), use it first. Fall back to local.* only if prod.* returns no rows for the requested time range.
 - **Single statement only.** No semicolons mid-query.
 - The system automatically clamps LIMIT to 120,000 rows max.""",
+
+        # ── Domain knowledge lookup ──
+        """## Domain Knowledge Lookup
+
+**For any question about how something works, what a system does, a pipeline, a repo, or an architecture concept — call `search_kb` FIRST, before writing any SQL.**
+`search_kb` returns both table hints AND document snippets from the full repo documentation library (~25 indexed docs covering every pipeline).
+
+If the snippets from `search_kb` are not sufficient:
+- Use `browse_repo_files("documentations/<repo>.md")` to read the full documentation file.
+  Example: browse_repo_files("documentations/priceeye-v2.md")
+- For code-level questions (how is X implemented, where is Y defined), use a glob:
+  browse_repo_files("ds-priceeye-analytics/src/**/*.py")
+
+**Escalation order for knowledge questions:**
+1. search_kb (always first — fast, indexed)
+2. browse_repo_files with the specific doc file (if more depth needed)
+3. browse_repo_files with a source glob (for implementation-level questions)""",
 
         # ── Investigation patterns ──
         """## Investigation Patterns
@@ -280,7 +298,15 @@ When asked about tax regression, YQ/YR tax coefficients, or the tax regression p
   - Partitioned by sales_date; key columns: pos, od, is_one_way, search_class, carrier, currency, m, b, r2, correlation
 - Current MySQL coefficients: `taxregression.tax_regression_v1` (mysql_priceeye) -- overwritten every Tuesday
 - YQYR predictions: `yqyr_cache.yqyr_predictions` -- predicted YQ/YR taxes per itinerary
-- Example: `SELECT pos, od, carrier, m, b, r2 FROM tax_reg.tax_reg_output_v1 WHERE sales_date = {date} AND pos = 'US' AND carrier = '{carrier}' LIMIT 100`""",
+- Example: `SELECT pos, od, carrier, m, b, r2 FROM tax_reg.tax_reg_output_v1 WHERE sales_date = {date} AND pos = 'US' AND carrier = '{carrier}' LIMIT 100`
+
+### Table Fallback Strategy
+If a query returns 0 rows:
+1. Check the date — the table may not have data for that partition yet.
+2. Try a newer/older version of the table (e.g. _v4 → _v3, or _v2 → _v1).
+3. For Redshift tables, check the equivalent S3 path (see S3 Data Reference).
+4. For local.* tables, try the prod.* equivalent first (see prod/local rule above).
+5. Use inspect_table to verify the table has recent data before running complex queries.""",
 
         # ── Python patterns ──
         """## Python / run_python Patterns

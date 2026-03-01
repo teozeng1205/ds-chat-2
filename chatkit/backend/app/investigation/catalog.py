@@ -35,7 +35,7 @@ class LocalCodeCatalog:
 
     def _load(self) -> dict[str, Any]:
         if not self.path.exists():
-            return {"providers": [], "sites": [], "customers": [], "customer_sites": []}
+            return {"providers": [], "sites": [], "customers": []}
         mtime = self.path.stat().st_mtime
         if self._cache is not None and mtime <= self._mtime:
             return self._cache
@@ -56,7 +56,6 @@ class LocalCodeCatalog:
             ("providers", "provider"),
             ("sites", "site"),
             ("customers", "customer"),
-            ("customer_sites", "customer_site"),
         ]
         norm = self._normalize(token)
         if not norm:
@@ -82,7 +81,6 @@ class LocalCodeCatalog:
             ("providers", "provider"),
             ("sites", "site"),
             ("customers", "customer"),
-            ("customer_sites", "customer_site"),
         ]:
             for row in payload.get(key, []) or []:
                 if isinstance(row, str):
@@ -434,9 +432,32 @@ class KnowledgeBase:
             candidate_tables = [item[1]["table_name"] for item in table_scored[:top_k]]
             table_hints = [item[1] for item in table_scored[:top_k]]
 
+            # Search documents
+            doc_rows = conn.execute(
+                "SELECT id, source_path, content FROM kb_documents"
+            ).fetchall()
+            doc_scored: list[tuple[float, dict]] = []
+            for doc_id, source_path, content in doc_rows:
+                score = sum(1.0 for tok in tokens if tok in content.lower())
+                if score > 0:
+                    lines = content.splitlines()
+                    pivot = next(
+                        (i for i, ln in enumerate(lines) if any(tok in ln.lower() for tok in tokens)),
+                        0,
+                    )
+                    start = max(0, pivot - 5)
+                    snippet = "\n".join(lines[start : start + 60])[:3000]
+                    doc_scored.append((score, {
+                        "source": Path(source_path).name,
+                        "snippet": snippet,
+                    }))
+            doc_scored.sort(key=lambda x: x[0], reverse=True)
+            document_hints = [item[1] for item in doc_scored[:3]]
+
             return {
                 "candidate_tables": candidate_tables,
                 "table_hints": table_hints,
+                "document_hints": document_hints,
             }
         finally:
             conn.close()
