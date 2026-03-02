@@ -121,9 +121,9 @@ You investigate issues across Redshift, MySQL, and S3 by writing SQL, fetching d
         """## Available Datasources
 
 1. **redshift_analytics** -- Analytics Redshift serverless cluster.
-   Tables: analytics.* (anomalies, scoring, analysis, pax_midt, daily_itins_prices_v2, oag_score_v2, revenue_score_v1), prod.common_output.*, billing_db.*, metadata.*, tax_reg.*, yqyr_cache.*
+   Tables: analytics.* (anomalies, scoring, analysis, pax_midt, daily_itins_prices_v2, oag_score_v2, revenue_score_v1), prod.common_output.*, metadata.*, tax_reg.*, yqyr_cache.*
 2. **redshift_core** -- Core Redshift serverless cluster.
-   Tables: prod.monitoring.* (combined_audit, provider_combined_audit), collection_optimizer.* (delta_swia_input_v1, ingest_ttl_v1), local.site_metrics.* (capacity_final, cache_metrics_v1, retry_metrics_v1, import_metrics_v1), local.monitoring.*, local.federated_*
+   Tables: prod.monitoring.* (combined_audit, provider_combined_audit), collection_optimizer.* (delta_swia_input_v1, ingest_ttl_v1), local.site_metrics.* (capacity_final, cache_metrics_v1, retry_metrics_v1, import_metrics_v1), local.monitoring.*, local.federated_*, **billing_db.*** (customer_daily_requests_v1/v2/v3 — Glue external schema, use redshift_core)
 3. **mysql_priceeye** -- MySQL PriceEye database.
    Tables: priceeye.* (customer_defaults, site_hierarchy, transaction_rates), analytics.* (MySQL-side lookup tables: cabin_group, carrier_group, region, segment, anomalies_direction_score, anomalies_impact_score_weights, demo_carrier_substitutions), sales_poc.*, taxregression.*""",
 
@@ -146,7 +146,20 @@ Use `resolve_codes` to resolve natural language names (e.g. "JetBlue" -> B6, "Am
 - **ALWAYS filter by partition columns.** For tables partitioned by sales_date, include `WHERE sales_date = YYYYMMDD`. For tables partitioned by customer, include `AND customer = 'XX'`. Missing partition filters cause full table scans and will generate warnings.
 - **Use LIMIT** for exploration (200-1000 rows). Remove LIMIT only when you need full aggregation.
 - **Use fully qualified table names** (schema.table or catalog.schema.table).
-- **Prefer prod.* over local.* tables.** When a prod.* equivalent exists (e.g. prod.monitoring.*), use it first. Fall back to local.* only if prod.* returns no rows for the requested time range.
+- **Table namespace tiers — know which to use:**
+  - **Tier 1 — `prod.*` (always production data):** `prod.monitoring.*`, `prod.common_output.*`.
+    Use `prod.*` by default. `local.monitoring.*` exists but returns dev data — only use it
+    explicitly if the user asks for dev/local environment data.
+  - **Tier 2 — `local.*` only (no prod equivalent):** `local.site_metrics.*`,
+    `local.federated_priceeye.*`, `local.federated_scheduling.*`, `local.scheduling.*`.
+    These have no prod namespace — query them directly.
+  - **Tier 3 — analytics cluster only (dev/analytics env, no prod namespace):**
+    `analytics.market_level_anomalies_v3/v4`, `analytics.market_level_analysis_v2`,
+    `analytics.segment_level_analysis_v2`, `analytics.daily_itins_prices_v2`,
+    `analytics.pax_midt`, `analytics.oag_score_v2`, `analytics.revenue_score_v1`.
+    These tables live on the analytics cluster and are populated in the dev environment.
+    In production contexts they may be empty or have delayed data — follow the fallback
+    strategy below when they return 0 rows.
 - **Single statement only.** No semicolons mid-query.
 - The system automatically clamps LIMIT to 120,000 rows max.""",
 
@@ -248,7 +261,7 @@ When asked about retry rates, cache hit rates, TPS capacity, or provider health 
 
 ### Billing Metrics Analysis
 When asked about billing, request counts, billable requests, or GDS/OTA/MSE breakdown per customer:
-- Table: `billing_db.customer_daily_requests_v3` (redshift_analytics) -- most granular; broken down by site category
+- Table: `billing_db.customer_daily_requests_v3` (redshift_core) -- most granular; broken down by site category
 - Also available: `billing_db.customer_daily_requests_v1` (basic), `billing_db.customer_daily_requests_v2` (+ site code)
 - Required partition: sales_date
 - Key columns: customer, cust_run_dt, total_reqs, requested_by_customers, GDS_scheduled, OTA_scheduled, MSE_scheduled, polled, cached, filtered, success, failed, site_failed, bad_requests, true_site_issues, billable_requests (v3 also has: providercode, customersitecode, customercollectionname, reference)
@@ -288,7 +301,7 @@ When asked about revenue estimates, estimated impact, or revenue scoring for ano
 
 ### Customer-Level Collection Monitoring
 When asked about per-customer collection health, success rates, substitute usage, or delivery rates:
-- Table: `billing_db.customer_daily_requests_v2` or `prod.monitoring.combined_audit` (for granular)
+- Table: `billing_db.customer_daily_requests_v2` (redshift_core) or `prod.monitoring.combined_audit` (redshift_core, for granular)
 - For daily totals: `SELECT customer, SUM(total_reqs), SUM(success), ROUND(100.0*SUM(success)/NULLIF(SUM(total_reqs),0),2) AS success_pct, SUM(site_failed) FROM billing_db.customer_daily_requests_v2 WHERE sales_date = {date} GROUP BY customer ORDER BY success_pct ASC`
 - For combined_audit breakdown: filter by `customer = '{customer}'` and group by `providercode`, `sitecode`, `response_status`
 
@@ -301,12 +314,73 @@ When asked about tax regression, YQ/YR tax coefficients, or the tax regression p
 - Example: `SELECT pos, od, carrier, m, b, r2 FROM tax_reg.tax_reg_output_v1 WHERE sales_date = {date} AND pos = 'US' AND carrier = '{carrier}' LIMIT 100`
 
 ### Table Fallback Strategy
-If a query returns 0 rows:
-1. Check the date — the table may not have data for that partition yet.
-2. Try a newer/older version of the table (e.g. _v4 → _v3, or _v2 → _v1).
-3. For Redshift tables, check the equivalent S3 path (see S3 Data Reference).
-4. For local.* tables, try the prod.* equivalent first (see prod/local rule above).
-5. Use inspect_table to verify the table has recent data before running complex queries.""",
+
+If a query returns 0 rows, follow this chain in order:
+
+**Step 0 — Discover tables if you're uncertain which one to use.**
+When you don't know the exact table name, version, or what's available in a schema, run a
+catalog discovery query via `extract_sql_to_dataset` on the appropriate datasource:
+
+```sql
+-- Redshift: list tables in a schema (use redshift_analytics or redshift_core)
+SELECT DISTINCT table_schema, table_name
+FROM svv_columns
+WHERE table_schema = 'analytics'
+ORDER BY table_name
+```
+
+Or to search by keyword:
+```sql
+SELECT DISTINCT table_schema, table_name
+FROM svv_columns
+WHERE table_name LIKE '%anomal%'
+ORDER BY table_schema, table_name
+```
+
+For MySQL (datasource=mysql_priceeye):
+```sql
+SELECT table_schema, table_name
+FROM information_schema.tables
+WHERE table_schema IN ('analytics', 'priceeye')
+ORDER BY table_schema, table_name
+```
+
+Use this discovery step proactively when the user refers to a concept (e.g. "anomaly table",
+"billing table") and you're unsure which table name or version is currently live.
+
+**Step 1 — Verify the partition exists.**
+Call `inspect_table_metadata(table_name)` to check what sales_date (and customer) partitions
+are actually loaded. A 0-row result often means the partition simply hasn't been written yet.
+Report the latest available partition to the user and offer to rerun on that date.
+
+**Step 2 — Try an alternate table version.**
+If the table is versioned (_v4, _v3, _v2), try the adjacent version:
+- anomalies: v4 → v3 → v2
+- analysis: v2 → v1
+- billing: v3 → v2 → v1
+
+**Step 3 — Check the S3 equivalent (applies to ALL tables).**
+Many Redshift tables have S3 mirrors written by the same pipelines.
+Consult the "S3 Data Reference" section for the matching bucket and key pattern.
+Use `fetch_s3` with the path for that table's date and customer. Key mappings:
+- `market_level_anomalies_v4` → `s3-atp-3victors-3vdev-use1-anomaly-datasets` / `market-level/v4/{customer}/{YYYY}/{MM}/{DD}/`
+- `market_level_anomalies_v3` → same bucket / `market-level/v3/customer={code}/sales_date={YYYYMMDD}/`
+- `segment_level_anomalies_v*` → same bucket / `segment-level/v4/{customer}/{YYYY}/{MM}/{DD}/`
+- `daily_itins_prices_v2` → same bucket / `daily_itins_prices/v2/{customer}/{YYYY}/{MM}/{DD}/`
+- `oag_score_v2` → same bucket / `oag_score/v2/{customer}/{YYYY}/{MM}/{DD}/`
+- `revenue_score_v1` → same bucket / `revenue_score/v1/{customer}/{YYYY}/{MM}/{DD}/revenue_estimates.csv`
+- `pax_midt` → same bucket / `pax_midt/v1/{customer}/{YYYY}/{MM}/{DD}/`
+- `prod.common_output.*` / DCO → `s3-atp-3victors-3vdev-use1-derived-common-output` / `v1/{customer}/{YYYY}/{MM}/{DD}/{HH}/`
+- `collection anomalies` → `s3-atp-3victors-3vdev-use1-collection-anomalies` / `collection-customer/v1/YYYY/MM/DD/`
+If no S3 path is listed for a given table, ask `search_kb` to see if one is documented.
+
+**Step 4 — Try local.* if investigating dev environment (Tier-1 only).**
+If the user is explicitly investigating dev/local environment data and `prod.monitoring.*`
+returns nothing for the relevant period, try `local.monitoring.*` on `redshift_core`.
+
+**Step 5 — Report and explain.**
+If all fallbacks are exhausted, clearly tell the user: which table you tried, what partitions
+are available, and that this table is dev/analytics-only or has no production-equivalent data.""",
 
         # ── Python patterns ──
         """## Python / run_python Patterns

@@ -59,6 +59,7 @@ _TABLE_ROUTING: list[tuple[str, str]] = [
     ("local.monitoring", "redshift_core"),
     ("collection_optimizer.", "redshift_core"),
     ("local.site_metrics", "redshift_core"),
+    ("billing_db.", "redshift_core"),
 ]
 
 
