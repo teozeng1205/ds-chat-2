@@ -8,6 +8,38 @@
 | **local-only** | Dev/env data — no prod equivalent | `local.site_metrics.*`, `local.federated_*.*`, `local.scheduling.*` |
 | **analytics-env** | Dev/analytics cluster only — may be empty in prod | `analytics.market_level_anomalies_v4`, `analytics.pax_midt` |
 | **mysql** | PriceEye MySQL — environment-independent lookup tables | `priceeye.*`, most MySQL-side `analytics.*` |
+| **prod-federated** | Production MySQL data federated into Redshift as external schemas — live prod, Redshift-queryable | `federated_priceeye.*`, `federated_metadata.*`, `federated_scheduling.*` |
+
+
+## Prod-Federated Schemas
+
+Production MySQL databases exposed as Redshift external schemas via federation. These are **live production data** (not dev copies). Use these when you need to JOIN MySQL config tables with Redshift analytics data without leaving Redshift.
+
+**Naming convention:** `federated_{source}.{table_name}` (no `local.` prefix — that prefix indicates dev-only data)
+
+### Analytics cluster (`redshift_analytics`)
+
+| Table | Tier | Notes |
+|---|---|---|
+| `federated_priceeye.site_hierarchy` | **prod-federated** | Customer site configuration (mirrors `priceeye.site_hierarchy`) |
+| `federated_priceeye.customer_site_code` | **prod-federated** | Site code mappings |
+| `federated_priceeye.error_mapping` | **prod-federated** | Error code descriptions |
+| `federated_priceeye.customer_defaults` | **prod-federated** | Customer analytics config flags |
+| `federated_metadata.currencyexchangerates` | **prod-federated** | Currency conversion rates (used by daily-process) |
+| `federated_metadata.airportlocation_extra` | **prod-federated** | Airport geolocation enrichment |
+| `federated_metadata.citylocation_extra` | **prod-federated** | City geolocation enrichment |
+
+### Core cluster (`redshift_core`)
+
+| Table | Tier | Notes |
+|---|---|---|
+| `federated_priceeye.site_hierarchy` | **prod-federated** | Customer site configuration (same source as analytics copy) |
+| `federated_priceeye.customer_site_code` | **prod-federated** | Site code mappings |
+| `federated_priceeye.error_mapping` | **prod-federated** | Error code descriptions |
+| `federated_metadata.currencyexchangerates` | **prod-federated** | Currency conversion rates |
+| `federated_metadata.airportlocation_extra` | **prod-federated** | Airport geolocation |
+| `federated_metadata.citylocation_extra` | **prod-federated** | City geolocation |
+| `federated_scheduling.as_hourly_collection_plans` | **prod-federated** | AutoSchedule hourly collection plans per customer/market |
 
 
 

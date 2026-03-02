@@ -30,6 +30,23 @@ from app.investigation.datasources import DatasourceRegistry, datasource_for_tab
 from app.investigation.runtime import KNOWLEDGE_ROOT, TABLES_DOC_PATH
 
 
+# ── Federated schema constants ──
+
+FEDERATED_SCHEMAS_ANALYTICS: list[str] = [
+    "federated_priceeye",
+    "federated_analytics",
+    "federated_metadata",
+    "federated_replication",
+    "federated_sales_poc",
+]
+
+FEDERATED_SCHEMAS_CORE: list[str] = [
+    "federated_priceeye",
+    "federated_metadata",
+    "federated_scheduling",
+    "federated_sales_poc",
+]
+
 # ── Tables discovered from ds-* repos and priceeye-analytics DDL ──
 
 DISCOVERED_TABLES: list[str] = [
@@ -125,6 +142,59 @@ def _bootstrap_aws_credentials(profile: str) -> dict[str, Any]:
     return {"profile": profile, "env_keys_loaded": loaded}
 
 
+def _discover_federated_tables(registry: DatasourceRegistry) -> list[str]:
+    """Discover all tables in federated schemas by querying both clusters.
+
+    Falls back to svv_external_tables if information_schema returns nothing.
+    Returns a deduplicated list of "schema.table_name" strings.
+    """
+    discovered: list[str] = []
+    seen: set[str] = set()
+
+    def _fetch_tables(datasource: str, schemas: list[str]) -> list[str]:
+        schema_list = ", ".join(f"'{s}'" for s in schemas)
+        # Try information_schema first
+        try:
+            query = (
+                "SELECT table_schema, table_name FROM information_schema.tables "
+                f"WHERE table_schema IN ({schema_list}) "
+                "ORDER BY table_schema, table_name"
+            )
+            df = registry.execute_sql(datasource, query)
+            if not df.empty and len(df) > 0:
+                return [f"{row['table_schema']}.{row['table_name']}" for _, row in df.iterrows()]
+        except Exception:
+            pass
+
+        # Fallback: svv_external_tables (Redshift-specific view for federated/external tables)
+        try:
+            schema_pattern_conditions = " OR ".join(f"schemaname = '{s}'" for s in schemas)
+            query = (
+                "SELECT schemaname, tablename FROM svv_external_tables "
+                f"WHERE ({schema_pattern_conditions}) "
+                "ORDER BY schemaname, tablename"
+            )
+            df = registry.execute_sql(datasource, query)
+            if not df.empty:
+                return [f"{row['schemaname']}.{row['tablename']}" for _, row in df.iterrows()]
+        except Exception:
+            pass
+
+        return []
+
+    for table_ref in _fetch_tables("redshift_analytics", FEDERATED_SCHEMAS_ANALYTICS):
+        if table_ref not in seen:
+            seen.add(table_ref)
+            discovered.append(table_ref)
+
+    for table_ref in _fetch_tables("redshift_core", FEDERATED_SCHEMAS_CORE):
+        if table_ref not in seen:
+            seen.add(table_ref)
+            discovered.append(table_ref)
+
+    return discovered
+
+
 def _mask_value(value: Any) -> Any:
     if value is None:
         return None
@@ -195,11 +265,16 @@ def main() -> int:
 
     registry = DatasourceRegistry()
 
-    # Merge tables from tables.md + discovered tables, deduplicated
+    # Auto-discover federated tables from live clusters
+    print("Discovering federated schema tables...")
+    federated_tables = _discover_federated_tables(registry)
+    print(f"  Found {len(federated_tables)} federated tables across analytics + core clusters.")
+
+    # Merge tables from tables.md + discovered tables + federated tables, deduplicated
     from_doc = _parse_common_tables(TABLES_DOC_PATH)
     all_tables_set: set[str] = set()
     all_tables: list[str] = []
-    for t in from_doc + DISCOVERED_TABLES:
+    for t in from_doc + DISCOVERED_TABLES + federated_tables:
         canonical = _canonical_table(t)
         if canonical not in all_tables_set:
             all_tables_set.add(canonical)

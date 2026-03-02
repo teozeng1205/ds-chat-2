@@ -44,7 +44,7 @@
       "name": "smartest_customer_3v",
       "thread_id": "thread-smoke-smartest",
       "master": true,
-      "question": "using all the info you have, all the tables, which customer do you think is the smartest customer of 3V?",
+      "question": "using all the info you have, explore all the tables available to you , which customer do you think is the smartest customer of 3V?",
       "assertions": {
         "min_tool_calls": 5,
         "required_tools": ["execute_sql"],
@@ -69,6 +69,36 @@
         "min_tool_calls": 2,
         "required_tools": ["execute_sql"],
         "answer_contains": ["B6", "competitive"]
+      }
+    },
+    {
+      "name": "federated_priceeye_site_hierarchy_aa",
+      "thread_id": "thread-smoke-federated-site-hier",
+      "question": "Show me the site hierarchy for customer AA — what sites and providers are they configured to collect from?",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["AA", "site"]
+      }
+    },
+    {
+      "name": "federated_scheduling_collection_plans",
+      "thread_id": "thread-smoke-federated-sched",
+      "question": "What is the active AutoSchedule collection plan for customer AA? Show me what markets and hours are scheduled.",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["AA"]
+      }
+    },
+    {
+      "name": "federated_priceeye_tables_describe",
+      "thread_id": "thread-smoke-federated-describe",
+      "question": "What tables are available in the federated_priceeye schema? Describe what each one contains.",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["search_kb"],
+        "answer_contains": ["federated_priceeye"]
       }
     },
     {

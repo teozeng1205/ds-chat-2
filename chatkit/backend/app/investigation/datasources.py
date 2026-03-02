@@ -60,6 +60,10 @@ _TABLE_ROUTING: list[tuple[str, str]] = [
     ("collection_optimizer.", "redshift_core"),
     ("local.site_metrics", "redshift_core"),
     ("billing_db.", "redshift_core"),
+    # Federated schemas (prod MySQL via Redshift external schema federation)
+    # federated_scheduling only exists in the core cluster
+    ("federated_scheduling.", "redshift_core"),
+    # All other federated_* schemas fall through to redshift_analytics (default)
 ]
 
 

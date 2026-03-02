@@ -259,3 +259,23 @@ priceeye-v2 (Java Lambda/ECS)
 ### "What is the retry/cache performance of provider X?"
 → `site_metrics.retry_metrics_v1` — retry_rate_pct
 → `site_metrics.cache_metrics_v1` — cache_hit_rate, cache_miss_rate
+
+### "What sites / markets is customer X configured to collect from?"
+→ `federated_priceeye.site_hierarchy` — customer site configuration (prod MySQL via Redshift federation)
+→ Filter by `customer = 'X'`, returns sitecode, providercode, market, etc.
+
+### "What is the active collection schedule for customer X?"
+→ `federated_scheduling.as_hourly_collection_plans` (redshift_core only)
+→ Filter by `customer = 'X'`; shows hourly AutoSchedule plans per market
+
+### "What does error code Y mean?"
+→ `federated_priceeye.error_mapping` — maps error codes to human-readable descriptions
+
+### "What currency conversion rate was used on date D?"
+→ `federated_metadata.currencyexchangerates` — daily exchange rates (used by daily-process)
+→ Filter by `rate_date` and `target_currency = 'USD'`
+
+### "What are the anomaly detection configuration / weights for customer X?"
+→ `federated_analytics.anomalies_impact_score_weights` — impact score weights
+→ `federated_analytics.anomalies_direction_score` — direction scoring weights
+→ `federated_analytics.cabin_group`, `carrier_group`, `segment` — grouping definitions
