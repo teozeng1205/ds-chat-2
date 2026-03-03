@@ -1,0 +1,3985 @@
+{
+  "generated_at": "2026-02-26T18:57:13.318025+00:00",
+  "table_count": 32,
+  "tables": [
+    {
+      "table_name": "analytics.pax_midt",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:52:31.964809+00:00",
+      "status": "ok",
+      "columns": [
+        {
+          "column_name": "ap_band",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "origin_metro",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "destination_metro",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "carrier",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "cabin_group",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "midt_pax",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "customer",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "sales_date",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        }
+      ],
+      "partitions": [
+        {
+          "column": "customer",
+          "role": "recommended",
+          "inferred_type": "categorical"
+        },
+        {
+          "column": "sales_date",
+          "role": "recommended",
+          "inferred_type": "date"
+        }
+      ],
+      "sample_row_masked": {
+        "ap_band": "0-***30",
+        "origin_metro": "***",
+        "destination_metro": "***",
+        "carrier": "***",
+        "cabin_group": "ec***my",
+        "midt_pax": 7,
+        "customer": "***",
+        "sales_date": 20251006
+      },
+      "preview_row_count": 5,
+      "preview_columns": [
+        "ap_band",
+        "origin_metro",
+        "destination_metro",
+        "carrier",
+        "cabin_group",
+        "midt_pax",
+        "customer",
+        "sales_date"
+      ]
+    },
+    {
+      "table_name": "analytics.daily_itins_prices_v2",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:52:50.369663+00:00",
+      "status": "ok",
+      "columns": [
+        {
+          "column_name": "carrier",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "origin_metro",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "destination_metro",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "ap_band",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "cabin_group",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "min_fare",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_fare",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "wtd_avg_fare",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "customer",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "sales_date",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        }
+      ],
+      "partitions": [
+        {
+          "column": "customer",
+          "role": "recommended",
+          "inferred_type": "categorical"
+        },
+        {
+          "column": "sales_date",
+          "role": "recommended",
+          "inferred_type": "date"
+        }
+      ],
+      "sample_row_masked": {
+        "carrier": "***",
+        "origin_metro": "***",
+        "destination_metro": "***",
+        "ap_band": "***",
+        "cabin_group": "Ec***my",
+        "min_fare": 275.95414937899056,
+        "avg_fare": 275.95414937899056,
+        "wtd_avg_fare": 275.95414937899056,
+        "customer": "***",
+        "sales_date": 20251113
+      },
+      "preview_row_count": 5,
+      "preview_columns": [
+        "carrier",
+        "origin_metro",
+        "destination_metro",
+        "ap_band",
+        "cabin_group",
+        "min_fare",
+        "avg_fare",
+        "wtd_avg_fare",
+        "customer",
+        "sales_date"
+      ]
+    },
+    {
+      "table_name": "analytics.market_level_analysis_v2",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:53:06.941892+00:00",
+      "status": "ok",
+      "columns": [
+        {
+          "column_name": "segment_name",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "competitive_position",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "comparison_type",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "customer_brand",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "competitor_brand",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "metro_market",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "region_name",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "depart_period",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "carrier_group",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "cabin_group",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "top_offenders",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "carrier_contribution",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "itinerary_count",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "itinerary_percentage",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "impacted_dates",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "impacted_dates_percentage",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_diff_min_ow",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_pcnt_diff_min_ow",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "cp_weight",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "cp_score",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "customer",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "sales_date",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        }
+      ],
+      "partitions": [
+        {
+          "column": "customer",
+          "role": "recommended",
+          "inferred_type": "categorical"
+        },
+        {
+          "column": "sales_date",
+          "role": "recommended",
+          "inferred_type": "date"
+        }
+      ],
+      "sample_row_masked": {
+        "segment_name": "DX***my",
+        "competitive_position": "***",
+        "comparison_type": "ST***CT",
+        "customer_brand": "ec***my",
+        "competitor_brand": null,
+        "metro_market": "DX***CC",
+        "region_name": "DX***ca",
+        "depart_period": "***",
+        "carrier_group": "Al***rs",
+        "cabin_group": "Ec***my",
+        "top_offenders": "***",
+        "carrier_contribution": "10***0%",
+        "itinerary_count": 30,
+        "itinerary_percentage": 1.0,
+        "impacted_dates": 30,
+        "impacted_dates_percentage": 1.0,
+        "avg_diff_min_ow": 0.0,
+        "avg_pcnt_diff_min_ow": 0.0,
+        "cp_weight": 0.0,
+        "cp_score": 2.0,
+        "customer": "***",
+        "sales_date": 20260225
+      },
+      "preview_row_count": 5,
+      "preview_columns": [
+        "segment_name",
+        "competitive_position",
+        "comparison_type",
+        "customer_brand",
+        "competitor_brand",
+        "metro_market",
+        "region_name",
+        "depart_period",
+        "carrier_group",
+        "cabin_group",
+        "top_offenders",
+        "carrier_contribution",
+        "itinerary_count",
+        "itinerary_percentage",
+        "impacted_dates",
+        "impacted_dates_percentage",
+        "avg_diff_min_ow",
+        "avg_pcnt_diff_min_ow",
+        "cp_weight",
+        "cp_score",
+        "customer",
+        "sales_date"
+      ]
+    },
+    {
+      "table_name": "analytics.market_level_anomalies_v3",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:53:21.069553+00:00",
+      "status": "ok",
+      "columns": [
+        {
+          "column_name": "observation_date",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mkt",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "seg",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "region_name",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "depart_period",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "carrier_group",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "cabin_group",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "top_offenders",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "impacted_dates",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "impact_dates_pcnt",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "itinerary_count",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "cp",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "dow",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "seg_mkt",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "freq_pcnt_val",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "freq_pcnt_anomaly",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "freq_pcnt_direction",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "freq_pcnt_lower",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "freq_pcnt_upper",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mag_pcnt_val",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mag_pcnt_anomaly",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mag_pcnt_direction",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mag_pcnt_lower",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mag_pcnt_upper",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mag_nominal_val",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mag_nominal_anomaly",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mag_nominal_direction",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mag_nominal_lower",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mag_nominal_upper",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_freq_pcnt_7d",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_mag_pcnt_7d",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_mag_nom_7d",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_fp_7d_diff",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_mp_7d_diff",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_mn_7d_diff",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "direction_score",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_fp_7d_diff_abs",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_mp_7d_diff_abs",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mag_pcnt_val_balanced",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "abs_mag_pcnt_val_log_balanced",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "freq_pcnt_val_scaled",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_fp_7d_diff_abs_scaled",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_mp_7d_diff_abs_scaled",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_mn_7d_diff_scaled",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "normalized_market_score",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "customer_market_share",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "normalized_customer_score",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "carrier_sum",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "oag_score",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "revenue_score",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "estimated_revenue",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "midt_pax",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "any_anomaly",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "impact_score_v2",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "impact_score",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "carrier_contribution",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "customer",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "sales_date",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        }
+      ],
+      "partitions": [
+        {
+          "column": "observation_date",
+          "role": "recommended",
+          "inferred_type": "date"
+        },
+        {
+          "column": "customer",
+          "role": "recommended",
+          "inferred_type": "categorical"
+        },
+        {
+          "column": "sales_date",
+          "role": "recommended",
+          "inferred_type": "date"
+        }
+      ],
+      "sample_row_masked": {
+        "observation_date": 20250926,
+        "mkt": "BO***TL",
+        "seg": "BO***my",
+        "region_name": "BO***ca",
+        "depart_period": "0-***30",
+        "carrier_group": "Le***ys",
+        "cabin_group": "Ec***my",
+        "top_offenders": "***",
+        "impacted_dates": 2,
+        "impact_dates_pcnt": 0.06,
+        "itinerary_count": 2,
+        "cp": "Ma***ch",
+        "dow": "***",
+        "seg_mkt": "BO***TL",
+        "freq_pcnt_val": 0.06,
+        "freq_pcnt_anomaly": 0,
+        "freq_pcnt_direction": "***",
+        "freq_pcnt_lower": 0.01,
+        "freq_pcnt_upper": 0.07,
+        "mag_pcnt_val": 0.0,
+        "mag_pcnt_anomaly": 0,
+        "mag_pcnt_direction": "***",
+        "mag_pcnt_lower": 0.0,
+        "mag_pcnt_upper": 0.0,
+        "mag_nominal_val": 0.0,
+        "mag_nominal_anomaly": 0,
+        "mag_nominal_direction": "***",
+        "mag_nominal_lower": 0.0,
+        "mag_nominal_upper": 0.0,
+        "avg_freq_pcnt_7d": 0.0,
+        "avg_mag_pcnt_7d": 0.0,
+        "avg_mag_nom_7d": 0.0,
+        "avg_fp_7d_diff": 0.0,
+        "avg_mp_7d_diff": 0.0,
+        "avg_mn_7d_diff": 0.0,
+        "direction_score": 0.0,
+        "avg_fp_7d_diff_abs": 0.0,
+        "avg_mp_7d_diff_abs": 0.0,
+        "mag_pcnt_val_balanced": 0.0,
+        "abs_mag_pcnt_val_log_balanced": 0.0,
+        "freq_pcnt_val_scaled": 0.06,
+        "avg_fp_7d_diff_abs_scaled": 0.0,
+        "avg_mp_7d_diff_abs_scaled": 0.0,
+        "avg_mn_7d_diff_scaled": 0.4906809107716025,
+        "normalized_market_score": 0.21643111861584835,
+        "customer_market_share": 0.11064142131554977,
+        "normalized_customer_score": 0.1494636656628896,
+        "carrier_sum": 0.7814269061894467,
+        "oag_score": 0.8989626938361899,
+        "revenue_score": 0.7218035398359572,
+        "estimated_revenue": 535690.0571158926,
+        "midt_pax": 1332,
+        "any_anomaly": 0,
+        "impact_score_v2": 4.8,
+        "impact_score": 22.85,
+        "carrier_contribution": "***",
+        "customer": "***",
+        "sales_date": 20251018
+      },
+      "preview_error": "ProgrammingError: {'S': 'ERROR', 'C': 'XX000', 'M': 'Spectrum Scan Error', 'D': \"\\n  -----------------------------------------------\\n  error:  Spectrum Scan Error\\n  code:      15007\\n  context:   File 'https://s3.us-east-1.amazonaws.com/s3-atp-3victors-3vdev-use1-anomaly-datasets/market-level/v3/SK/2025/11/20/data.parquet' has an incompatible Parquet schema for column 's3://s3-atp-3victors-3vdev-use1-anomaly-datasets/market-level/v3/.avg_freq_pcnt_\\n  query:     47922240[child_sequence:1]\\n  location:  dory_util.cpp:1795\\n  process:   worker_thread [pid=13311]\\n  -----------------------------------------------\\n\", 'F': '/opt/brazil-pkg-cache/packages/RedshiftPADB/RedshiftPADB-1.0.98462.0/AL2_aarch64/generic-flavor/src/src/sys/xen_execute.cpp', 'L': '15416', 'R': 'pg_throw'}"
+    },
+    {
+      "table_name": "analytics.market_level_anomalies_v4",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:53:32.394281+00:00",
+      "status": "ok",
+      "columns": [
+        {
+          "column_name": "observation_date",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mkt",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "seg",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "region_name",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "depart_period",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "carrier_group",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "cabin_group",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "top_offenders",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "impacted_dates",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "impact_dates_pcnt",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "itinerary_count",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "cp",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "comparison_type",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "customer_brand",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "competitor_brand",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "dow",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "seg_mkt",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "freq_pcnt_val",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "freq_pcnt_anomaly",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "freq_pcnt_direction",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "freq_pcnt_lower",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "freq_pcnt_upper",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mag_pcnt_val",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mag_pcnt_anomaly",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mag_pcnt_direction",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mag_pcnt_lower",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mag_pcnt_upper",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mag_nominal_val",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mag_nominal_anomaly",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mag_nominal_direction",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mag_nominal_lower",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mag_nominal_upper",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_freq_pcnt_7d",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_mag_pcnt_7d",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_mag_nom_7d",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_fp_7d_diff",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_mp_7d_diff",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_mn_7d_diff",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "direction_score",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_fp_7d_diff_abs",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_mp_7d_diff_abs",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "mag_pcnt_val_balanced",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "abs_mag_pcnt_val_log_balanced",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "freq_pcnt_val_scaled",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_fp_7d_diff_abs_scaled",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_mp_7d_diff_abs_scaled",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_mn_7d_diff_scaled",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "normalized_market_score",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "customer_market_share",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "normalized_customer_score",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "carrier_sum",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "oag_score",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "revenue_score",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "estimated_revenue",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "midt_pax",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "any_anomaly",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "impact_score_v2",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "impact_score",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "carrier_contribution",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "customer",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "sales_date",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        }
+      ],
+      "partitions": [
+        {
+          "column": "observation_date",
+          "role": "recommended",
+          "inferred_type": "date"
+        },
+        {
+          "column": "customer",
+          "role": "recommended",
+          "inferred_type": "categorical"
+        },
+        {
+          "column": "sales_date",
+          "role": "recommended",
+          "inferred_type": "date"
+        }
+      ],
+      "sample_row_masked": {
+        "observation_date": 20260222,
+        "mkt": "BO***TL",
+        "seg": "BO***my",
+        "region_name": "BO***ca",
+        "depart_period": "0-***30",
+        "carrier_group": "Le***ys",
+        "cabin_group": "Ec***my",
+        "top_offenders": "***",
+        "impacted_dates": 2,
+        "impact_dates_pcnt": 0.06999999999999999,
+        "itinerary_count": 2,
+        "cp": "Ma***ch",
+        "comparison_type": "ST***CT",
+        "customer_brand": "ec***my",
+        "competitor_brand": "ec***my",
+        "dow": "***",
+        "seg_mkt": "BO***TL",
+        "freq_pcnt_val": 0.03,
+        "freq_pcnt_anomaly": 0,
+        "freq_pcnt_direction": "***",
+        "freq_pcnt_lower": 0.03,
+        "freq_pcnt_upper": 0.03,
+        "mag_pcnt_val": -0.0,
+        "mag_pcnt_anomaly": 0,
+        "mag_pcnt_direction": "***",
+        "mag_pcnt_lower": -0.0,
+        "mag_pcnt_upper": 0.0,
+        "mag_nominal_val": -0.01,
+        "mag_nominal_anomaly": 0,
+        "mag_nominal_direction": "***",
+        "mag_nominal_lower": -0.01,
+        "mag_nominal_upper": -0.01,
+        "avg_freq_pcnt_7d": 0.0,
+        "avg_mag_pcnt_7d": 0.0,
+        "avg_mag_nom_7d": 0.0,
+        "avg_fp_7d_diff": 0.0,
+        "avg_mp_7d_diff": 0.0,
+        "avg_mn_7d_diff": 0.0,
+        "direction_score": 0.0,
+        "avg_fp_7d_diff_abs": 0.0,
+        "avg_mp_7d_diff_abs": 0.0,
+        "mag_pcnt_val_balanced": -0.0,
+        "abs_mag_pcnt_val_log_balanced": 0.0,
+        "freq_pcnt_val_scaled": 0.0202020202020202,
+        "avg_fp_7d_diff_abs_scaled": 0.0,
+        "avg_mp_7d_diff_abs_scaled": 0.0,
+        "avg_mn_7d_diff_scaled": 0.40572792362768495,
+        "normalized_market_score": 0.25826526896230595,
+        "customer_market_share": 0.10350056133623368,
+        "normalized_customer_score": 0.16178917428507006,
+        "carrier_sum": 0.02376696122530829,
+        "oag_score": 0.1614073585339631,
+        "revenue_score": 0.7363526565692302,
+        "estimated_revenue": 510543.26880973915,
+        "midt_pax": 1230,
+        "any_anomaly": 0,
+        "impact_score_v2": 0.95,
+        "impact_score": 19.35,
+        "carrier_contribution": "***",
+        "customer": "***",
+        "sales_date": 20260222
+      },
+      "preview_row_count": 5,
+      "preview_columns": [
+        "observation_date",
+        "mkt",
+        "seg",
+        "region_name",
+        "depart_period",
+        "carrier_group",
+        "cabin_group",
+        "top_offenders",
+        "impacted_dates",
+        "impact_dates_pcnt",
+        "itinerary_count",
+        "cp",
+        "comparison_type",
+        "customer_brand",
+        "competitor_brand",
+        "dow",
+        "seg_mkt",
+        "freq_pcnt_val",
+        "freq_pcnt_anomaly",
+        "freq_pcnt_direction",
+        "freq_pcnt_lower",
+        "freq_pcnt_upper",
+        "mag_pcnt_val",
+        "mag_pcnt_anomaly",
+        "mag_pcnt_direction",
+        "mag_pcnt_lower",
+        "mag_pcnt_upper",
+        "mag_nominal_val",
+        "mag_nominal_anomaly",
+        "mag_nominal_direction",
+        "mag_nominal_lower",
+        "mag_nominal_upper",
+        "avg_freq_pcnt_7d",
+        "avg_mag_pcnt_7d",
+        "avg_mag_nom_7d",
+        "avg_fp_7d_diff",
+        "avg_mp_7d_diff",
+        "avg_mn_7d_diff",
+        "direction_score",
+        "avg_fp_7d_diff_abs",
+        "avg_mp_7d_diff_abs",
+        "mag_pcnt_val_balanced",
+        "abs_mag_pcnt_val_log_balanced",
+        "freq_pcnt_val_scaled",
+        "avg_fp_7d_diff_abs_scaled",
+        "avg_mp_7d_diff_abs_scaled",
+        "avg_mn_7d_diff_scaled",
+        "normalized_market_score",
+        "customer_market_share",
+        "normalized_customer_score",
+        "carrier_sum",
+        "oag_score",
+        "revenue_score",
+        "estimated_revenue",
+        "midt_pax",
+        "any_anomaly",
+        "impact_score_v2",
+        "impact_score",
+        "carrier_contribution",
+        "customer",
+        "sales_date"
+      ]
+    },
+    {
+      "table_name": "analytics.oag_score_v2",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:53:45.567725+00:00",
+      "status": "ok",
+      "columns": [
+        {
+          "column_name": "origin_metro",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "destination_metro",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "ct",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "carrier_code",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "number_of_seats",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "metro_od",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "normalized_market_score",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "normalized_customer_score",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "customer_market_share",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "total_seats_in_market",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "carrier_scores",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "oag_score_sum",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "customer",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "run_date",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        }
+      ],
+      "partitions": [
+        {
+          "column": "customer",
+          "role": "recommended",
+          "inferred_type": "categorical"
+        },
+        {
+          "column": "run_date",
+          "role": "recommended",
+          "inferred_type": "date"
+        }
+      ],
+      "sample_row_masked": {
+        "origin_metro": "***",
+        "destination_metro": "***",
+        "ct": 41,
+        "carrier_code": "***",
+        "number_of_seats": 13236,
+        "metro_od": "TU***AX",
+        "normalized_market_score": 0.1088098093164427,
+        "normalized_customer_score": 0.1,
+        "customer_market_share": 0.0,
+        "total_seats_in_market": 27260,
+        "carrier_scores": 0.4855465884079237,
+        "oag_score_sum": 0.6943563977243664,
+        "customer": "QA***ST",
+        "run_date": 20251016
+      },
+      "preview_row_count": 5,
+      "preview_columns": [
+        "origin_metro",
+        "destination_metro",
+        "ct",
+        "carrier_code",
+        "number_of_seats",
+        "metro_od",
+        "normalized_market_score",
+        "normalized_customer_score",
+        "customer_market_share",
+        "total_seats_in_market",
+        "carrier_scores",
+        "oag_score_sum",
+        "customer",
+        "run_date"
+      ]
+    },
+    {
+      "table_name": "analytics.revenue_score_v1",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:53:59.638027+00:00",
+      "status": "ok",
+      "columns": [
+        {
+          "column_name": "ap_band",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "origin_metro",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "destination_metro",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "cabin_group",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "midt_pax",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "selected_fare",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "estimated_revenue",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "revenue_score",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "customer",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "sales_date",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        }
+      ],
+      "partitions": [
+        {
+          "column": "customer",
+          "role": "recommended",
+          "inferred_type": "categorical"
+        },
+        {
+          "column": "sales_date",
+          "role": "recommended",
+          "inferred_type": "date"
+        }
+      ],
+      "sample_row_masked": {
+        "ap_band": "0-***30",
+        "origin_metro": "***",
+        "destination_metro": "***",
+        "cabin_group": "ec***my",
+        "midt_pax": 8,
+        "selected_fare": 299.120565150733,
+        "estimated_revenue": 2392.964521205864,
+        "revenue_score": 0.285710030526029,
+        "customer": "***",
+        "sales_date": 20251109
+      },
+      "preview_row_count": 5,
+      "preview_columns": [
+        "ap_band",
+        "origin_metro",
+        "destination_metro",
+        "cabin_group",
+        "midt_pax",
+        "selected_fare",
+        "estimated_revenue",
+        "revenue_score",
+        "customer",
+        "sales_date"
+      ]
+    },
+    {
+      "table_name": "analytics.segment_level_analysis_v2",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:54:12.433864+00:00",
+      "status": "ok",
+      "columns": [
+        {
+          "column_name": "segment_name",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "competitive_position",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "comparison_type",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "customer_brand",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "competitor_brand",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "region_name",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "depart_period",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "carrier_group",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "cabin_group",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "top_offenders",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "carrier_contribution",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "itinerary_count",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "itinerary_percentage",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "impacted_markets",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "impacted_markets_percentage",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "impacted_dates",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "impacted_dates_percentage",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_diff_min_ow",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "avg_pcnt_diff_min_ow",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "cp_weight",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "cp_score",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "customer",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "sales_date",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        }
+      ],
+      "partitions": [
+        {
+          "column": "customer",
+          "role": "recommended",
+          "inferred_type": "categorical"
+        },
+        {
+          "column": "sales_date",
+          "role": "recommended",
+          "inferred_type": "date"
+        }
+      ],
+      "sample_row_masked": {
+        "segment_name": "DX***my",
+        "competitive_position": "***",
+        "comparison_type": "ST***CT",
+        "customer_brand": "ec***my",
+        "competitor_brand": null,
+        "region_name": "DX***ca",
+        "depart_period": "0-***30",
+        "carrier_group": "Al***rs",
+        "cabin_group": "Ec***my",
+        "top_offenders": "***",
+        "carrier_contribution": "10***0%",
+        "itinerary_count": 99,
+        "itinerary_percentage": 1.0,
+        "impacted_markets": 6,
+        "impacted_markets_percentage": 1.0,
+        "impacted_dates": 31,
+        "impacted_dates_percentage": 1.0,
+        "avg_diff_min_ow": 0.0,
+        "avg_pcnt_diff_min_ow": 0.0,
+        "cp_weight": 0.0,
+        "cp_score": 3.0,
+        "customer": "***",
+        "sales_date": 20260222
+      },
+      "preview_row_count": 5,
+      "preview_columns": [
+        "segment_name",
+        "competitive_position",
+        "comparison_type",
+        "customer_brand",
+        "competitor_brand",
+        "region_name",
+        "depart_period",
+        "carrier_group",
+        "cabin_group",
+        "top_offenders",
+        "carrier_contribution",
+        "itinerary_count",
+        "itinerary_percentage",
+        "impacted_markets",
+        "impacted_markets_percentage",
+        "impacted_dates",
+        "impacted_dates_percentage",
+        "avg_diff_min_ow",
+        "avg_pcnt_diff_min_ow",
+        "cp_weight",
+        "cp_score",
+        "customer",
+        "sales_date"
+      ]
+    },
+    {
+      "table_name": "analytics.anomalies_impact_score_weights",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:54:26.831108+00:00",
+      "status": "ok",
+      "columns": [],
+      "partitions": [],
+      "sample_row_masked": null,
+      "preview_error": "ProgrammingError: {'S': 'ERROR', 'C': 'XX000', 'M': 'AwsClientException: EntityNotFoundException from glue - Entity Not Found', 'F': '/opt/brazil-pkg-cache/packages/RedshiftPADB/RedshiftPADB-1.0.98462.0/AL2_aarch64/generic-flavor/src/src/sys/xen_execute.cpp', 'L': '15416', 'R': 'pg_throw'}"
+    },
+    {
+      "table_name": "metadata.carrier",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:54:30.725616+00:00",
+      "status": "ok",
+      "columns": [],
+      "partitions": [],
+      "sample_row_masked": null,
+      "preview_error": "ProgrammingError: {'S': 'ERROR', 'C': '3F000', 'M': 'schema \"metadata\" does not exist', 'F': '/opt/brazil-pkg-cache/packages/RedshiftPADB/RedshiftPADB-1.0.98462.0/AL2_aarch64/generic-flavor/src/src/pg/src/backend/parser/parse_relation.c', 'L': '7238', 'R': 'CheckUnnestValidNavigation'}"
+    },
+    {
+      "table_name": "prod.common_output.common_output_format",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:54:34.114724+00:00",
+      "status": "ok",
+      "columns": [
+        {
+          "column_name": "feed",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "observation_date",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "observation_time",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "reference",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "source",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "pos",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "origin",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "destination",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_gcm",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "los",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_travel_stop_over",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_travel_stop_over",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "carrier",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "dominant_marketing_carrier",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_dominant_marketing_carrier",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_marketing_carrier_list",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_dominant_marketing_carrier",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_marketing_carrier_list",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_operating_carrier_list",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_operating_carrier_list",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_dominant_segment",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_dominant_segment",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_codeshare",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_codeshare",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_codeshare_carrier",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_codeshare_carrier",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_flight_no",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_departure_date",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_departure_time",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_arrival_date",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_arrival_time",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_flight_duration",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_flights_seats",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_effective_seats",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_flight_no",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_departure_date",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_departure_time",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_arrival_date",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_arrival_time",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_flight_duration",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_flights_seats",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_effective_seats",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "search_class",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "cabin",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_cabins",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_cabins",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_fare_family",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_booking_class",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_fare_basis",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_fare_family",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_booking_class",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_fare_basis",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "price_exc",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "tax",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "yqyr",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "q_surcharge",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "price_inc",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "currency",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "preferred_currency_rate",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "price_outbound",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "price_inbound",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "is_tax_inc_outin",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_available_seats",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_available_seats",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "substitute_site",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "price_exc_no_gds",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "price_inc_no_gds",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "tax_no_gds",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "price_outbound_no_gds",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "price_inbound_no_gds",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "requestid",
+          "data_type": "bigint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "refundable",
+          "data_type": "boolean",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "change_fee",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "channel",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_total_flight_duration",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_total_flight_duration",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "privatepcc",
+          "data_type": "boolean",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "passenger_count",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "total_price_per_passenger",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_price_per_passenger",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_price_per_passenger",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "price_inc_enriched",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "price_inc_original",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "tax_enriched",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "tax_original",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "price_outbound_enriched",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "price_outbound_original",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "price_inbound_enriched",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "price_inbound_original",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_booking_class_enriched",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_booking_class_original",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_booking_class_enriched",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_booking_class_original",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_fare_basis_enriched",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_fare_basis_original",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_fare_basis_enriched",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_fare_basis_original",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_operating_carrier_list_enriched",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_operating_carrier_list_original",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_operating_carrier_list_enriched",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_operating_carrier_list_original",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_departure_time_enriched",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_departure_time_original",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_departure_time_enriched",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_departure_time_original",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_arrival_time_enriched",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_arrival_time_original",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_arrival_time_enriched",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_arrival_time_original",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_equipment_codes_enriched",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_equipment_codes_original",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_equipment_codes_enriched",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_equipment_codes_original",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_flight_duration_enriched",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_flight_duration_original",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_flight_duration_enriched",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_flight_duration_original",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_fare_family_enriched",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_fare_family_original",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_fare_family_enriched",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_fare_family_original",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_total_flight_duration_enriched",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_total_flight_duration_original",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_total_flight_duration_enriched",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_total_flight_duration_original",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_intermediate_airports_enriched",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_intermediate_airports_original",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_intermediate_airports_enriched",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_intermediate_airports_original",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_stops_enriched",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_stops_original",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_stops_enriched",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_stops_original",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_number_of_stops_enriched",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "outbound_number_of_stops_original",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_number_of_stops_enriched",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "inbound_number_of_stops_original",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "itinerary_duration_enriched",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "itinerary_duration_original",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "provider_currency",
+          "data_type": "character",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "provider_currency_exchange_rate",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "trip_type",
+          "data_type": "character",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "sales_date",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "customer",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        }
+      ],
+      "partitions": [
+        {
+          "column": "observation_date",
+          "role": "recommended",
+          "inferred_type": "date"
+        },
+        {
+          "column": "outbound_departure_date",
+          "role": "recommended",
+          "inferred_type": "date"
+        },
+        {
+          "column": "outbound_arrival_date",
+          "role": "recommended",
+          "inferred_type": "date"
+        },
+        {
+          "column": "inbound_departure_date",
+          "role": "recommended",
+          "inferred_type": "date"
+        },
+        {
+          "column": "inbound_arrival_date",
+          "role": "recommended",
+          "inferred_type": "date"
+        },
+        {
+          "column": "sales_date",
+          "role": "recommended",
+          "inferred_type": "date"
+        },
+        {
+          "column": "customer",
+          "role": "recommended",
+          "inferred_type": "categorical"
+        }
+      ],
+      "sample_row_masked": {
+        "feed": "***",
+        "observation_date": "20***02",
+        "observation_time": "02***13",
+        "reference": "B6***NT",
+        "source": "Je***ue",
+        "pos": "***",
+        "origin": "***",
+        "destination": "***",
+        "outbound_gcm": 2546,
+        "los": -1,
+        "outbound_travel_stop_over": "***",
+        "inbound_travel_stop_over": null,
+        "carrier": "***",
+        "dominant_marketing_carrier": "***",
+        "outbound_dominant_marketing_carrier": "***",
+        "outbound_marketing_carrier_list": "***",
+        "inbound_dominant_marketing_carrier": null,
+        "inbound_marketing_carrier_list": null,
+        "outbound_operating_carrier_list": "***",
+        "inbound_operating_carrier_list": null,
+        "outbound_dominant_segment": 1,
+        "inbound_dominant_segment": 0,
+        "outbound_codeshare": "***",
+        "inbound_codeshare": null,
+        "outbound_codeshare_carrier": "***",
+        "inbound_codeshare_carrier": null,
+        "outbound_flight_no": "B6***65",
+        "outbound_departure_date": "20***12",
+        "outbound_departure_time": "09***50",
+        "outbound_arrival_date": "20***12",
+        "outbound_arrival_time": "16***22",
+        "outbound_flight_duration": "***",
+        "outbound_flights_seats": "***",
+        "outbound_effective_seats": 200,
+        "inbound_flight_no": null,
+        "inbound_departure_date": null,
+        "inbound_departure_time": null,
+        "inbound_arrival_date": null,
+        "inbound_arrival_time": null,
+        "inbound_flight_duration": null,
+        "inbound_flights_seats": null,
+        "inbound_effective_seats": 0,
+        "search_class": "***",
+        "cabin": "***",
+        "outbound_cabins": "***",
+        "inbound_cabins": null,
+        "outbound_fare_family": "BL***IC",
+        "outbound_booking_class": "***",
+        "outbound_fare_basis": "HI***L1",
+        "inbound_fare_family": null,
+        "inbound_booking_class": null,
+        "inbound_fare_basis": null,
+        "price_exc": 745.0,
+        "tax": 47.6,
+        "yqyr": 0.0,
+        "q_surcharge": 0.0,
+        "price_inc": 792.6,
+        "currency": "***",
+        "preferred_currency_rate": 1.0,
+        "price_outbound": 0.0,
+        "price_inbound": 0.0,
+        "is_tax_inc_outin": 0,
+        "outbound_available_seats": "***",
+        "inbound_available_seats": null,
+        "substitute_site": 0,
+        "price_exc_no_gds": 745.0,
+        "price_inc_no_gds": 792.6,
+        "tax_no_gds": 47.6,
+        "price_outbound_no_gds": 0.0,
+        "price_inbound_no_gds": 0.0,
+        "requestid": 113580668379222461,
+        "refundable": false,
+        "change_fee": -1.0,
+        "channel": null,
+        "outbound_total_flight_duration": 332,
+        "inbound_total_flight_duration": 0,
+        "privatepcc": false,
+        "passenger_count": null,
+        "total_price_per_passenger": null,
+        "outbound_price_per_passenger": null,
+        "inbound_price_per_passenger": null,
+        "price_inc_enriched": null,
+        "price_inc_original": null,
+        "tax_enriched": null,
+        "tax_original": null,
+        "price_outbound_enriched": null,
+        "price_outbound_original": null,
+        "price_inbound_enriched": null,
+        "price_inbound_original": null,
+        "outbound_booking_class_enriched": null,
+        "outbound_booking_class_original": null,
+        "inbound_booking_class_enriched": null,
+        "inbound_booking_class_original": null,
+        "outbound_fare_basis_enriched": null,
+        "outbound_fare_basis_original": null,
+        "inbound_fare_basis_enriched": null,
+        "inbound_fare_basis_original": null,
+        "outbound_operating_carrier_list_enriched": null,
+        "outbound_operating_carrier_list_original": null,
+        "inbound_operating_carrier_list_enriched": null,
+        "inbound_operating_carrier_list_original": null,
+        "outbound_departure_time_enriched": null,
+        "outbound_departure_time_original": null,
+        "inbound_departure_time_enriched": null,
+        "inbound_departure_time_original": null,
+        "outbound_arrival_time_enriched": null,
+        "outbound_arrival_time_original": null,
+        "inbound_arrival_time_enriched": null,
+        "inbound_arrival_time_original": null,
+        "outbound_equipment_codes_enriched": null,
+        "outbound_equipment_codes_original": null,
+        "inbound_equipment_codes_enriched": null,
+        "inbound_equipment_codes_original": null,
+        "outbound_flight_duration_enriched": null,
+        "outbound_flight_duration_original": null,
+        "inbound_flight_duration_enriched": null,
+        "inbound_flight_duration_original": null,
+        "outbound_fare_family_enriched": null,
+        "outbound_fare_family_original": null,
+        "inbound_fare_family_enriched": null,
+        "inbound_fare_family_original": null,
+        "outbound_total_flight_duration_enriched": null,
+        "outbound_total_flight_duration_original": null,
+        "inbound_total_flight_duration_enriched": null,
+        "inbound_total_flight_duration_original": null,
+        "outbound_intermediate_airports_enriched": null,
+        "outbound_intermediate_airports_original": null,
+        "inbound_intermediate_airports_enriched": null,
+        "inbound_intermediate_airports_original": null,
+        "outbound_stops_enriched": null,
+        "outbound_stops_original": null,
+        "inbound_stops_enriched": null,
+        "inbound_stops_original": null,
+        "outbound_number_of_stops_enriched": null,
+        "outbound_number_of_stops_original": null,
+        "inbound_number_of_stops_enriched": null,
+        "inbound_number_of_stops_original": null,
+        "itinerary_duration_enriched": null,
+        "itinerary_duration_original": null,
+        "provider_currency": null,
+        "provider_currency_exchange_rate": null,
+        "trip_type": null,
+        "sales_date": 20241102,
+        "customer": "***"
+      },
+      "preview_row_count": 5,
+      "preview_columns": [
+        "feed",
+        "observation_date",
+        "observation_time",
+        "reference",
+        "source",
+        "pos",
+        "origin",
+        "destination",
+        "outbound_gcm",
+        "los",
+        "outbound_travel_stop_over",
+        "inbound_travel_stop_over",
+        "carrier",
+        "dominant_marketing_carrier",
+        "outbound_dominant_marketing_carrier",
+        "outbound_marketing_carrier_list",
+        "inbound_dominant_marketing_carrier",
+        "inbound_marketing_carrier_list",
+        "outbound_operating_carrier_list",
+        "inbound_operating_carrier_list",
+        "outbound_dominant_segment",
+        "inbound_dominant_segment",
+        "outbound_codeshare",
+        "inbound_codeshare",
+        "outbound_codeshare_carrier",
+        "inbound_codeshare_carrier",
+        "outbound_flight_no",
+        "outbound_departure_date",
+        "outbound_departure_time",
+        "outbound_arrival_date",
+        "outbound_arrival_time",
+        "outbound_flight_duration",
+        "outbound_flights_seats",
+        "outbound_effective_seats",
+        "inbound_flight_no",
+        "inbound_departure_date",
+        "inbound_departure_time",
+        "inbound_arrival_date",
+        "inbound_arrival_time",
+        "inbound_flight_duration",
+        "inbound_flights_seats",
+        "inbound_effective_seats",
+        "search_class",
+        "cabin",
+        "outbound_cabins",
+        "inbound_cabins",
+        "outbound_fare_family",
+        "outbound_booking_class",
+        "outbound_fare_basis",
+        "inbound_fare_family",
+        "inbound_booking_class",
+        "inbound_fare_basis",
+        "price_exc",
+        "tax",
+        "yqyr",
+        "q_surcharge",
+        "price_inc",
+        "currency",
+        "preferred_currency_rate",
+        "price_outbound",
+        "price_inbound",
+        "is_tax_inc_outin",
+        "outbound_available_seats",
+        "inbound_available_seats",
+        "substitute_site",
+        "price_exc_no_gds",
+        "price_inc_no_gds",
+        "tax_no_gds",
+        "price_outbound_no_gds",
+        "price_inbound_no_gds",
+        "requestid",
+        "refundable",
+        "change_fee",
+        "channel",
+        "outbound_total_flight_duration",
+        "inbound_total_flight_duration",
+        "privatepcc",
+        "passenger_count",
+        "total_price_per_passenger",
+        "outbound_price_per_passenger",
+        "inbound_price_per_passenger",
+        "price_inc_enriched",
+        "price_inc_original",
+        "tax_enriched",
+        "tax_original",
+        "price_outbound_enriched",
+        "price_outbound_original",
+        "price_inbound_enriched",
+        "price_inbound_original",
+        "outbound_booking_class_enriched",
+        "outbound_booking_class_original",
+        "inbound_booking_class_enriched",
+        "inbound_booking_class_original",
+        "outbound_fare_basis_enriched",
+        "outbound_fare_basis_original",
+        "inbound_fare_basis_enriched",
+        "inbound_fare_basis_original",
+        "outbound_operating_carrier_list_enriched",
+        "outbound_operating_carrier_list_original",
+        "inbound_operating_carrier_list_enriched",
+        "inbound_operating_carrier_list_original",
+        "outbound_departure_time_enriched",
+        "outbound_departure_time_original",
+        "inbound_departure_time_enriched",
+        "inbound_departure_time_original",
+        "outbound_arrival_time_enriched",
+        "outbound_arrival_time_original",
+        "inbound_arrival_time_enriched",
+        "inbound_arrival_time_original",
+        "outbound_equipment_codes_enriched",
+        "outbound_equipment_codes_original",
+        "inbound_equipment_codes_enriched",
+        "inbound_equipment_codes_original",
+        "outbound_flight_duration_enriched",
+        "outbound_flight_duration_original",
+        "inbound_flight_duration_enriched",
+        "inbound_flight_duration_original",
+        "outbound_fare_family_enriched",
+        "outbound_fare_family_original",
+        "inbound_fare_family_enriched",
+        "inbound_fare_family_original",
+        "outbound_total_flight_duration_enriched",
+        "outbound_total_flight_duration_original",
+        "inbound_total_flight_duration_enriched",
+        "inbound_total_flight_duration_original",
+        "outbound_intermediate_airports_enriched",
+        "outbound_intermediate_airports_original",
+        "inbound_intermediate_airports_enriched",
+        "inbound_intermediate_airports_original",
+        "outbound_stops_enriched",
+        "outbound_stops_original",
+        "inbound_stops_enriched",
+        "inbound_stops_original",
+        "outbound_number_of_stops_enriched",
+        "outbound_number_of_stops_original",
+        "inbound_number_of_stops_enriched",
+        "inbound_number_of_stops_original",
+        "itinerary_duration_enriched",
+        "itinerary_duration_original",
+        "provider_currency",
+        "provider_currency_exchange_rate",
+        "trip_type",
+        "sales_date",
+        "customer"
+      ]
+    },
+    {
+      "table_name": "federated_metadata.currencyexchangerates",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:55:32.987243+00:00",
+      "status": "ok",
+      "columns": [
+        {
+          "column_name": "currencyCode",
+          "data_type": "character",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "targetCurrencyCode",
+          "data_type": "character",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "exchangerate",
+          "data_type": "real",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "lastUpdateDate",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "lastUpdateTime",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        }
+      ],
+      "partitions": [],
+      "sample_row_masked": {
+        "currencycode": "***",
+        "targetcurrencycode": "***",
+        "exchangerate": 0.2722940146923065,
+        "lastupdatedate": 20260226,
+        "lastupdatetime": 10
+      },
+      "preview_row_count": 5,
+      "preview_columns": [
+        "currencycode",
+        "targetcurrencycode",
+        "exchangerate",
+        "lastupdatedate",
+        "lastupdatetime"
+      ]
+    },
+    {
+      "table_name": "priceeye.customer_defaults",
+      "datasource": "mysql_priceeye",
+      "checked_at": "2026-02-26T18:55:41.890400+00:00",
+      "status": "ok",
+      "columns": [
+        {
+          "column_name": "customer",
+          "data_type": "varchar(32)",
+          "nullable": false,
+          "is_key": true
+        },
+        {
+          "column_name": "packagingConfiguration",
+          "data_type": "varchar(128)",
+          "nullable": true,
+          "is_key": false
+        },
+        {
+          "column_name": "deliveryConfiguration",
+          "data_type": "varchar(128)",
+          "nullable": true,
+          "is_key": false
+        },
+        {
+          "column_name": "inputFormat",
+          "data_type": "varchar(2048)",
+          "nullable": true,
+          "is_key": false
+        },
+        {
+          "column_name": "outputFormat",
+          "data_type": "varchar(128)",
+          "nullable": true,
+          "is_key": false
+        },
+        {
+          "column_name": "is_analytics",
+          "data_type": "tinyint",
+          "nullable": true,
+          "is_key": false
+        },
+        {
+          "column_name": "is_channel_comparison",
+          "data_type": "tinyint",
+          "nullable": true,
+          "is_key": false
+        },
+        {
+          "column_name": "is_monitoring",
+          "data_type": "tinyint",
+          "nullable": true,
+          "is_key": false
+        },
+        {
+          "column_name": "monitoring_deletion_date",
+          "data_type": "int",
+          "nullable": true,
+          "is_key": false
+        },
+        {
+          "column_name": "analytics_deletion_date",
+          "data_type": "int",
+          "nullable": true,
+          "is_key": false
+        },
+        {
+          "column_name": "channel_comparisons_deletion_date",
+          "data_type": "int",
+          "nullable": true,
+          "is_key": false
+        },
+        {
+          "column_name": "last_updated_by",
+          "data_type": "varchar(64)",
+          "nullable": true,
+          "is_key": false
+        }
+      ],
+      "partitions": [
+        {
+          "column": "customer",
+          "role": "recommended",
+          "inferred_type": "categorical"
+        },
+        {
+          "column": "monitoring_deletion_date",
+          "role": "recommended",
+          "inferred_type": "date"
+        },
+        {
+          "column": "analytics_deletion_date",
+          "role": "recommended",
+          "inferred_type": "date"
+        },
+        {
+          "column": "channel_comparisons_deletion_date",
+          "role": "recommended",
+          "inferred_type": "date"
+        }
+      ],
+      "sample_row_masked": {
+        "customer": "3v***er",
+        "packagingConfiguration": null,
+        "deliveryConfiguration": "***",
+        "inputFormat": "in***es",
+        "outputFormat": null,
+        "is_analytics": 0,
+        "is_channel_comparison": 0,
+        "is_monitoring": 0,
+        "monitoring_deletion_date": 0,
+        "analytics_deletion_date": 0,
+        "channel_comparisons_deletion_date": 0,
+        "last_updated_by": "52***cc"
+      },
+      "preview_row_count": 5,
+      "preview_columns": [
+        "customer",
+        "packagingConfiguration",
+        "deliveryConfiguration",
+        "inputFormat",
+        "outputFormat",
+        "is_analytics",
+        "is_channel_comparison",
+        "is_monitoring",
+        "monitoring_deletion_date",
+        "analytics_deletion_date",
+        "channel_comparisons_deletion_date",
+        "last_updated_by"
+      ]
+    },
+    {
+      "table_name": "priceeye.site_hierarchy",
+      "datasource": "mysql_priceeye",
+      "checked_at": "2026-02-26T18:55:45.172915+00:00",
+      "status": "ok",
+      "columns": [
+        {
+          "column_name": "customer",
+          "data_type": "varchar(16)",
+          "nullable": false,
+          "is_key": true
+        },
+        {
+          "column_name": "customer_site_code",
+          "data_type": "varchar(64)",
+          "nullable": false,
+          "is_key": true
+        },
+        {
+          "column_name": "priority",
+          "data_type": "int",
+          "nullable": false,
+          "is_key": true
+        },
+        {
+          "column_name": "provider_code",
+          "data_type": "varchar(16)",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "site_code",
+          "data_type": "varchar(16)",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "tripType",
+          "data_type": "varchar(2)",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "overrideSiteCode",
+          "data_type": "tinyint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "overrideCarrier",
+          "data_type": "tinyint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "supplemental",
+          "data_type": "varchar(32)",
+          "nullable": true,
+          "is_key": false
+        },
+        {
+          "column_name": "siteCategory",
+          "data_type": "varchar(16)",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "qualityScore",
+          "data_type": "double",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "relevancyScore",
+          "data_type": "double",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "last_updated",
+          "data_type": "timestamp",
+          "nullable": true,
+          "is_key": false
+        }
+      ],
+      "partitions": [
+        {
+          "column": "customer",
+          "role": "recommended",
+          "inferred_type": "categorical"
+        }
+      ],
+      "sample_row_masked": {
+        "customer": "***",
+        "customer_site_code": "***",
+        "priority": 1,
+        "provider_code": "VO***ID",
+        "site_code": "VO***ID",
+        "tripType": "***",
+        "overrideSiteCode": 0,
+        "overrideCarrier": 0,
+        "supplemental": "***",
+        "siteCategory": "ma***in",
+        "qualityScore": 1.0,
+        "relevancyScore": 0.8,
+        "last_updated": "20***09"
+      },
+      "preview_row_count": 5,
+      "preview_columns": [
+        "customer",
+        "customer_site_code",
+        "priority",
+        "provider_code",
+        "site_code",
+        "tripType",
+        "overrideSiteCode",
+        "overrideCarrier",
+        "supplemental",
+        "siteCategory",
+        "qualityScore",
+        "relevancyScore",
+        "last_updated"
+      ]
+    },
+    {
+      "table_name": "priceeye.transaction_rates",
+      "datasource": "mysql_priceeye",
+      "checked_at": "2026-02-26T18:55:48.134765+00:00",
+      "status": "ok",
+      "columns": [
+        {
+          "column_name": "provider",
+          "data_type": "varchar(32)",
+          "nullable": false,
+          "is_key": true
+        },
+        {
+          "column_name": "hour",
+          "data_type": "varchar(16)",
+          "nullable": false,
+          "is_key": true
+        },
+        {
+          "column_name": "tps",
+          "data_type": "int",
+          "nullable": false,
+          "is_key": false
+        }
+      ],
+      "partitions": [],
+      "sample_row_masked": {
+        "provider": "***",
+        "hour": "***",
+        "tps": 90
+      },
+      "preview_row_count": 5,
+      "preview_columns": [
+        "provider",
+        "hour",
+        "tps"
+      ]
+    },
+    {
+      "table_name": "analytics.alerts_schedule",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:55:51.144401+00:00",
+      "status": "ok",
+      "columns": [],
+      "partitions": [],
+      "sample_row_masked": null,
+      "preview_error": "ProgrammingError: {'S': 'ERROR', 'C': 'XX000', 'M': 'AwsClientException: EntityNotFoundException from glue - Entity Not Found', 'F': '/opt/brazil-pkg-cache/packages/RedshiftPADB/RedshiftPADB-1.0.98462.0/AL2_aarch64/generic-flavor/src/src/sys/xen_execute.cpp', 'L': '15416', 'R': 'pg_throw'}"
+    },
+    {
+      "table_name": "analytics.anomalies_direction_score",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:55:55.047734+00:00",
+      "status": "ok",
+      "columns": [],
+      "partitions": [],
+      "sample_row_masked": null,
+      "preview_error": "ProgrammingError: {'S': 'ERROR', 'C': 'XX000', 'M': 'AwsClientException: EntityNotFoundException from glue - Entity Not Found', 'F': '/opt/brazil-pkg-cache/packages/RedshiftPADB/RedshiftPADB-1.0.98462.0/AL2_aarch64/generic-flavor/src/src/sys/xen_execute.cpp', 'L': '15416', 'R': 'pg_throw'}"
+    },
+    {
+      "table_name": "analytics.cabin_group",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:55:58.880190+00:00",
+      "status": "ok",
+      "columns": [],
+      "partitions": [],
+      "sample_row_masked": null,
+      "preview_error": "ProgrammingError: {'S': 'ERROR', 'C': 'XX000', 'M': 'AwsClientException: EntityNotFoundException from glue - Entity Not Found', 'F': '/opt/brazil-pkg-cache/packages/RedshiftPADB/RedshiftPADB-1.0.98462.0/AL2_aarch64/generic-flavor/src/src/sys/xen_execute.cpp', 'L': '15416', 'R': 'pg_throw'}"
+    },
+    {
+      "table_name": "analytics.carrier_group",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:56:02.668007+00:00",
+      "status": "ok",
+      "columns": [],
+      "partitions": [],
+      "sample_row_masked": null,
+      "preview_error": "ProgrammingError: {'S': 'ERROR', 'C': 'XX000', 'M': 'AwsClientException: EntityNotFoundException from glue - Entity Not Found', 'F': '/opt/brazil-pkg-cache/packages/RedshiftPADB/RedshiftPADB-1.0.98462.0/AL2_aarch64/generic-flavor/src/src/sys/xen_execute.cpp', 'L': '15416', 'R': 'pg_throw'}"
+    },
+    {
+      "table_name": "analytics.date_range",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:56:06.439781+00:00",
+      "status": "ok",
+      "columns": [],
+      "partitions": [],
+      "sample_row_masked": null,
+      "preview_error": "ProgrammingError: {'S': 'ERROR', 'C': 'XX000', 'M': 'AwsClientException: EntityNotFoundException from glue - Entity Not Found', 'F': '/opt/brazil-pkg-cache/packages/RedshiftPADB/RedshiftPADB-1.0.98462.0/AL2_aarch64/generic-flavor/src/src/sys/xen_execute.cpp', 'L': '15416', 'R': 'pg_throw'}"
+    },
+    {
+      "table_name": "analytics.demo_carrier_substitutions",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:56:10.302270+00:00",
+      "status": "ok",
+      "columns": [],
+      "partitions": [],
+      "sample_row_masked": null,
+      "preview_error": "ProgrammingError: {'S': 'ERROR', 'C': 'XX000', 'M': 'AwsClientException: EntityNotFoundException from glue - Entity Not Found', 'F': '/opt/brazil-pkg-cache/packages/RedshiftPADB/RedshiftPADB-1.0.98462.0/AL2_aarch64/generic-flavor/src/src/sys/xen_execute.cpp', 'L': '15416', 'R': 'pg_throw'}"
+    },
+    {
+      "table_name": "analytics.geography_entry",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:56:14.235946+00:00",
+      "status": "ok",
+      "columns": [],
+      "partitions": [],
+      "sample_row_masked": null,
+      "preview_error": "ProgrammingError: {'S': 'ERROR', 'C': 'XX000', 'M': 'AwsClientException: EntityNotFoundException from glue - Entity Not Found', 'F': '/opt/brazil-pkg-cache/packages/RedshiftPADB/RedshiftPADB-1.0.98462.0/AL2_aarch64/generic-flavor/src/src/sys/xen_execute.cpp', 'L': '15416', 'R': 'pg_throw'}"
+    },
+    {
+      "table_name": "analytics.region",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:56:18.082250+00:00",
+      "status": "ok",
+      "columns": [],
+      "partitions": [],
+      "sample_row_masked": null,
+      "preview_error": "ProgrammingError: {'S': 'ERROR', 'C': 'XX000', 'M': 'AwsClientException: EntityNotFoundException from glue - Entity Not Found', 'F': '/opt/brazil-pkg-cache/packages/RedshiftPADB/RedshiftPADB-1.0.98462.0/AL2_aarch64/generic-flavor/src/src/sys/xen_execute.cpp', 'L': '15416', 'R': 'pg_throw'}"
+    },
+    {
+      "table_name": "analytics.segment",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:56:22.181069+00:00",
+      "status": "ok",
+      "columns": [],
+      "partitions": [],
+      "sample_row_masked": null,
+      "preview_error": "ProgrammingError: {'S': 'ERROR', 'C': 'XX000', 'M': 'AwsClientException: EntityNotFoundException from glue - Entity Not Found', 'F': '/opt/brazil-pkg-cache/packages/RedshiftPADB/RedshiftPADB-1.0.98462.0/AL2_aarch64/generic-flavor/src/src/sys/xen_execute.cpp', 'L': '15416', 'R': 'pg_throw'}"
+    },
+    {
+      "table_name": "collection_optimizer.delta_swia_input_v1",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:56:26.104575+00:00",
+      "status": "ok",
+      "columns": [],
+      "partitions": [],
+      "sample_row_masked": null,
+      "preview_error": "ProgrammingError: {'S': 'ERROR', 'C': '3F000', 'M': 'schema \"collection_optimizer\" does not exist', 'F': '/opt/brazil-pkg-cache/packages/RedshiftPADB/RedshiftPADB-1.0.98462.0/AL2_aarch64/generic-flavor/src/src/pg/src/backend/parser/parse_relation.c', 'L': '7238', 'R': 'CheckUnnestValidNavigation'}"
+    },
+    {
+      "table_name": "local.site_metrics.provider_tps_by_intervals_v1",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:56:29.452519+00:00",
+      "status": "ok",
+      "columns": [],
+      "partitions": [],
+      "sample_row_masked": null,
+      "preview_error": "ProgrammingError: {'S': 'ERROR', 'C': '3D000', 'M': '\"local\" does not exist', 'F': '/opt/brazil-pkg-cache/packages/RedshiftPADB/RedshiftPADB-1.0.98462.0/AL2_aarch64/generic-flavor/src/src/pg/src/backend/parser/parse_relation.c', 'L': '7231', 'R': 'CheckUnnestValidNavigation'}"
+    },
+    {
+      "table_name": "prod.monitoring.provider_combined_audit",
+      "datasource": "redshift_core",
+      "checked_at": "2026-02-26T18:56:32.821066+00:00",
+      "status": "ok",
+      "columns": [],
+      "partitions": [],
+      "sample_row_masked": {
+        "id": 17280360343676,
+        "customers": "***",
+        "crawl_start_date": "20***05",
+        "scheduledate": 20241004,
+        "scheduletime": 1000,
+        "actualscheduletimestamp": "20***00",
+        "observationtimestamp": "20***00",
+        "providercode": "***",
+        "sitecode": "***",
+        "pos": "***",
+        "carriercodes": "***",
+        "connectionairportcodes": "***",
+        "maxstops": 0,
+        "cabin": "***",
+        "originairportcode": "***",
+        "destinationairportcode": "***",
+        "departdate": 20241008,
+        "returndate": 0,
+        "ap": 4,
+        "los": -1,
+        "triptype": "***",
+        "passengercount": 1,
+        "refundable": 0,
+        "filterreason": "***",
+        "polls": 1,
+        "dropdeadtimestamps": "19***00",
+        "prioritys": "***",
+        "inputrequestids": "46***67",
+        "inputrequestid_count": 10,
+        "collections": "***",
+        "references": "AA***DS",
+        "reference_count": 8,
+        "sitecategories": "ma***in",
+        "customersitecodes": "***",
+        "customerposs": "***",
+        "partition_dates": "20***04",
+        "computed_sales_dates": "20***04",
+        "response_statuses": "su***ss",
+        "response_timestamp": "20***00",
+        "response_errormessages": null,
+        "response_itinerarycount": 25,
+        "response_possites": "US***DC",
+        "issue_sources": "***",
+        "issue_reasons": "***",
+        "retry_providers": null,
+        "retry_sites": null,
+        "retry_response_statuses": null,
+        "origincitycode": "***",
+        "destinationcitycode": "***",
+        "origincountrycode": "***",
+        "destinationcountrycode": "***",
+        "sales_date": 20241005
+      },
+      "preview_row_count": 5,
+      "preview_columns": [
+        "id",
+        "customers",
+        "crawl_start_date",
+        "scheduledate",
+        "scheduletime",
+        "actualscheduletimestamp",
+        "observationtimestamp",
+        "providercode",
+        "sitecode",
+        "pos",
+        "carriercodes",
+        "connectionairportcodes",
+        "maxstops",
+        "cabin",
+        "originairportcode",
+        "destinationairportcode",
+        "departdate",
+        "returndate",
+        "ap",
+        "los",
+        "triptype",
+        "passengercount",
+        "refundable",
+        "filterreason",
+        "polls",
+        "dropdeadtimestamps",
+        "prioritys",
+        "inputrequestids",
+        "inputrequestid_count",
+        "collections",
+        "references",
+        "reference_count",
+        "sitecategories",
+        "customersitecodes",
+        "customerposs",
+        "partition_dates",
+        "computed_sales_dates",
+        "response_statuses",
+        "response_timestamp",
+        "response_errormessages",
+        "response_itinerarycount",
+        "response_possites",
+        "issue_sources",
+        "issue_reasons",
+        "retry_providers",
+        "retry_sites",
+        "retry_response_statuses",
+        "origincitycode",
+        "destinationcitycode",
+        "origincountrycode",
+        "destinationcountrycode",
+        "sales_date"
+      ]
+    },
+    {
+      "table_name": "prod.monitoring.combined_audit",
+      "datasource": "redshift_core",
+      "checked_at": "2026-02-26T18:56:45.888763+00:00",
+      "status": "ok",
+      "columns": [],
+      "partitions": [],
+      "sample_row_masked": {
+        "id": 130264039342333772,
+        "inputrequestid": 51837660,
+        "customer": "***",
+        "customercollectionid": 35,
+        "customercollectionname": "Fl***ly",
+        "reference": "AA***B6",
+        "sitecategory": "ma***in",
+        "customer_salesdate": 20241217,
+        "customersitecode": "***",
+        "customerpos": "***",
+        "scheduledate": 20241217,
+        "scheduletime": 100,
+        "actualscheduletimestamp": "20***00",
+        "observationtimestamp": "20***00",
+        "providercode": "AA***  ",
+        "sitecode": "AA***  ",
+        "pos": "***",
+        "carriercodes": "***",
+        "connectionairportcodes": "***",
+        "maxstops": 1,
+        "cabin": "***",
+        "originairportcode": "***",
+        "destinationairportcode": "***",
+        "departdate": 20250609,
+        "returndate": 0,
+        "triptype": "***",
+        "passengercount": 1,
+        "refundable": 0,
+        "filterreason": "***",
+        "dropdeadtimestamp": "20***00",
+        "priority": 5,
+        "checkdirectflights": 0,
+        "response_statuses": "su***ss",
+        "response_status": "su***ss",
+        "response_errormessage": null,
+        "response_itinerarycount": 44,
+        "response_possite": "US***PI",
+        "response_timestamp": "20***00",
+        "response_occurrences": 1,
+        "response_lastupdated": "20***00",
+        "issue_source": null,
+        "issue_reason": null,
+        "retry_requestid": null,
+        "retry_provider": null,
+        "retry_site": null,
+        "retry_reason": null,
+        "retry_lastupdated": null,
+        "retry_response_status": null,
+        "retry_response_timestamp": null,
+        "itins_before_filtering": 44,
+        "itins_after_filtering": 44,
+        "globalfilter_lastupdated": "20***00",
+        "enrichment_status": null,
+        "enrichment_itinerarycount": null,
+        "enrichment_successcount": null,
+        "enrichment_failcount": null,
+        "enrichment_successbrand": null,
+        "enrichment_successtaxcombined": null,
+        "enrichment_successtaxengine": null,
+        "enrichment_successtaxregression": null,
+        "enrichment_successtaxcache": null,
+        "enrichment_successcache": null,
+        "enrichment_successdirectionalprice": null,
+        "enrichment_successbookingcode": null,
+        "enrichment_successoperatingcarrier": null,
+        "enrichment_successfarebasiscode": null,
+        "enrichment_successoag": null,
+        "enrichment_successoagoperatingcarrier": null,
+        "enrichment_successoagflighttimes": null,
+        "enrichment_successoagequipment": null,
+        "enrichment_successoagduration": null,
+        "enrichment_successoagintermediatestops": null,
+        "enrichment_failbrand": null,
+        "enrichment_failtaxcombined": null,
+        "enrichment_failtaxengine": null,
+        "enrichment_failtaxregression": null,
+        "enrichment_failtaxcache": null,
+        "enrichment_failcache": null,
+        "enrichment_faildirectionalprice": null,
+        "enrichment_failbookingcode": null,
+        "enrichment_failoperatingcarrier": null,
+        "enrichment_failfarebasiscode": null,
+        "enrichment_failoag": null,
+        "enrichment_failoagoperatingcarrier": null,
+        "enrichment_failoagflighttimes": null,
+        "enrichment_failoagequipment": null,
+        "enrichment_failoagduration": null,
+        "enrichment_failoagintermediatestops": null,
+        "enrichment_lastupdated": null,
+        "cache_itinerarycount": 44,
+        "cache_lastupdated": "20***00",
+        "packager_timestamp": "20***00",
+        "packager_packagingname": "AA***lt",
+        "packager_fileuri": "s3***et",
+        "packager_recordcount": 20,
+        "packager_substituteused": "***",
+        "packager_subprovider": "***",
+        "packager_subsite": "***",
+        "delivery_customerdeliveryid": "***",
+        "delivery_type": "***",
+        "delivery_statuses": "su***ss",
+        "delivery_status": "su***ss",
+        "delivery_failurereason": "***",
+        "delivery_archivefilekey": "AA***et",
+        "delivery_groupid": "17***29",
+        "delivery_deliveryname": "AA***lt",
+        "delivery_lastupdated": "20***00",
+        "combined_lastupdated": "20***00",
+        "sales_date": 20241217
+      },
+      "preview_row_count": 5,
+      "preview_columns": [
+        "id",
+        "inputrequestid",
+        "customer",
+        "customercollectionid",
+        "customercollectionname",
+        "reference",
+        "sitecategory",
+        "customer_salesdate",
+        "customersitecode",
+        "customerpos",
+        "scheduledate",
+        "scheduletime",
+        "actualscheduletimestamp",
+        "observationtimestamp",
+        "providercode",
+        "sitecode",
+        "pos",
+        "carriercodes",
+        "connectionairportcodes",
+        "maxstops",
+        "cabin",
+        "originairportcode",
+        "destinationairportcode",
+        "departdate",
+        "returndate",
+        "triptype",
+        "passengercount",
+        "refundable",
+        "filterreason",
+        "dropdeadtimestamp",
+        "priority",
+        "checkdirectflights",
+        "response_statuses",
+        "response_status",
+        "response_errormessage",
+        "response_itinerarycount",
+        "response_possite",
+        "response_timestamp",
+        "response_occurrences",
+        "response_lastupdated",
+        "issue_source",
+        "issue_reason",
+        "retry_requestid",
+        "retry_provider",
+        "retry_site",
+        "retry_reason",
+        "retry_lastupdated",
+        "retry_response_status",
+        "retry_response_timestamp",
+        "itins_before_filtering",
+        "itins_after_filtering",
+        "globalfilter_lastupdated",
+        "enrichment_status",
+        "enrichment_itinerarycount",
+        "enrichment_successcount",
+        "enrichment_failcount",
+        "enrichment_successbrand",
+        "enrichment_successtaxcombined",
+        "enrichment_successtaxengine",
+        "enrichment_successtaxregression",
+        "enrichment_successtaxcache",
+        "enrichment_successcache",
+        "enrichment_successdirectionalprice",
+        "enrichment_successbookingcode",
+        "enrichment_successoperatingcarrier",
+        "enrichment_successfarebasiscode",
+        "enrichment_successoag",
+        "enrichment_successoagoperatingcarrier",
+        "enrichment_successoagflighttimes",
+        "enrichment_successoagequipment",
+        "enrichment_successoagduration",
+        "enrichment_successoagintermediatestops",
+        "enrichment_failbrand",
+        "enrichment_failtaxcombined",
+        "enrichment_failtaxengine",
+        "enrichment_failtaxregression",
+        "enrichment_failtaxcache",
+        "enrichment_failcache",
+        "enrichment_faildirectionalprice",
+        "enrichment_failbookingcode",
+        "enrichment_failoperatingcarrier",
+        "enrichment_failfarebasiscode",
+        "enrichment_failoag",
+        "enrichment_failoagoperatingcarrier",
+        "enrichment_failoagflighttimes",
+        "enrichment_failoagequipment",
+        "enrichment_failoagduration",
+        "enrichment_failoagintermediatestops",
+        "enrichment_lastupdated",
+        "cache_itinerarycount",
+        "cache_lastupdated",
+        "packager_timestamp",
+        "packager_packagingname",
+        "packager_fileuri",
+        "packager_recordcount",
+        "packager_substituteused",
+        "packager_subprovider",
+        "packager_subsite",
+        "delivery_customerdeliveryid",
+        "delivery_type",
+        "delivery_statuses",
+        "delivery_status",
+        "delivery_failurereason",
+        "delivery_archivefilekey",
+        "delivery_groupid",
+        "delivery_deliveryname",
+        "delivery_lastupdated",
+        "combined_lastupdated",
+        "sales_date"
+      ]
+    },
+    {
+      "table_name": "local.federated_priceeye.site_hierarchy",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:56:58.594495+00:00",
+      "status": "ok",
+      "columns": [
+        {
+          "column_name": "customer",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "customer_site_code",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "priority",
+          "data_type": "integer",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "provider_code",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "site_code",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "tripType",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "overrideSiteCode",
+          "data_type": "tinyint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "overrideCarrier",
+          "data_type": "tinyint",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "supplemental",
+          "data_type": "character varying",
+          "nullable": true,
+          "is_key": false
+        },
+        {
+          "column_name": "siteCategory",
+          "data_type": "character varying",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "qualityScore",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "relevancyScore",
+          "data_type": "double precision",
+          "nullable": false,
+          "is_key": false
+        },
+        {
+          "column_name": "last_updated",
+          "data_type": "timestamp",
+          "nullable": true,
+          "is_key": false
+        }
+      ],
+      "partitions": [
+        {
+          "column": "customer",
+          "role": "recommended",
+          "inferred_type": "categorical"
+        }
+      ],
+      "sample_row_masked": {
+        "customer": "***",
+        "customer_site_code": "***",
+        "priority": 1,
+        "provider_code": "VO***ID",
+        "site_code": "VO***ID",
+        "triptype": "***",
+        "overridesitecode": 0,
+        "overridecarrier": 0,
+        "supplemental": "***",
+        "sitecategory": "ma***in",
+        "qualityscore": 1.0,
+        "relevancyscore": 0.8,
+        "last_updated": "20***09"
+      },
+      "preview_row_count": 5,
+      "preview_columns": [
+        "customer",
+        "customer_site_code",
+        "priority",
+        "provider_code",
+        "site_code",
+        "triptype",
+        "overridesitecode",
+        "overridecarrier",
+        "supplemental",
+        "sitecategory",
+        "qualityscore",
+        "relevancyscore",
+        "last_updated"
+      ]
+    },
+    {
+      "table_name": "local.federated_scheduling.as_hourly_collection_plans",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:57:03.302743+00:00",
+      "status": "ok",
+      "columns": [],
+      "partitions": [],
+      "sample_row_masked": null,
+      "preview_error": "ProgrammingError: {'S': 'ERROR', 'C': '3D000', 'M': '\"local\" does not exist', 'F': '/opt/brazil-pkg-cache/packages/RedshiftPADB/RedshiftPADB-1.0.98462.0/AL2_aarch64/generic-flavor/src/src/pg/src/backend/parser/parse_relation.c', 'L': '7231', 'R': 'CheckUnnestValidNavigation'}"
+    },
+    {
+      "table_name": "local.scheduling.auto_schedule_output",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:57:06.646559+00:00",
+      "status": "ok",
+      "columns": [],
+      "partitions": [],
+      "sample_row_masked": null,
+      "preview_error": "ProgrammingError: {'S': 'ERROR', 'C': '3D000', 'M': '\"local\" does not exist', 'F': '/opt/brazil-pkg-cache/packages/RedshiftPADB/RedshiftPADB-1.0.98462.0/AL2_aarch64/generic-flavor/src/src/pg/src/backend/parser/parse_relation.c', 'L': '7231', 'R': 'CheckUnnestValidNavigation'}"
+    },
+    {
+      "table_name": "local.site_metrics.capacity_final",
+      "datasource": "redshift_analytics",
+      "checked_at": "2026-02-26T18:57:10.066413+00:00",
+      "status": "ok",
+      "columns": [],
+      "partitions": [],
+      "sample_row_masked": null,
+      "preview_error": "ProgrammingError: {'S': 'ERROR', 'C': '3D000', 'M': '\"local\" does not exist', 'F': '/opt/brazil-pkg-cache/packages/RedshiftPADB/RedshiftPADB-1.0.98462.0/AL2_aarch64/generic-flavor/src/src/pg/src/backend/parser/parse_relation.c', 'L': '7231', 'R': 'CheckUnnestValidNavigation'}"
+    }
+  ]
+}

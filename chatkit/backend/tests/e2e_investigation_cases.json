@@ -1,0 +1,116 @@
+{
+  "cases": [
+    {
+      "name": "top_site_issues_ql2_today_with_impact",
+      "thread_id": "thread-smoke-ql2-issues",
+      "question": "what are the top site issues for QL2 today? And what is the impact of these",
+      "assertions": {
+        "min_tool_calls": 2,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["QL2", "issue"]
+      }
+    },
+    {
+      "name": "collection_anomalies_b6_today_s3",
+      "thread_id": "thread-smoke-b6-anom",
+      "question": "what are the collection anomalies today for customer B6?",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["fetch_s3"],
+        "answer_contains": ["B6", "anomal"]
+      }
+    },
+    {
+      "name": "delivery_problems_today",
+      "thread_id": "thread-smoke-delivery",
+      "question": "Do we have any delivery problems today in general?",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["deliver"]
+      }
+    },
+    {
+      "name": "how_does_priceeye_work",
+      "thread_id": "thread-smoke-priceeye-arch",
+      "question": "how does priceeye work?",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["search_kb"],
+        "answer_contains": ["priceeye"]
+      }
+    },
+    {
+      "name": "smartest_customer_3v",
+      "thread_id": "thread-smoke-smartest",
+      "master": true,
+      "question": "using all the info you have, explore all the tables available to you , which customer do you think is the smartest customer of 3V?",
+      "assertions": {
+        "min_tool_calls": 5,
+        "required_tools": ["execute_sql"],
+        "answer_contains": []
+      }
+    },
+    {
+      "name": "explain_site_hierarchy",
+      "thread_id": "thread-smoke-site-hier",
+      "question": "explain site hierarchy to me",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["search_kb"],
+        "answer_contains": ["site"]
+      }
+    },
+    {
+      "name": "eda_competitive_position_b6",
+      "thread_id": "thread-smoke-eda-b6",
+      "question": "make an EDA of competitive position of customer B6",
+      "assertions": {
+        "min_tool_calls": 2,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["B6", "competitive"]
+      }
+    },
+    {
+      "name": "federated_priceeye_site_hierarchy_aa",
+      "thread_id": "thread-smoke-federated-site-hier",
+      "question": "Show me the site hierarchy for customer AA — what sites and providers are they configured to collect from?",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["AA", "site"]
+      }
+    },
+    {
+      "name": "federated_scheduling_collection_plans",
+      "thread_id": "thread-smoke-federated-sched",
+      "question": "What is the active AutoSchedule collection plan for customer AA? Show me what markets and hours are scheduled.",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["AA"]
+      }
+    },
+    {
+      "name": "federated_priceeye_tables_describe",
+      "thread_id": "thread-smoke-federated-describe",
+      "question": "What tables are available in the federated_priceeye schema? Describe what each one contains.",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["search_kb"],
+        "answer_contains": ["federated_priceeye"]
+      }
+    },
+    {
+      "name": "aa_06utc_request_spike_investigation",
+      "thread_id": "thread-aa-spike-investigation",
+      "master": true,
+      "question": "We are seeing a huge spike in the provider monitoring dashboard for Provider AA at the 06:00 UTC hour over at least the past 4 days. It is showing roughly 20,000 requests in a single minute for 1-3 minutes, which is way beyond our internal cap of 90 TPS (5,400 requests per minute). Please investigate using the underlying data: query prod.monitoring.provider_combined_audit and prod.monitoring.combined_audit, look at the request volume broken down by hour and minute for provider AA over the last 4 days, confirm whether this spike is real traffic or a data aggregation / display artifact, identify the root cause, and tell us what to do about it.",
+      "assertions": {
+        "min_tool_calls": 5,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["AA", "spike"]
+      }
+    }
+  ]
+}

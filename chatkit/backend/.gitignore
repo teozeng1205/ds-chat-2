@@ -11,3 +11,9 @@ chatkit.sqlite
 app/chatkit.db
 app/chatkit.sqlite
 app/chatkit_attachments/
+.runtime/
+knowledgebase/.index/*
+!knowledgebase/.index/.gitkeep
+!knowledgebase/.index/vector/.gitkeep
+.work/
+tests/smoke_reports/
