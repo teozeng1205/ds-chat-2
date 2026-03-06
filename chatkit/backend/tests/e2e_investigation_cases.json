@@ -102,6 +102,36 @@
       }
     },
     {
+      "name": "prod_first_market_anomalies",
+      "thread_id": "thread-smoke-prod-anomalies",
+      "question": "Show me the top 5 markets with the highest impact score anomalies for customer B6 today.",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["prod.analytics"]
+      }
+    },
+    {
+      "name": "prod_first_provider_audit",
+      "thread_id": "thread-smoke-prod-audit",
+      "question": "How many requests did provider AA make today, broken down by site? Use the provider audit table.",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["prod.monitoring"]
+      }
+    },
+    {
+      "name": "prod_first_pax_midt",
+      "thread_id": "thread-smoke-prod-pax",
+      "question": "What are the top 10 markets by passenger count for customer B6 today?",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["prod.analytics"]
+      }
+    },
+    {
       "name": "aa_06utc_request_spike_investigation",
       "thread_id": "thread-aa-spike-investigation",
       "master": true,
