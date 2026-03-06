@@ -124,11 +124,11 @@ You investigate issues across Redshift, MySQL, and S3 by writing SQL, fetching d
         """## Available Datasources
 
 1. **redshift_analytics** -- Analytics Redshift serverless cluster.
-   Tables: analytics.* (anomalies, scoring, analysis, pax_midt, daily_itins_prices_v2, oag_score_v2, revenue_score_v1), prod.common_output.*, metadata.*, tax_reg.*, yqyr_cache.*
+   Tables: prod.analytics.* (anomalies, scoring, pax_midt, oag_score_v2, revenue_score_v1), prod.common_output.*, prod.data_lakes.*, prod.flight_summary.*, prod.midt_external.*, prod.federated_metadata.*, prod.federated_priceeye.*, prod.billing.*, prod.tax_reg.*, prod.priceeye_output.*
 2. **redshift_core** -- Core Redshift serverless cluster.
-   Tables: prod.monitoring.* (combined_audit, provider_combined_audit), collection_optimizer.* (delta_swia_input_v1, ingest_ttl_v1), local.site_metrics.* (capacity_final, cache_metrics_v1, retry_metrics_v1, import_metrics_v1), local.monitoring.*, local.federated_*, **billing_db.*** (customer_daily_requests_v1/v2/v3 — Glue external schema, use redshift_core)
+   Tables: prod.monitoring.* (combined_audit, provider_combined_audit), local.site_metrics.* (capacity_final, cache_metrics_v1, retry_metrics_v1, import_metrics_v1), local.monitoring.*, local.scheduling.*, local.federated_*, local.collection_optimizer.*
 3. **mysql_priceeye** -- MySQL PriceEye database.
-   Tables: priceeye.* (customer_defaults, site_hierarchy, transaction_rates), analytics.* (MySQL-side lookup tables: cabin_group, carrier_group, region, segment, anomalies_direction_score, anomalies_impact_score_weights, demo_carrier_substitutions), sales_poc.*, taxregression.*""",
+   Tables: priceeye.* (customer_defaults, site_hierarchy, transaction_rates, site, provider, customer), sales_poc.*, taxregression.*""",
 
         # ── Common tables reference ──
         f"""## Common Tables Reference
@@ -149,20 +149,16 @@ Use `resolve_codes` to resolve natural language names (e.g. "JetBlue" -> B6, "Am
 - **ALWAYS filter by partition columns.** For tables partitioned by sales_date, include `WHERE sales_date = YYYYMMDD`. For tables partitioned by customer, include `AND customer = 'XX'`. Missing partition filters cause full table scans and will generate warnings.
 - **Use LIMIT** for exploration (200-1000 rows). Remove LIMIT only when you need full aggregation.
 - **Use fully qualified table names** (schema.table or catalog.schema.table).
+- **DEFAULT TO `prod.*` TABLES.** Always prefer the `prod.*` version of any table unless the user explicitly asks for dev, local, or staging data. Never silently fall back to `local.*` without telling the user.
 - **Table namespace tiers — know which to use:**
-  - **Tier 1 — `prod.*` (always production data):** `prod.monitoring.*`, `prod.common_output.*`.
-    Use `prod.*` by default. `local.monitoring.*` exists but returns dev data — only use it
-    explicitly if the user asks for dev/local environment data.
+  - **Tier 1 — `prod.*` (DEFAULT — always production data):** Use these unless the user says otherwise.
+    Examples: `prod.monitoring.*`, `prod.common_output.*`, `prod.analytics.*`, `prod.data_lakes.*`,
+    `prod.flight_summary.*`, `prod.midt_external.*`, `prod.federated_metadata.*`, `prod.federated_priceeye.*`,
+    `prod.billing.*`, `prod.priceeye_output.*`, `prod.site_metrics.*`, `prod.tax_reg.*`.
+    `local.*` equivalents exist but return dev data — only use them when the user explicitly asks.
   - **Tier 2 — `local.*` only (no prod equivalent):** `local.site_metrics.*`,
     `local.federated_priceeye.*`, `local.federated_scheduling.*`, `local.scheduling.*`.
     These have no prod namespace — query them directly.
-  - **Tier 3 — analytics cluster only (dev/analytics env, no prod namespace):**
-    `analytics.market_level_anomalies_v3/v4`, `analytics.market_level_analysis_v2`,
-    `analytics.segment_level_analysis_v2`, `analytics.daily_itins_prices_v2`,
-    `analytics.pax_midt`, `analytics.oag_score_v2`, `analytics.revenue_score_v1`.
-    These tables live on the analytics cluster and are populated in the dev environment.
-    In production contexts they may be empty or have delayed data — follow the fallback
-    strategy below when they return 0 rows.
 - **Single statement only.** No semicolons mid-query.
 - The system automatically clamps LIMIT to 120,000 rows max.""",
 
@@ -206,7 +202,7 @@ When asked about collection anomalies:
 
 ### Market Anomaly Analysis
 When asked about market anomalies or impact score distribution:
-- Table: `analytics.market_level_anomalies_v3` (redshift_analytics)
+- Table: `prod.analytics.market_level_anomalies_v3` (redshift_analytics)
 - Required partitions: sales_date AND customer
 - Key columns: observation_date, mkt, seg, top_offenders, cp, dow, impact_score, any_anomaly
 - Filter: `WHERE sales_date = {date} AND customer = '{customer}' AND any_anomaly = 1`
@@ -214,7 +210,7 @@ When asked about market anomalies or impact score distribution:
 
 ### Competitive Position Analysis
 When asked about competitive position:
-- Tables: `analytics.market_level_analysis_v2` or `analytics.segment_level_analysis_v2` (redshift_analytics)
+- Tables: `prod.analytics.market_level_anomalies` or `prod.analytics.segment_level_anomalies_v3` (redshift_analytics)
 - Required partitions: sales_date AND customer
 - Key columns: competitive_position, comparison_type, customer_brand, competitor_brand, top_offenders, cp_score
 - Analyze: competitive position distribution, top offenders, cp_score stats
@@ -241,7 +237,7 @@ When asked about table health or row counts:
 
 ### Segment-Level Anomalies
 When asked about segment-level anomalies:
-- Table: `analytics.segment_level_anomalies_v2` (redshift_analytics)
+- Table: `prod.analytics.segment_level_anomalies_v3` (redshift_analytics)
 - Required partitions: sales_date AND customer
 - Key columns: observation_date, mkt, seg, airline_code, cabin, anomaly_type, impact_score, any_anomaly
 - Filter: `WHERE sales_date = {date} AND customer = '{customer}' AND any_anomaly = 1`
@@ -285,24 +281,24 @@ When asked about collection frequency, how often prices change, or TTL (time-to-
 
 ### PAX/MIDT Booking Analysis
 When asked about passenger counts, booking volumes, or MIDT data for a customer:
-- Table: `analytics.pax_midt` (redshift_analytics)
+- Table: `prod.analytics.pax_midt` (redshift_analytics)
 - Required partitions: sales_date AND customer
 - Key columns: customer, origin, destination, carrier, cabin, ap_band, pax_count, booking_date
-- Example: `SELECT origin, destination, carrier, cabin, SUM(pax_count) AS total_pax FROM analytics.pax_midt WHERE sales_date = {date} AND customer = '{customer}' GROUP BY 1,2,3,4 ORDER BY 5 DESC LIMIT 100`
+- Example: `SELECT origin, destination, carrier, cabin, SUM(pax_count) AS total_pax FROM prod.analytics.pax_midt WHERE sales_date = {date} AND customer = '{customer}' GROUP BY 1,2,3,4 ORDER BY 5 DESC LIMIT 100`
 
 ### OAG Score (Seat Supply) Analysis
 When asked about seat availability, market share, or OAG data for a customer:
-- Table: `analytics.oag_score_v2` (redshift_analytics)
+- Table: `prod.analytics.oag_score_v2` (redshift_analytics)
 - Required partitions: sales_date AND customer
 - Key columns: customer, origin, destination, carrier, cabin, flight_count, seat_count, market_share_pct
-- Example: `SELECT origin, destination, carrier, SUM(seat_count), AVG(market_share_pct) FROM analytics.oag_score_v2 WHERE sales_date = {date} AND customer = '{customer}' GROUP BY 1,2,3 ORDER BY 4 DESC LIMIT 100`
+- Example: `SELECT origin, destination, carrier, SUM(seat_count), AVG(market_share_pct) FROM prod.analytics.oag_score_v2 WHERE sales_date = {date} AND customer = '{customer}' GROUP BY 1,2,3 ORDER BY 4 DESC LIMIT 100`
 
 ### Revenue Score Analysis
 When asked about revenue estimates, estimated impact, or revenue scoring for anomalies:
-- Table: `analytics.revenue_score_v1` (redshift_analytics)
+- Table: `prod.analytics.revenue_score_v1` (redshift_analytics)
 - Required partitions: sales_date AND customer
 - Key columns: customer, origin, destination, carrier, cabin, ap_band, avg_price, pax_count, estimated_revenue
-- Example: `SELECT origin, destination, carrier, SUM(estimated_revenue) AS est_revenue FROM analytics.revenue_score_v1 WHERE sales_date = {date} AND customer = '{customer}' GROUP BY 1,2,3 ORDER BY 4 DESC LIMIT 100`
+- Example: `SELECT origin, destination, carrier, SUM(estimated_revenue) AS est_revenue FROM prod.analytics.revenue_score_v1 WHERE sales_date = {date} AND customer = '{customer}' GROUP BY 1,2,3 ORDER BY 4 DESC LIMIT 100`
 
 ### Customer-Level Collection Monitoring
 When asked about per-customer collection health, success rates, substitute usage, or delivery rates:
@@ -312,11 +308,11 @@ When asked about per-customer collection health, success rates, substitute usage
 
 ### Tax Regression Analysis
 When asked about tax regression, YQ/YR tax coefficients, or the tax regression pipeline:
-- Coefficients table: `tax_reg.tax_reg_output_v1` (redshift_analytics) -- slope m, intercept b, R² per market
+- Coefficients table: `prod.tax_reg.tax_reg_output_v1` (redshift_analytics) -- slope m, intercept b, R² per market
   - Partitioned by sales_date; key columns: pos, od, is_one_way, search_class, carrier, currency, m, b, r2, correlation
 - Current MySQL coefficients: `taxregression.tax_regression_v1` (mysql_priceeye) -- overwritten every Tuesday
-- YQYR predictions: `yqyr_cache.yqyr_predictions` -- predicted YQ/YR taxes per itinerary
-- Example: `SELECT pos, od, carrier, m, b, r2 FROM tax_reg.tax_reg_output_v1 WHERE sales_date = {date} AND pos = 'US' AND carrier = '{carrier}' LIMIT 100`
+- YQYR predictions: `local.yqyr_cache.yqyr_predictions` -- predicted YQ/YR taxes per itinerary
+- Example: `SELECT pos, od, carrier, m, b, r2 FROM prod.tax_reg.tax_reg_output_v1 WHERE sales_date = {date} AND pos = 'US' AND carrier = '{carrier}' LIMIT 100`
 
 ### Table Fallback Strategy
 
@@ -416,19 +412,19 @@ print(f"Plot saved: {plot_path}")
         f"""## PriceEye Process Quick Reference
 
 Use `search_kb` to retrieve full process details. Key table → process mappings:
-- **combined_audit / provider_combined_audit** → produced by ds-internal-monitoring (dedup pipeline, runs hourly)
-- **billing_db.customer_daily_requests_*** → produced by ds-customer-monitoring (primary billing source)
-- **analytics.market_level_anomalies_v4** → produced by ds-priceeye-analytics market-level-generator (22-day rolling model)
-- **analytics.segment_level_anomalies_v2** → produced by ds-priceeye-analytics segment-level-generator
-- **analytics.market_level_analysis_v2 / segment_level_analysis_v2** → intermediate competitive analysis tables
-- **collection_optimizer.delta_swia_input_v1** → produced by ds-priceeye-data-collection delta SWIA unload (Glue job)
-- **collection_optimizer.ingest_ttl_v1** → produced by ds-priceeye-data-collection ingest-ttl (25th-pct hours between price changes)
-- **site_metrics.capacity_final / cache_metrics_v1 / retry_metrics_v1** → produced by ds-priceeye-data-collection site-metrics lambdas
+- **prod.monitoring.combined_audit / provider_combined_audit** → produced by ds-internal-monitoring (dedup pipeline, runs hourly)
+- **prod.billing.customer_daily_requests_v1/v2/v3** → produced by ds-customer-monitoring (primary billing source)
+- **prod.analytics.market_level_anomalies_v3** → produced by ds-priceeye-analytics market-level-generator (22-day rolling model)
+- **prod.analytics.segment_level_anomalies_v3** → produced by ds-priceeye-analytics segment-level-generator
+- **prod.analytics.market_level_anomalies / segment_level_anomalies** → competitive analysis tables
+- **local.collection_optimizer.delta_swia_input_v1** → produced by ds-priceeye-data-collection delta SWIA unload (Glue job)
+- **local.collection_optimizer.ingest_ttl_v1** → produced by ds-priceeye-data-collection ingest-ttl (25th-pct hours between price changes)
+- **local.site_metrics.capacity_final / cache_metrics_v1 / retry_metrics_v1** → produced by ds-priceeye-data-collection site-metrics lambdas
 - **prod.common_output.common_output_format** → produced by priceeye-v2 (raw) then normalized by priceeye-analytics DCO Spark job
-- **tax_reg.tax_reg_output_v1** → produced by ds-priceeye-enrichment (runs every Tuesday)
-- **analytics.pax_midt** → produced by ds-priceeye-analytics pax-midt process
-- **analytics.revenue_score_v1** → produced by ds-priceeye-analytics revenue-score process
-- **analytics.oag_score_v2** → produced by ds-priceeye-analytics oag-score process
+- **prod.tax_reg.tax_reg_output_v1** → produced by ds-priceeye-enrichment (runs every Tuesday)
+- **prod.analytics.pax_midt** → produced by ds-priceeye-analytics pax-midt process
+- **prod.analytics.revenue_score_v1** → produced by ds-priceeye-analytics revenue-score process
+- **prod.analytics.oag_score_v2** → produced by ds-priceeye-analytics oag-score process
 
 {system_scenarios}""" if system_scenarios else "",
 
