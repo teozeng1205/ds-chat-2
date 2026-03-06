@@ -16,7 +16,9 @@ import argparse
 import json
 import os
 import subprocess
-from datetime import datetime, timezone
+import threading
+from datetime import date as date_type
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -30,45 +32,81 @@ from app.investigation.datasources import DatasourceRegistry, datasource_for_tab
 from app.investigation.runtime import KNOWLEDGE_ROOT, TABLES_DOC_PATH
 
 
-# ── Federated schema constants ──
-
-FEDERATED_SCHEMAS_ANALYTICS: list[str] = [
-    "federated_priceeye",
-    "federated_analytics",
-    "federated_metadata",
-    "federated_replication",
-    "federated_sales_poc",
-]
-
-FEDERATED_SCHEMAS_CORE: list[str] = [
-    "federated_priceeye",
-    "federated_metadata",
-    "federated_scheduling",
-    "federated_sales_poc",
-]
-
 # ── Tables discovered from ds-* repos and priceeye-analytics DDL ──
 
 DISCOVERED_TABLES: list[str] = [
-    # priceeye-analytics Glue external tables (redshift_analytics)
-    "analytics.market_level_anomalies_v4",
-    "analytics.market_level_anomalies_v3",
-    "analytics.segment_level_anomalies_v2",
-    "analytics.daily_itins_prices_v2",
-    "analytics.pax_midt",
-    "metadata.table_row_counts",
-    "analytics.market_level_analysis_v2",
-    "analytics.segment_level_analysis_v2",
-    # ds-customer-monitoring (redshift_analytics)
-    "analytics.customer_collection_anomalies_v2",
     # ds-internal-monitoring (redshift_core)
     "prod.monitoring.provider_combined_audit",
     "prod.monitoring.combined_audit",
     # ds-channel-comparison (redshift_analytics)
     "prod.common_output.common_output_format",
-    # collection_optimizer (redshift_core)
-    "collection_optimizer.delta_swia_input_v1",
 ]
+
+
+def _tier_for_table(table_name: str) -> str:
+    """Assign tier based on table naming convention."""
+    parts = table_name.split(".")
+    first = parts[0].lower() if parts else ""
+    if first == "local":
+        return "local-only"
+    if first == "prod":
+        return "prod"
+    if first.startswith("federated_"):
+        return "prod-federated"
+    if first in ("analytics", "metadata", "collection_optimizer", "tax_reg", "yqyr_cache"):
+        return "analytics-env"
+    if first == "billing_db":
+        return "prod"
+    if first in ("priceeye", "taxregression", "sales_poc"):
+        return "mysql"
+    return "common"
+
+
+# MySQL databases to crawl (2-part names kept as-is)
+_ALLOWED_MYSQL_DBS: set[str] = {"priceeye", "analytics", "sales_poc", "taxregression"}
+
+
+def _discover_all_schemas(registry: DatasourceRegistry, datasource: str) -> list[str]:
+    """Discover all tables from known relevant schemas via system catalog views."""
+    tables: list[str] = []
+    seen: set[str] = set()
+
+    if datasource == "mysql_priceeye":
+        for db in _ALLOWED_MYSQL_DBS:
+            try:
+                df_tables = registry.execute_sql(datasource, f"SHOW TABLES FROM `{db}`")
+                for _, trow in df_tables.iterrows():
+                    table_ref = f"{db}.{str(trow.iloc[0])}"
+                    if table_ref not in seen:
+                        seen.add(table_ref)
+                        tables.append(table_ref)
+            except Exception:
+                pass
+        return tables
+
+    # Dynamically discover all tables in the 'prod' and 'local' cross-databases.
+    # SVV_ALL_TABLES sees every database the cluster has access to; filtering by
+    # database_name IN ('prod', 'local') gives us only the fully-qualified tables
+    # we care about without hardcoding any schema names.
+    try:
+        df = registry.execute_sql(
+            datasource,
+            "SELECT database_name, schema_name, table_name FROM SVV_ALL_TABLES "
+            "WHERE database_name IN ('prod', 'local') "
+            "ORDER BY database_name, schema_name, table_name",
+        )
+        for _, row in df.iterrows():
+            db = str(row.get("database_name", row.iloc[0])).lower()
+            tbl_schema = str(row.get("schema_name", row.iloc[1]))
+            tbl = str(row.get("table_name", row.iloc[2]))
+            table_ref = f"{db}.{tbl_schema}.{tbl}"
+            if table_ref not in seen:
+                seen.add(table_ref)
+                tables.append(table_ref)
+    except Exception as exc:
+        print(f"  WARN: SVV_ALL_TABLES query failed for {datasource}: {exc}")
+
+    return tables
 
 
 def _canonical_table(table_name: str) -> str:
@@ -195,6 +233,30 @@ def _discover_federated_tables(registry: DatasourceRegistry) -> list[str]:
     return discovered
 
 
+def _execute_with_timeout(registry: DatasourceRegistry, datasource: str, sql: str, timeout: int = 20) -> Any:
+    """Execute SQL with a wall-clock timeout. Returns DataFrame or None on timeout/error.
+
+    Uses a daemon thread so hung DB connections don't block the main process.
+    """
+    result: list[Any] = [None]
+    exc: list[Exception | None] = [None]
+
+    def _run() -> None:
+        try:
+            result[0] = registry.execute_sql(datasource, sql)
+        except Exception as e:  # noqa: BLE001
+            exc[0] = e
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    t.join(timeout)
+    if t.is_alive():
+        return None  # timed out — daemon thread continues but won't block exit
+    if exc[0] is not None:
+        raise exc[0]
+    return result[0]
+
+
 def _mask_value(value: Any) -> Any:
     if value is None:
         return None
@@ -212,6 +274,7 @@ def _refresh_table(registry: DatasourceRegistry, table_name: str) -> dict[str, A
     row: dict[str, Any] = {
         "table_name": table_name,
         "datasource": datasource,
+        "tier": _tier_for_table(table_name),
         "checked_at": datetime.now(timezone.utc).isoformat(),
     }
     try:
@@ -220,23 +283,37 @@ def _refresh_table(registry: DatasourceRegistry, table_name: str) -> dict[str, A
         row["columns"] = metadata.get("columns", [])
         row["partitions"] = metadata.get("partitions", [])
 
-        # Masked sample row
+        # Masked sample row (timeout=15s — skips large Spectrum tables that scan S3)
         try:
-            sample = registry.execute_sql(datasource, f"SELECT * FROM {table_name} LIMIT 1")
-            if not sample.empty:
+            sample = _execute_with_timeout(
+                registry, datasource, f"SELECT * FROM {table_name} LIMIT 1", timeout=15
+            )
+            if sample is not None and not sample.empty:
                 row["sample_row_masked"] = {
                     k: _mask_value(v) for k, v in sample.iloc[0].to_dict().items()
                 }
+            else:
+                row["sample_row_masked"] = None
         except Exception:
             row["sample_row_masked"] = None
 
-        # Preview stats
-        try:
-            preview = registry.execute_sql(datasource, f"SELECT * FROM {table_name} LIMIT 5")
-            row["preview_row_count"] = int(len(preview))
-            row["preview_columns"] = [str(col) for col in preview.columns]
-        except Exception as exc:
-            row["preview_error"] = f"{type(exc).__name__}: {exc}"
+        # Freshness check: ORDER BY DESC LIMIT 1 uses zone maps on Redshift (fast for internal
+        # tables). For external/Spectrum tables it may still scan, so timeout=20s.
+        partitions = row.get("partitions", [])
+        part_cols = [str(p.get("column", "")) for p in partitions if isinstance(p, dict)]
+        date_col = next((c for c in part_cols if "date" in c.lower()), None)
+        if date_col:
+            try:
+                max_row = _execute_with_timeout(
+                    registry,
+                    datasource,
+                    f"SELECT {date_col} AS md FROM {table_name} ORDER BY {date_col} DESC LIMIT 1",
+                    timeout=20,
+                )
+                if max_row is not None and not max_row.empty and max_row.iloc[0]["md"] is not None:
+                    row["max_sales_date"] = int(max_row.iloc[0]["md"])
+            except Exception:
+                pass  # Skip freshness if query fails or times out
 
     except Exception as exc:
         row["status"] = "error"
@@ -256,6 +333,7 @@ def main() -> int:
         help="Output metadata file path.",
     )
     parser.add_argument("--skip-bootstrap", action="store_true", help="Skip AWS credential bootstrap (if already done).")
+    parser.add_argument("--stale-days", type=int, default=30, help="Days after which a table with no recent data is dropped.")
     args = parser.parse_args()
 
     if not args.skip_bootstrap:
@@ -265,16 +343,23 @@ def main() -> int:
 
     registry = DatasourceRegistry()
 
-    # Auto-discover federated tables from live clusters
-    print("Discovering federated schema tables...")
-    federated_tables = _discover_federated_tables(registry)
-    print(f"  Found {len(federated_tables)} federated tables across analytics + core clusters.")
+    # Full schema discovery across all datasources
+    print("Discovering all schema tables from live datasources...")
+    all_discovered: list[str] = []
+    for ds in ["redshift_analytics", "redshift_core", "mysql_priceeye"]:
+        print(f"  Scanning {ds}...", end=" ", flush=True)
+        try:
+            found = _discover_all_schemas(registry, ds)
+            print(f"{len(found)} tables")
+            all_discovered.extend(found)
+        except Exception as exc:
+            print(f"error ({exc})")
 
-    # Merge tables from tables.md + discovered tables + federated tables, deduplicated
+    # Merge tables from tables.md + hardcoded + full discovery, deduplicated
     from_doc = _parse_common_tables(TABLES_DOC_PATH)
     all_tables_set: set[str] = set()
     all_tables: list[str] = []
-    for t in from_doc + DISCOVERED_TABLES + federated_tables:
+    for t in from_doc + DISCOVERED_TABLES + all_discovered:
         canonical = _canonical_table(t)
         if canonical not in all_tables_set:
             all_tables_set.add(canonical)
@@ -288,14 +373,49 @@ def main() -> int:
         row = _refresh_table(registry, table_name)
         status = row.get("status", "unknown")
         col_count = len(row.get("columns", []))
-        print(f"{status} ({col_count} cols)")
+        max_date = row.get("max_sales_date", "")
+        print(f"{status} ({col_count} cols){' last=' + str(max_date) if max_date else ''}")
         rows.append(row)
+
+    # Filter stale and error tables
+    stale_threshold = int(
+        (date_type.today() - timedelta(days=args.stale_days)).strftime("%Y%m%d")
+    )
+    kept_rows: list[dict[str, Any]] = []
+    dropped: list[tuple[str, str]] = []
+    for r in rows:
+        status = r.get("status", "")
+        if status == "error":
+            dropped.append((r["table_name"], "error"))
+            continue
+        # Redshift tables must start with prod. or local. (MySQL keeps 2-part names)
+        ds = r.get("datasource", "")
+        tname = r.get("table_name", "")
+        if ds.startswith("redshift") and not (tname.startswith("prod.") or tname.startswith("local.")):
+            dropped.append((tname, "non-prod/local prefix"))
+            continue
+        max_date = r.get("max_sales_date")
+        row_count = r.get("row_count_sample", 0)
+        if max_date is not None and int(max_date) < stale_threshold and row_count == 0:
+            dropped.append((r["table_name"], f"stale (max_date={max_date})"))
+            continue
+        kept_rows.append(r)
+
+    if dropped:
+        print(f"\nDropped {len(dropped)} tables (error or stale):")
+        for name, reason in dropped[:20]:
+            print(f"  - {name}: {reason}")
+        if len(dropped) > 20:
+            print(f"  ... and {len(dropped) - 20} more")
+
+    rows = kept_rows
 
     # Write output
     out_path = Path(args.out).resolve()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "stale_days": args.stale_days,
         "table_count": len(rows),
         "tables": rows,
     }
@@ -311,6 +431,7 @@ def main() -> int:
                 "table_count": len(rows),
                 "ok_count": ok_count,
                 "error_count": err_count,
+                "dropped_count": len(dropped),
             },
             indent=2,
         )

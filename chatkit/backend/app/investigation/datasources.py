@@ -57,8 +57,10 @@ _TABLE_ROUTING: list[tuple[str, str]] = [
     ("priceeye.", "mysql_priceeye"),
     ("prod.monitoring", "redshift_core"),
     ("local.monitoring", "redshift_core"),
-    ("collection_optimizer.", "redshift_core"),
     ("local.site_metrics", "redshift_core"),
+    ("local.scheduling", "redshift_core"),
+    ("local.federated_", "redshift_core"),
+    ("collection_optimizer.", "redshift_core"),
     ("billing_db.", "redshift_core"),
     # Federated schemas (prod MySQL via Redshift external schema federation)
     # federated_scheduling only exists in the core cluster

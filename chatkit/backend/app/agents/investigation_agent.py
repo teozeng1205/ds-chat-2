@@ -42,7 +42,10 @@ def _load_common_table_metadata() -> str:
         cols_str = ", ".join(col_names)
         if len(col_names) < len(columns):
             cols_str += f" (+{len(columns) - len(col_names)} more)"
-        lines.append(f"- `{name}` ({ds}) -- Partitions: {part_str}. Columns: {cols_str}")
+        freshness = f"last_date={table.get('max_sales_date', '?')}" if part_cols else "no_date_part"
+        tier = table.get("tier", "")
+        tier_str = f" [{tier}]" if tier else ""
+        lines.append(f"- `{name}`{tier_str} ({ds}) -- {freshness}. Partitions: {part_str}. Columns: {cols_str}")
     return "\n".join(lines)
 
 
