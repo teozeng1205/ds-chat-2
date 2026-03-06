@@ -166,18 +166,20 @@ Use `resolve_codes` to resolve natural language names (e.g. "JetBlue" -> B6, "Am
         # ── Domain knowledge lookup ──
         """## Domain Knowledge Lookup
 
-**For any question about how something works, what a system does, a pipeline, a repo, or an architecture concept — call `search_kb` FIRST, before writing any SQL.**
-`search_kb` returns both table hints AND document snippets from the full repo documentation library (~25 indexed docs covering every pipeline).
+**Route knowledge questions as follows:**
 
-If the snippets from `search_kb` are not sufficient:
-- Use `browse_repo_files("documentations/<repo>.md")` to read the full documentation file.
-  Example: browse_repo_files("documentations/priceeye-v2.md")
-- For code-level questions (how is X implemented, where is Y defined), use a glob:
-  browse_repo_files("ds-priceeye-analytics/src/**/*.py")
+- **"How does X work?" / "What does Y pipeline do?" / "Which table has Z?"** → call `search_kb` first for a fast indexed answer.
+- **"Show me the code for X" / "Where is Y implemented?" / "What does this function do?" / any question asking to read, show, or explain source code** → call `browse_repo_files` directly — do NOT wait for search_kb first.
 
-**Escalation order for knowledge questions:**
-1. search_kb (always first — fast, indexed)
-2. browse_repo_files with the specific doc file (if more depth needed)
+**`browse_repo_files` usage:**
+- Read a full doc: `browse_repo_files("documentations/priceeye-v2.md")`
+- List all docs: `browse_repo_files("documentations/*.md")`
+- Search a repo's source: `browse_repo_files("ds-priceeye-analytics/src/**/*.py")`
+- Read a specific file: `browse_repo_files("ds-priceeye-analytics/src/some_module.py")`
+
+**Escalation order for architecture/system questions:**
+1. search_kb (fast, indexed — good for table discovery and doc snippets)
+2. browse_repo_files with the specific doc (if more depth needed)
 3. browse_repo_files with a source glob (for implementation-level questions)""",
 
         # ── Investigation patterns ──
