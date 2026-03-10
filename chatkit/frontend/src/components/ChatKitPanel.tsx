@@ -6,6 +6,7 @@ import {
 } from "@openai/chatkit-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { CHATKIT_API_DOMAIN_KEY, CHATKIT_API_URL } from "../lib/config";
+import { SessionStateBar } from "./SessionStateBar";
 
 const THREAD_STORAGE_KEY = "ds-chat:last-thread-id";
 
@@ -20,6 +21,8 @@ export function ChatKitPanel() {
     return window.localStorage.getItem(THREAD_STORAGE_KEY);
   });
 
+  const [currentThreadId, setCurrentThreadId] = useState<string | null>(initialThreadId);
+
   const chatkitApiRef = useRef<
     Pick<UseChatKitReturn, "sendCustomAction" | "sendUserMessage" | "setComposerValue"> | null
   >(null);
@@ -28,6 +31,7 @@ export function ChatKitPanel() {
     if (typeof window === "undefined") {
       return;
     }
+    setCurrentThreadId(threadId);
     if (threadId) {
       window.localStorage.setItem(THREAD_STORAGE_KEY, threadId);
       return;
@@ -83,6 +87,14 @@ export function ChatKitPanel() {
       return;
     }
 
+    if (action.type === "copy_to_clipboard") {
+      const text = typeof action.payload?.text === "string" ? action.payload.text : "";
+      if (text && typeof navigator !== "undefined") {
+        navigator.clipboard.writeText(text).catch(() => void 0);
+      }
+      return;
+    }
+
     await api.sendCustomAction(action, widgetItem.id);
   }, []);
 
@@ -114,32 +126,42 @@ export function ChatKitPanel() {
         showDelete: true,
       },
       startScreen: {
-        greeting: "Welcome to DS Chat Next-Gen, click the examples below",
+        greeting: "DS Chat — coding agent & data investigator",
         prompts: [
           {
-            label: "Top site issues",
+            label: "Run a script",
+            prompt:
+              "write a python script that prints row counts of the 5 largest parquet files in ~/git/ds-priceeye-analytics and run it",
+            icon: "square-code" as const,
+          },
+          {
+            label: "Git diff summary",
+            prompt:
+              "show what changed in ds-priceeye-analytics in the last 5 commits and summarize",
+            icon: "square-code" as const,
+          },
+          {
+            label: "Parallel experiments",
+            prompt:
+              "run pandas vs polars loading the same parquet file from ~/git/ds-priceeye-analytics — compare performance",
+            icon: "chart" as const,
+          },
+          {
+            label: "Site issues",
             prompt: "what are the top site issues for QL2 on 20260211",
             icon: "analytics" as const,
           },
           {
-            label: "Anomaly deep dive",
-            prompt: "investigate anomalies for customer B6 on 20260211",
-            icon: "chart" as const,
-          },
-          {
-            label: "Explain codebase architecture",
-            prompt: "explain ds-priceeye-analytics repo",
+            label: "Search + implement",
+            prompt:
+              "search for the fastest way to read parquet in Python, then benchmark it on a file from the ds repo",
             icon: "square-code" as const,
           },
           {
-            label: "Plot with Python",
-            prompt: "plot a normal distribution with python and render it in chat",
-            icon: "chart" as const,
-          },
-          {
-            label: "Multi-source investigation",
-            prompt: "investigate issue scope for provider QL2 and include useful S3 data if available",
-            icon: "analytics" as const,
+            label: "Edit codebase",
+            prompt:
+              "explain the main entrypoint of ds-priceeye-analytics then add a docstring to the main function",
+            icon: "square-code" as const,
           },
         ],
       },
@@ -148,18 +170,23 @@ export function ChatKitPanel() {
       },
       composer: {
         attachments: { enabled: true, maxCount: 5, maxSize: 25 * 1024 * 1024 },
-        placeholder: "Ask multi-database issue investigation questions...",
+        placeholder: "Code, shell, git, data investigation, web search...",
         models: [
           {
-            id: "gpt-5.2",
+            id: "gpt-5.3",
             label: "Default",
-            description: "Default gpt-5.2",
+            description: "gpt-5.3 — most capable",
             default: true,
           },
           {
             id: "gpt-5-mini",
             label: "Fast",
-            description: "for speed optimized gpt-5-mini",
+            description: "gpt-5-mini — fastest",
+          },
+          {
+            id: "gpt-5.2",
+            label: "Balanced",
+            description: "gpt-5.2 — previous default",
           },
         ],
       },
@@ -171,8 +198,9 @@ export function ChatKitPanel() {
   chatkitApiRef.current = chatkit;
 
   return (
-    <div className="relative flex h-[90vh] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-sm transition-colors dark:bg-slate-900">
-      <ChatKit control={chatkit.control} className="block h-full w-full" />
+    <div className="relative flex h-[90vh] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-sm dark:bg-slate-900">
+      <SessionStateBar threadId={currentThreadId} />
+      <ChatKit control={chatkit.control} className="flex-1 min-h-0 block w-full" />
     </div>
   );
 }

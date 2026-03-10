@@ -21,15 +21,16 @@ from chatkit.types import (
 )
 from openai import AsyncOpenAI
 
-from .agents.investigation_agent import build_investigation_agent
+from .agents.ds_agent import build_agent
 from .persistent_store import SQLiteStore, default_sqlite_path
 from .investigation.runtime import cleanup_thread_workspace
+from .investigation.shell_session import close_session
 from .attachment_store import LocalDiskAttachmentStore, default_attachment_dir
 
 
 MAX_RECENT_ITEMS = 50
 MAX_AGENT_TURNS = 50
-DEFAULT_MODEL = "gpt-4.1-mini"
+DEFAULT_MODEL = "gpt-5.3"
 TITLE_MODEL = "gpt-5-mini"
 MAX_TITLE_CHARS = 80
 MAX_TITLE_USER_TEXTS = 4
@@ -294,8 +295,8 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
             options.model if options and getattr(options, "model", None) else DEFAULT_MODEL
         )
 
-        # Build the investigation agent directly (no orchestrator)
-        agent = build_investigation_agent(selected_model)
+        # Build the coding + data science agent
+        agent = build_agent(selected_model)
 
         result = Runner.run_streamed(
             agent,
@@ -310,6 +311,7 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
 
         try:
             cleanup_thread_workspace(thread.id, mode="ephemeral_manifest")
+            close_session(thread.id)
         except Exception as exc:  # noqa: BLE001
             log.warning("Post-session workspace cleanup failed for thread %s: %s", thread.id, exc)
 

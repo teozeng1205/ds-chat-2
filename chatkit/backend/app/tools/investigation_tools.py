@@ -508,7 +508,19 @@ def investigation_tools() -> list[Any]:
     ]
 
 
+def investigation_tools_core() -> list[Any]:
+    """Return the 5 core data tools for the coding agent (excludes run_python, browse_repo_files)."""
+    return [
+        execute_sql,
+        fetch_s3,
+        inspect_table,
+        search_kb,
+        resolve_codes,
+    ]
+
+
 __all__ = [
     "cleanup_thread_workspace",
     "investigation_tools",
+    "investigation_tools_core",
 ]

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import time as _time
+
 from chatkit.server import StreamingResult
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
+from .investigation.shell_session import _registry as _shell_registry
 from .server import StarterChatServer
 
 app = FastAPI(title="ChatKit Starter API")
@@ -33,6 +36,19 @@ async def chatkit_endpoint(request: Request) -> Response:
     if hasattr(result, "json"):
         return Response(content=result.json, media_type="application/json")
     return JSONResponse(result)
+
+
+@app.get("/chatkit/session/{thread_id}")
+async def session_state(thread_id: str) -> Response:
+    """Return persistent shell session state for a thread (used by SessionStateBar)."""
+    shell = _shell_registry.get(thread_id)
+    if not shell:
+        return JSONResponse({"alive": False, "cwd": None, "idle_secs": None})
+    return JSONResponse({
+        "alive": shell.is_alive(),
+        "cwd": shell.last_cwd,
+        "idle_secs": int(_time.monotonic() - shell._last_used),
+    })
 
 
 @app.get("/chatkit")
