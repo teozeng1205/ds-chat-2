@@ -21,6 +21,7 @@ from agents import RunContextWrapper, function_tool
 from chatkit.agents import AgentContext
 from chatkit.types import ProgressUpdateEvent
 from chatkit.widgets import Card
+from pydantic import BaseModel
 
 from ..investigation.shell_session import get_session
 
@@ -40,7 +41,10 @@ def _thread_id(ctx: RunContextWrapper[AgentContext]) -> str:  # type: ignore[typ
 
 
 async def _stream_progress(ctx: RunContextWrapper[AgentContext], icon: str, text: str) -> None:  # type: ignore[type-arg]
-    await ctx.context.stream(ProgressUpdateEvent(icon=icon, text=text))
+    try:
+        await ctx.context.stream(ProgressUpdateEvent(icon=icon, text=text))
+    except Exception:
+        pass  # Progress streaming is best-effort; never crash the tool over it
 
 
 def _resolve_path(file_path: str) -> Path:
@@ -71,7 +75,7 @@ async def bash(
         timeout: Max seconds to wait (default 120, max 600).
     """
     thread_id = _thread_id(ctx)
-    await _stream_progress(ctx, "terminal", f"$ {command[:80]}")
+    await _stream_progress(ctx, "square-code", f"$ {command[:80]}")
 
     shell = await get_session(thread_id)
 
@@ -84,7 +88,7 @@ async def bash(
         now = time.monotonic()
         if now - last_streamed >= 2.0:
             preview = "".join(output_chunks)[-150:]
-            await _stream_progress(ctx, "terminal", f"$ {command[:40]}\n…{preview}")
+            await _stream_progress(ctx, "square-code", f"$ {command[:40]}\n…{preview}")
             last_streamed = now
 
     output = "".join(output_chunks)
@@ -318,7 +322,7 @@ async def git(
         cwd = Path.home()
 
     try:
-        await _stream_progress(ctx, "git-branch", f"git {args[:60]}")
+        await _stream_progress(ctx, "square-code", f"git {args[:60]}")
         proc = await asyncio.create_subprocess_exec(
             "git", *args.split(),
             cwd=str(cwd),
@@ -378,6 +382,13 @@ async def fetch_url(
 
 # ── Tool 7: run_parallel ──
 
+class Experiment(BaseModel):
+    """A single experiment for run_parallel."""
+    name: str
+    command: str
+    timeout: int = 120
+
+
 async def _run_one_shot(command: str, timeout: int = 120) -> dict[str, Any]:
     """Run a command in a throwaway subprocess (not PTY) for parallelism."""
     start = time.monotonic()
@@ -406,38 +417,36 @@ async def _run_one_shot(command: str, timeout: int = 120) -> dict[str, Any]:
 @function_tool
 async def run_parallel(
     ctx: RunContextWrapper[AgentContext],  # type: ignore[type-arg]
-    experiments: list[dict[str, Any]],
+    experiments: list[Experiment],
 ) -> str:
     """Run up to 8 bash commands concurrently and compare results.
 
-    Each experiment: {"name": str, "command": str, "timeout"?: int}.
     Returns a comparison table: name | exit | elapsed_ms | stdout_preview.
 
     Args:
-        experiments: List of experiment dicts with name, command, optional timeout.
+        experiments: List of experiments, each with name, command, and optional timeout (default 120s).
     """
     if not experiments:
         return "Error: experiments list is empty"
     if len(experiments) > 8:
         return "Error: max 8 experiments"
 
-    await _stream_progress(ctx, "terminal", f"Running {len(experiments)} experiments in parallel")
+    await _stream_progress(ctx, "square-code", f"Running {len(experiments)} experiments in parallel")
 
     tasks = [
-        _run_one_shot(e["command"], e.get("timeout", 120))
+        _run_one_shot(e.command, e.timeout)
         for e in experiments[:8]
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     lines = ["| name | exit | elapsed_ms | stdout_preview |", "|------|------|------------|----------------|"]
     for exp, result in zip(experiments[:8], results):
-        name = exp.get("name", "?")
         if isinstance(result, Exception):
-            lines.append(f"| {name} | -1 | — | [error: {result}] |")
+            lines.append(f"| {exp.name} | -1 | — | [error: {result}] |")
         else:
             r: dict[str, Any] = result  # type: ignore[assignment]
             preview = r["output"].replace("\n", " ")[:80]
-            lines.append(f"| {name} | {r['exit']} | {r['elapsed_ms']} | {preview} |")
+            lines.append(f"| {exp.name} | {r['exit']} | {r['elapsed_ms']} | {preview} |")
 
     return "\n".join(lines)
 

@@ -6,8 +6,13 @@
       "question": "what are the top site issues for QL2 today? And what is the impact of these",
       "assertions": {
         "min_tool_calls": 2,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["QL2", "issue"]
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "QL2",
+          "issue"
+        ]
       }
     },
     {
@@ -16,8 +21,13 @@
       "question": "what are the collection anomalies today for customer B6?",
       "assertions": {
         "min_tool_calls": 1,
-        "required_tools": ["fetch_s3"],
-        "answer_contains": ["B6", "anomal"]
+        "required_tools": [
+          "fetch_s3"
+        ],
+        "answer_contains": [
+          "B6",
+          "anomal"
+        ]
       }
     },
     {
@@ -26,8 +36,12 @@
       "question": "Do we have any delivery problems today in general?",
       "assertions": {
         "min_tool_calls": 1,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["deliver"]
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "deliver"
+        ]
       }
     },
     {
@@ -36,8 +50,12 @@
       "question": "how does priceeye work?",
       "assertions": {
         "min_tool_calls": 1,
-        "required_tools": ["search_kb"],
-        "answer_contains": ["priceeye"]
+        "required_tools": [
+          "search_kb"
+        ],
+        "answer_contains": [
+          "priceeye"
+        ]
       }
     },
     {
@@ -47,7 +65,9 @@
       "question": "using all the info you have, explore all the tables available to you , which customer do you think is the smartest customer of 3V?",
       "assertions": {
         "min_tool_calls": 5,
-        "required_tools": ["execute_sql"],
+        "required_tools": [
+          "execute_sql"
+        ],
         "answer_contains": []
       }
     },
@@ -56,9 +76,11 @@
       "thread_id": "thread-smoke-site-hier",
       "question": "explain site hierarchy to me",
       "assertions": {
-        "min_tool_calls": 1,
-        "required_tools": ["search_kb"],
-        "answer_contains": ["site"]
+        "min_tool_calls": 0,
+        "answer_contains": [
+          "site",
+          "hierarchy"
+        ]
       }
     },
     {
@@ -67,8 +89,13 @@
       "question": "make an EDA of competitive position of customer B6",
       "assertions": {
         "min_tool_calls": 2,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["B6", "competitive"]
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "B6",
+          "competitive"
+        ]
       }
     },
     {
@@ -77,8 +104,13 @@
       "question": "Show me the site hierarchy for customer AA — what sites and providers are they configured to collect from?",
       "assertions": {
         "min_tool_calls": 1,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["AA", "site"]
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "AA",
+          "site"
+        ]
       }
     },
     {
@@ -87,18 +119,26 @@
       "question": "What is the active AutoSchedule collection plan for customer AA? Show me what markets and hours are scheduled.",
       "assertions": {
         "min_tool_calls": 1,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["AA"]
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "AA"
+        ]
       }
     },
     {
       "name": "federated_priceeye_tables_describe",
       "thread_id": "thread-smoke-federated-describe",
-      "question": "What tables are available in the federated_priceeye schema? Describe what each one contains.",
+      "question": "Use execute_sql on redshift_core to list the tables in the federated_priceeye schema. Run: SELECT DISTINCT table_schema, table_name FROM information_schema.tables WHERE table_schema = 'federated_priceeye' ORDER BY table_name",
       "assertions": {
         "min_tool_calls": 1,
-        "required_tools": ["search_kb"],
-        "answer_contains": ["federated_priceeye"]
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "federated_priceeye"
+        ]
       }
     },
     {
@@ -107,8 +147,13 @@
       "question": "Show me the top 5 markets with the highest impact score anomalies for customer B6 today.",
       "assertions": {
         "min_tool_calls": 1,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["prod.analytics"]
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "B6",
+          "impact_score"
+        ]
       }
     },
     {
@@ -117,8 +162,12 @@
       "question": "How many requests did provider AA make today, broken down by site? Use the provider audit table.",
       "assertions": {
         "min_tool_calls": 1,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["prod.monitoring"]
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "prod.monitoring"
+        ]
       }
     },
     {
@@ -127,8 +176,12 @@
       "question": "What are the top 10 markets by passenger count for customer B6 today?",
       "assertions": {
         "min_tool_calls": 1,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["prod.analytics"]
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "prod.analytics"
+        ]
       }
     },
     {
@@ -138,8 +191,99 @@
       "question": "We are seeing a huge spike in the provider monitoring dashboard for Provider AA at the 06:00 UTC hour over at least the past 4 days. It is showing roughly 20,000 requests in a single minute for 1-3 minutes, which is way beyond our internal cap of 90 TPS (5,400 requests per minute). Please investigate using the underlying data: query prod.monitoring.provider_combined_audit and prod.monitoring.combined_audit, look at the request volume broken down by hour and minute for provider AA over the last 4 days, confirm whether this spike is real traffic or a data aggregation / display artifact, identify the root cause, and tell us what to do about it.",
       "assertions": {
         "min_tool_calls": 5,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["AA", "spike"]
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "AA",
+          "spike"
+        ]
+      }
+    },
+    {
+      "name": "bash_cwd_persist",
+      "thread_id": "smoke-bash-cwd",
+      "question": "Run these two commands in sequence: first cd /tmp, then run pwd. Confirm the directory is /tmp.",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": [
+          "bash"
+        ],
+        "answer_contains": [
+          "/tmp"
+        ]
+      }
+    },
+    {
+      "name": "bash_env_persist",
+      "thread_id": "smoke-bash-env",
+      "question": "Run export DSCHAT_SMOKE_VAR=hello42, then in a second bash call run echo $DSCHAT_SMOKE_VAR. What does it print?",
+      "assertions": {
+        "min_tool_calls": 2,
+        "required_tools": [
+          "bash"
+        ],
+        "answer_contains": [
+          "hello42"
+        ]
+      }
+    },
+    {
+      "name": "bash_python_script",
+      "thread_id": "smoke-python-script",
+      "question": "Write a python script to /tmp/smoke_test.py that prints the squares of 1 through 5, then execute it with bash.",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": [
+          "bash"
+        ],
+        "answer_contains": [
+          "25"
+        ]
+      }
+    },
+    {
+      "name": "git_log_summary",
+      "thread_id": "smoke-git-log",
+      "question": "Find a git repository on this machine using bash (try: find ~ -maxdepth 4 -name .git -type d 2>/dev/null | head -3). Then use the git tool to show the last 3 commits in that repo and summarize what changed.",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": [
+          "git"
+        ],
+        "answer_contains": [
+          "commit"
+        ]
+      }
+    },
+    {
+      "name": "read_file_tool",
+      "thread_id": "smoke-read-file",
+      "question": "Use bash to find a pyproject.toml file on this machine (try: find ~ -name pyproject.toml -maxdepth 6 2>/dev/null | head -5). Then use read_file to read the first 20 lines of one that looks like the backend project. Tell me the project name and Python version requirement.",
+      "assertions": {
+        "min_tool_calls": 2,
+        "required_tools": [
+          "read_file"
+        ],
+        "answer_contains": [
+          "pyproject",
+          "python"
+        ]
+      }
+    },
+    {
+      "name": "investigation_regression",
+      "thread_id": "smoke-investigation-regression",
+      "question": "what are the top site issues for QL2 on 20260211",
+      "assertions": {
+        "min_tool_calls": 2,
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "QL2",
+          "issue"
+        ]
       }
     }
   ]

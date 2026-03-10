@@ -29,7 +29,7 @@ sys.path.insert(0, str(BACKEND_ROOT))
 
 from agents import Runner  # type: ignore[import]
 
-from app.agents.investigation_agent import build_investigation_agent
+from app.agents.ds_agent import build_agent
 from app.investigation.runtime import cleanup_thread_workspace
 
 
@@ -56,7 +56,7 @@ class _CliAgentContext:
         if text:
             self.progress_events.append(f"{icon} {text}".strip())
 
-    async def stream_widget(self, widget: Any, **kwargs: Any) -> None:
+    async def stream_widget(self, widget: Any, copy_text: str | None = None, **kwargs: Any) -> None:
         pass
 
 
@@ -74,6 +74,15 @@ def _compact_json(text: str, max_len: int = 300) -> str:
     return rendered[:max_len - 3] + "..." if len(rendered) > max_len else rendered
 
 
+def _raw_get(raw: Any, key: str, default: str = "") -> str:
+    """Get a field from raw_item whether it's a dict or an object."""
+    if raw is None:
+        return default
+    if isinstance(raw, dict):
+        return str(raw.get(key) or default)
+    return str(getattr(raw, key, None) or default)
+
+
 def _extract_tool_calls(result: Any) -> list[dict[str, str]]:
     calls: dict[str, dict[str, str]] = {}
     ordered_ids: list[str] = []
@@ -82,20 +91,30 @@ def _extract_tool_calls(result: Any) -> list[dict[str, str]]:
         item_type = getattr(item, "type", "")
         raw = getattr(item, "raw_item", None)
         if item_type == "tool_call_item":
-            call_id = str(getattr(raw, "call_id", "") or f"call_{counter}")
+            # Responses API: raw may be a dict with "id"/"call_id"/"name"/"arguments"
+            call_id = _raw_get(raw, "call_id") or _raw_get(raw, "id") or f"call_{counter}"
             counter += 1
-            name = str(getattr(raw, "name", "") or "unknown_tool")
-            args = str(getattr(raw, "arguments", "") or "")
+            name = _raw_get(raw, "name") or "unknown_tool"
+            args = _raw_get(raw, "arguments")
             calls[call_id] = {"name": name, "arguments": _compact_json(args), "output": ""}
             ordered_ids.append(call_id)
         elif item_type == "tool_call_output_item":
-            call_id = str(getattr(raw, "call_id", "") or getattr(item, "call_id", ""))
-            output = str(getattr(item, "output", "") or getattr(raw, "output", "") or "")
-            if call_id not in calls:
-                calls[call_id] = {"name": "unknown_tool", "arguments": "", "output": _compact_json(output)}
-                ordered_ids.append(call_id)
-            else:
+            # Responses API: call_id may be on raw dict or on item directly
+            call_id = (
+                _raw_get(raw, "call_id")
+                or str(getattr(item, "call_id", "") or "")
+            )
+            # output may be on item.output (str) or raw["output"]
+            output = (
+                str(getattr(item, "output", None) or "")
+                or _raw_get(raw, "output")
+            )
+            if call_id and call_id in calls:
                 calls[call_id]["output"] = _compact_json(output)
+            elif output:  # unmatched output — show as unknown_tool
+                uid = f"out_{counter}"
+                calls[uid] = {"name": "unknown_tool", "arguments": "", "output": _compact_json(output)}
+                ordered_ids.append(uid)
     return [calls[cid] for cid in ordered_ids]
 
 
@@ -300,7 +319,7 @@ async def main() -> int:
     log_path = out_dir / f"e2e_smoke_{ts}.log"
     md_path = out_dir / f"e2e_smoke_{ts}.md"
 
-    agent = build_investigation_agent(args.model)
+    agent = build_agent(args.model)
 
     print(f"Running {len(cases)} cases with model={args.model} (concurrency={args.concurrency})")
     print(f"Output: {log_path.name}, {md_path.name}")

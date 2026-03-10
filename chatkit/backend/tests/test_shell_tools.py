@@ -376,12 +376,13 @@ class TestRunParallel:
 
     def test_run_parallel_two_commands(self):
         """run_parallel runs two commands and returns comparison table."""
+        from app.tools.shell_tools import Experiment
         run_parallel = self._get_run_parallel()
         ctx = make_ctx()
         async def run():
             return await run_parallel(ctx, [
-                {"name": "echo_a", "command": "echo aaa"},
-                {"name": "echo_b", "command": "echo bbb"},
+                Experiment(name="echo_a", command="echo aaa"),
+                Experiment(name="echo_b", command="echo bbb"),
             ])
         out = asyncio.run(run())
         assert "echo_a" in out
@@ -390,11 +391,12 @@ class TestRunParallel:
 
     def test_run_parallel_too_many(self):
         """run_parallel rejects more than 8 experiments."""
+        from app.tools.shell_tools import Experiment
         run_parallel = self._get_run_parallel()
         ctx = make_ctx()
         async def run():
             return await run_parallel(ctx, [
-                {"name": f"e{i}", "command": "echo x"} for i in range(9)
+                Experiment(name=f"e{i}", command="echo x") for i in range(9)
             ])
         out = asyncio.run(run())
         assert "Error" in out
