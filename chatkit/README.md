@@ -104,323 +104,92 @@ E2E smoke reports with full model output and debug steps are written under:
 
 ## Architecture
 
-### 1. System Overview
-
 ```
- ┌──────────────────────────────────────────────────────────────────────┐
- │                          Browser  :3000                               │
- │                                                                       │
- │   ┌──────────────────────────┐   ┌───────────────────────────────┐   │
- │   │      ChatKitPanel        │   │       SessionStateBar          │   │
- │   │  · model selector        │   │  polls GET /session/{id}       │   │
- │   │  · message composer      │   │  shows shell cwd + idle time   │   │
- │   │  · SSE stream renderer   │   └───────────────────────────────┘   │
- │   │  · Card widget display   │                                        │
- │   └──────────┬───────────────┘                                        │
- └──────────────┼───────────────────────────────────────────────────────┘
-                │  POST /chatkit  (SSE text/event-stream)
-                │  PUT/GET /chatkit/uploads/{id}  (attachments)
-                ▼
- ┌──────────────────────────────────────────────────────────────────────┐
- │                       FastAPI backend  :8000                          │
- │                         app/main.py                                   │
- │                                                                       │
- │   ┌──────────────────────────────────────────────────────────────┐   │
- │   │                    StarterChatServer                          │   │
- │   │   · SQLiteStore  →  chatkit.sqlite  (threads + messages)     │   │
- │   │   · LocalDiskAttachmentStore  →  chatkit_attachments/        │   │
- │   │   · loads last 50 thread items, converts to agent_input[]    │   │
- │   │   · picks model from inference_options (default gpt-5.3)     │   │
- │   └──────────────────────────┬───────────────────────────────────┘   │
- │                              │ build_agent(model)                     │
- │                              ▼                                        │
- │   ┌──────────────────────────────────────────────────────────────┐   │
- │   │               DS Chat Investigation Agent                     │   │
- │   │               (OpenAI Agents SDK)                             │   │
- │   │                                                               │   │
- │   │   System prompt assembled fresh each request:                 │   │
- │   │   · today's date + current sales_date                        │   │
- │   │   · 405-table metadata  (tier, freshness, partitions)        │   │
- │   │   · provider/site/customer code aliases                       │   │
- │   │   · 18 investigation patterns + SQL rules                     │   │
- │   │                                                               │   │
- │   │   Runner.run_streamed()  ←→  tool calls  (up to 50 turns)   │   │
- │   └──────────────────────────┬───────────────────────────────────┘   │
- │                              │ SSE chunks                             │
- │                              ▼                                        │
- │              stream_agent_response()  →  StreamingResponse            │
- │              [post-turn] delete datasets · close shell · title gen    │
- └──────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-### 2. Agent ↔ Tools ↔ Data
-
-```
-                    ┌─────────────────────────────────────┐
-                    │         Investigation Agent          │
-                    │   reasons → picks tool → observes   │
-                    │   → reasons → picks tool → …        │
-                    └──┬──────┬──────┬──────┬──────┬──────┘
-                       │      │      │      │      │
-              ┌────────┘  ┌───┘  ┌───┘  ┌───┘  ┌───┘
-              ▼           ▼      ▼      ▼      ▼      ▼
-       ┌────────────┐ ┌───────┐ ┌──────────┐ ┌────────────┐ ┌──────────────┐ ┌───────────────┐
-       │execute_sql │ │fetch  │ │run_python│ │search_kb   │ │inspect_table │ │resolve_codes  │
-       │            │ │_s3    │ │          │ │            │ │              │ │               │
-       │SqlGuard    │ │       │ │sandboxed │ │FTS over    │ │svv_columns   │ │common_codes   │
-       │ read-only  │ │list   │ │exec():   │ │ tables.md  │ │ (Redshift)   │ │ .json         │
-       │ LIMIT≤120k │ │prefix │ │load_     │ │ docs/*.md  │ │DESCRIBE      │ │+ MySQL lookup │
-       │            │ │→ read │ │dataset() │ │(27 files)  │ │ (MySQL)      │ │ priceeye.     │
-       │Partition   │ │ CSV/  │ │save_plot │ │            │ │              │ │ provider/site │
-       │Guard warns │ │Parq/  │ │→ Card    │ │knowledge   │ │upserts into  │ │ /customer     │
-       │on missing  │ │JSONL  │ │ widget   │ │ .sqlite    │ │knowledge     │ │               │
-       │sales_date  │ │       │ │          │ │            │ │ .sqlite      │ │               │
-       └─────┬──────┘ └──┬────┘ └────┬─────┘ └────────────┘ └──────┬───────┘ └───────────────┘
-             │           │           │                               │
-             ▼           ▼           ▼                               ▼
-    ┌──────────────────────────────────────────────────────────────────────────────────┐
-    │                           DatasourceRegistry                                     │
-    │            ensure_credentials():  zsh -lc "assume 3VDEV; env -0"                │
-    │            → injects AWS_ACCESS_KEY_ID / SECRET / SESSION_TOKEN into env         │
-    │            → cached after first call (singleton per process)                     │
-    │                                                                                   │
-    │  datasource_for_table() routing:                                                 │
-    │  ┌─────────────────────────────┐  ┌──────────────────────────────────────────┐  │
-    │  │ prefix → redshift_core      │  │ prefix → redshift_analytics (default)    │  │
-    │  │  prod.monitoring.*          │  │  prod.analytics.*                        │  │
-    │  │  prod.site_metrics.*        │  │  prod.common_output.*                    │  │
-    │  │  prod.scheduling.*          │  │  prod.data_lakes.*                       │  │
-    │  │  billing_db.*               │  │  prod.flight_summary.*                   │  │
-    │  │  local.*                    │  │  prod.tax_reg.*                          │  │
-    │  └─────────────────────────────┘  │  prod.billing.*   prod.priceeye_output.* │  │
-    │  ┌─────────────────────────────┐  └──────────────────────────────────────────┘  │
-    │  │ prefix → mysql_priceeye     │                                                 │
-    │  │  priceeye.*                 │                                                 │
-    │  │  taxregression.*            │                                                 │
-    │  └─────────────────────────────┘                                                 │
-    └──────────┬─────────────────────────┬──────────────────────────────┬─────────────┘
-               ▼                         ▼                              ▼
-  ┌────────────────────────┐  ┌──────────────────────────┐  ┌───────────────────────┐
-  │  Redshift Serverless   │  │  Redshift Serverless     │  │  MySQL  (PriceEye)    │
-  │  Analytics cluster     │  │  Core cluster            │  │                       │
-  │  (threevictors         │  │  (threevictors           │  │  priceeye.*           │
-  │   RedshiftConnector)   │  │   RedshiftConnector)     │  │  taxregression.*      │
-  └────────────────────────┘  └──────────────────────────┘  └───────────────────────┘
-
-  fetch_s3 ──────────────────────────────────────────────────────────────────────────────▶
-                                                                   ┌───────────────────────┐
-                                                                   │  S3  (threevictors    │
-                                                                   │  s3_util.S3Util)      │
-                                                                   │  CSV / Parquet / JSONL│
-                                                                   └───────────────────────┘
-```
-
----
-
-### 3. Per-Turn Workspace Lifecycle
-
-```
-  User sends message
-        │
-        ▼
-  ┌─────────────────────────────────────────────────────────────────┐
-  │  WorkspaceManager   .work/sessions/{thread_id}/{run_id}/        │
-  │                                                                  │
-  │  execute_sql ──────▶  {dataset_id}.parquet  ◀── load_dataset()  │
-  │  fetch_s3    ──────▶  {dataset_id}.parquet       (in run_python)│
-  │  run_python  ──────▶  {dataset_id}.parquet                      │
-  │                        manifest.json  (query log, event log)     │
-  │                                                                  │
-  │  run_python → save_plot() ──▶  /tmp/{name}.png                  │
-  │                                    │                             │
-  │                                    ▼                             │
-  │                          _publish_image_widget()                 │
-  │                          · reads PNG bytes                       │
-  │                          · saves to LocalDiskAttachmentStore     │
-  │                          · streams Card widget via SSE ──────────┼──▶ browser
-  └─────────────────────────────────────────────────────────────────┘
-        │  turn ends
-        ▼
-  cleanup_thread_workspace(mode="ephemeral_manifest")
-  · deletes  *.parquet  (datasets freed)
-  · retains  manifest.json
-  close_session(thread_id)  →  shell process torn down
-  _maybe_set_thread_title() →  gpt-5-mini call → title saved to SQLite
-```
-
----
-
-### 4. Knowledge Base
-
-```
-  ┌──────────────────────────────────────────────────────────────────────────┐
-  │  Static KB  (app/investigation/knowledge/)                                │
-  │                                                                            │
-  │  common_table_live_metadata.json ──▶ injected into system prompt         │
-  │    405 tables · tier · max_sales_date · partitions · first 15 columns    │
-  │    regenerated by:  scripts/refresh_table_metadata.py  (~55 min sweep)   │
-  │                                                                            │
-  │  common_codes.json ──────────────▶ injected into system prompt +         │
-  │    providers / sites / customers     EntityResolver.resolve()             │
-  │                                                                            │
-  │  sql_best_practices.md ──────────▶ FTS indexed in knowledge.sqlite       │
-  │  tables.md                                                                │
-  │  docs/*.md  (27 files, ~15 KB each)                                      │
-  │    priceeye_system.md   aws_infrastructure.md   ds-priceeye-analytics.md │
-  │    ds-internal-monitoring.md   ds-customer-monitoring.md   … etc.         │
-  └──────────────────────────────┬───────────────────────────────────────────┘
-                                 │  indexed into
-                                 ▼
-                    ┌────────────────────────────┐
-                    │  knowledge.sqlite           │
-                    │  (.work/knowledge/)         │
-                    │  · FTS full-text index      │
-                    │  · table_metadata cache     │
-                    │    (upserted by             │
-                    │     inspect_table calls)    │
-                    └────────────────────────────┘
-                                 │
-                                 │  queried by search_kb(query)
-                                 ▼
-                    agent gets: candidate_tables[], table_hints
-```
-
----
-
-### Repository Layout
-
-```
-ds-chat-2/
-├── .gitignore
-├── .claude/
-│   └── settings.local.json                         # Claude Code local settings
-├── .codex/
-│   └── environments/
-│       └── environment.toml                        # OpenAI Codex cloud agent config (runs assume 3VDEV; npm run dev)
-├── package.json                                    # Root workspace – delegates to chatkit/
-├── package-lock.json
-├── tables.md                                       # Root-level table quick reference
-│
-└── chatkit/                                        # Main application workspace
-    ├── README.md                                   # ← this file
-    ├── package.json                                # npm scripts: dev, backend:verify, backend:smoke, etc.
-    ├── package-lock.json
-    ├── .env.example                                # Required env vars (OPENAI_API_KEY, VITE_CHATKIT_API_URL, etc.)
-    ├── .gitignore
-    │
-    ├── backend/                                    # Python FastAPI service (:8000)
-    │   ├── pyproject.toml                          # Package config; deps: fastapi, openai-agents, openai-chatkit, threevictors
-    │   ├── .gitignore
-    │   ├── docs/
-    │   │   └── investigation-runtime.md            # Internal doc: investigation runtime architecture
-    │   │
-    │   ├── scripts/                                # Maintenance & smoke scripts
-    │   │   ├── run.sh                              # Dev launcher (uvicorn + hot-reload)
-    │   │   ├── run-production.sh                   # Production launcher
-    │   │   ├── verify_investigation.sh             # Full verify: unit tests + connectivity + E2E smokes
-    │   │   ├── refresh_table_metadata.py           # Sweeps Redshift/MySQL/S3 → common_table_live_metadata.json
-    │   │   ├── refresh_aws_infra.py                # Regenerates aws_infrastructure.md KB doc on demand
-    │   │   ├── enrich_common_tables.py             # Adds tier/freshness metadata to common tables JSON
-    │   │   ├── smoke_threevictors.py               # Live connectivity smoke (Redshift + MySQL + S3)
-    │   │   └── smoke_e2e.py                        # End-to-end agent smoke runner
-    │   │
-    │   ├── tests/                                  # Test suite
-    │   │   ├── cli_chat.py                         # Interactive CLI chat (no frontend needed)
-    │   │   ├── run_e2e_smoke.py                    # Runs e2e_investigation_cases.json against live agent
-    │   │   ├── e2e_investigation_cases.json        # Declarative E2E test cases (site issues, anomalies, billing, etc.)
-    │   │   ├── test_investigation_runtime.py       # Unit tests: executor, workspace, catalog, datasources
-    │   │   ├── test_shell_tools.py                 # Unit tests: shell_tools sandbox
-    │   │   └── test_table_sweep.py                 # Unit tests: metadata sweep logic
-    │   │
-    │   └── app/                                    # Application source
-    │       ├── __init__.py
-    │       ├── main.py                             # FastAPI entry: chatkit_endpoint(), mounts ChatKit server
-    │       ├── server.py                           # StarterChatServer: SQLite thread store, stream_agent_response()
-    │       ├── persistent_store.py                 # SQLite-backed thread/message persistence
-    │       ├── attachment_store.py                 # File attachment upload/retrieval
-    │       ├── chatkit.sqlite                      # SQLite DB (thread + message store, gitignored)
-    │       │
-    │       ├── agents/                             # Agent definitions (OpenAI Agents SDK)
-    │       │   ├── __init__.py
-    │       │   ├── investigation_agent.py          # Main agent: _build_instructions() with KB injection, 8 tools
-    │       │   └── ds_agent.py                     # DS agent: AWS/infra-aware variant with lean prompt
-    │       │
-    │       ├── tools/                              # Tool implementations exposed to agents
-    │       │   ├── __init__.py
-    │       │   ├── investigation_tools.py          # 8 tools: extract_sql_to_dataset, extract_s3_to_dataset,
-    │       │   │                                   #   run_python, resolve_codes, search_kb,
-    │       │   │                                   #   inspect_table_metadata, run_table_eda, publish_image
-    │       │   └── shell_tools.py                  # Sandboxed shell execution tools
-    │       │
-    │       └── investigation/                      # Core investigation pipeline
-    │           ├── __init__.py
-    │           ├── catalog.py                      # Dataset catalog: register/lookup artifacts by dataset_id
-    │           ├── datasources.py                  # Connectors: Redshift (analytics+core), MySQL, S3 via threevictors
-    │           ├── entity_resolution.py            # Resolves "JetBlue"→B6, "American"→AA via common_codes.json
-    │           ├── executor.py                     # SQL executor (SqlGuard read-only, PartitionGuard warnings, LIMIT clamp)
-    │           ├── runtime.py                      # Investigation pipeline runtime: orchestrates tools per turn
-    │           ├── shell_session.py                # Persistent shell session for run_python sandbox
-    │           ├── tools.py                        # Core tool logic (lower-level, called by investigation_tools.py)
-    │           ├── workspace.py                    # Per-thread per-run artifact storage at .work/sessions/{thread}/{run}/
-    │           │
-    │           └── knowledge/                      # Static knowledge base (editable, loaded at request time)
-    │               ├── tables.md                   # Human-readable table reference
-    │               ├── sql_best_practices.md       # SQL safety rules, partition filter requirements
-    │               ├── common_codes.json           # Provider/site/customer code→name aliases
-    │               ├── common_table_live_metadata.json  # 405-table live metadata: tier, max_sales_date,
-    │               │                               #   partitions, columns — regenerated by refresh_table_metadata.py
-    │               └── docs/                       # System documentation KB (27 files, ~15 KB each)
-    │                   ├── README.md               # KB index
-    │                   ├── overview.md             # PriceEye platform overview
-    │                   ├── priceeye_system.md      # 15KB comprehensive doc: 18 investigation patterns, process→table map
-    │                   ├── aws_infrastructure.md   # 3VDEV+3VPROD AWS inventory (Redshift, S3, Glue, Lambda, EMR)
-    │                   ├── priceeye-v2.md          # priceeye-v2 collection engine
-    │                   ├── priceeye-analytics.md   # Analytics pipeline overview
-    │                   ├── priceeye-monitoring.md  # Monitoring pipeline
-    │                   ├── priceeye-scheduling.md  # Scheduling system
-    │                   ├── priceeye-providers.md   # Provider configs and site codes
-    │                   ├── priceeye-customers.md   # Customer configs
-    │                   ├── priceeye-applications.md
-    │                   ├── priceeye-api.md
-    │                   ├── priceeye-vacations.md
-    │                   ├── ds-priceeye-analytics.md    # ds-priceeye-analytics repo (anomaly models)
-    │                   ├── ds-priceeye-data-collection.md  # ds-priceeye-data-collection repo (site metrics, ingest TTL)
-    │                   ├── ds-priceeye-enrichment.md   # ds-priceeye-enrichment repo (tax regression)
-    │                   ├── ds-customer-monitoring.md   # ds-customer-monitoring repo (billing)
-    │                   ├── ds-internal-monitoring.md   # ds-internal-monitoring repo (combined_audit)
-    │                   ├── ds-threevictors.md          # threevictors connector library
-    │                   ├── 3v-build-deploy.md          # Build and deploy patterns
-    │                   ├── ingest.md                   # Ingest pipeline
-    │                   ├── ingest-cache.md             # Cache ingest
-    │                   ├── ingest-sources.md           # Ingest source configs
-    │                   ├── federated_schemas.md        # Redshift Spectrum federated schemas
-    │                   ├── partition-creator.md        # Partition creator Lambda
-    │                   ├── event-launcher.md           # Event launcher
-    │                   ├── emr.md                      # EMR Spark cluster config
-    │                   └── spark-v3.md                 # Spark v3 job patterns
-    │
-    └── frontend/                                   # React+TypeScript UI (:3000)
-        ├── package.json
-        ├── package-lock.json
-        ├── index.html
-        ├── vite.config.ts                          # Vite config: proxies /chatkit → :8000
-        ├── tsconfig.json
-        ├── tsconfig.node.json
-        ├── postcss.config.mjs
-        ├── eslint.config.mjs
-        ├── .gitignore
-        ├── public/
-        │   └── favicon.ico
-        └── src/
-            ├── main.tsx                            # React entry point
-            ├── App.tsx                             # Root component
-            ├── index.css                           # Tailwind base styles
-            ├── vite-env.d.ts
-            ├── lib/
-            │   └── config.ts                       # VITE_CHATKIT_API_URL, VITE_CHATKIT_API_DOMAIN_KEY
-            └── components/
-                ├── ChatKitPanel.tsx                # Main chat UI: model selector, widget handlers, SSE streaming
-                └── SessionStateBar.tsx             # Session status bar (thread ID, model, connection state)
+ ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+ │  Browser  :3000  (React + Vite)                                                              │
+ │                                                                                              │
+ │  ┌──────────────────────────────────────┐    ┌────────────────────────────────────────┐     │
+ │  │  ChatKitPanel.tsx                    │    │  SessionStateBar.tsx                   │     │
+ │  │  · model selector (gpt-5.3 / mini)  │    │  polls GET /chatkit/session/{thread_id}│     │
+ │  │  · message input + file attach      │    │  shows shell cwd + idle secs           │     │
+ │  │  · SSE stream renderer              │    └────────────────────────────────────────┘     │
+ │  │  · Card widget display (plots/data) │                                                    │
+ │  └──────────────────┬───────────────── ┘                                                    │
+ └─────────────────────┼────────────────────────────────────────────────────────────────────── ┘
+                       │ POST /chatkit  (SSE)      PUT/GET /chatkit/uploads/{id}  (attachments)
+                       ▼
+ ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+ │  FastAPI  :8000   app/main.py                                                                │
+ │                                                                                              │
+ │  ┌────────────────────────────────────────────────────────────────────────────────────────┐ │
+ │  │  StarterChatServer   app/server.py                                                     │ │
+ │  │  · SQLiteStore → chatkit.sqlite  (threads, messages, attachments)                     │ │
+ │  │  · load last 50 thread items → DSChatThreadItemConverter → agent_input[]              │ │
+ │  │  · read model from inference_options  (default: gpt-5.3)                              │ │
+ │  └──────────────────────────────────────┬─────────────────────────────────────────────── ┘ │
+ │                                         │  build_agent(model)                               │
+ │                                         ▼                                                   │
+ │  ┌────────────────────────────────────────────────────────────────────────────────────────┐ │
+ │  │  DS Chat Investigation Agent   app/agents/investigation_agent.py                      │ │
+ │  │  (OpenAI Agents SDK · Runner.run_streamed · up to 50 turns)                           │ │
+ │  │                                                                                        │ │
+ │  │  system prompt built fresh each request:                                               │ │
+ │  │  ┌──────────────────────────────────────────────────────────────────────────────────┐ │ │
+ │  │  │  knowledge/common_table_live_metadata.json  → 405 tables, tier, freshness        │ │ │
+ │  │  │  knowledge/common_codes.json               → provider/site/customer aliases      │ │ │
+ │  │  │  knowledge/docs/priceeye_system.md         → 18 investigation patterns           │ │ │
+ │  │  │  knowledge/sql_best_practices.md           → partition rules, LIMIT caps         │ │ │
+ │  │  │  today's date + current sales_date                                               │ │ │
+ │  │  └──────────────────────────────────────────────────────────────────────────────────┘ │ │
+ │  │                                                                                        │ │
+ │  │  tools:  execute_sql · fetch_s3 · run_python · search_kb ·                           │ │
+ │  │          inspect_table · resolve_codes · browse_repo_files                            │ │
+ │  └───┬───────────┬──────────┬──────────┬──────────┬──────────┬─────────────────────────┘ │
+ │      │           │          │          │          │          │   SSE chunks               │
+ │      ▼           ▼          ▼          ▼          ▼          ▼       │                    │
+ │  ┌───────┐  ┌─────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌───────┐  │                   │
+ │  │execute│  │ fetch   │ │  run   │ │search  │ │inspect │ │resolve│  │                   │
+ │  │ _sql  │  │  _s3    │ │_python │ │  _kb   │ │_table  │ │_codes │  │                   │
+ │  │       │  │         │ │        │ │        │ │        │ │       │  │                   │
+ │  │SqlGrd │  │list     │ │sandbox │ │FTS     │ │svv_col │ │codes  │  │                   │
+ │  │LIMIT  │  │prefix   │ │exec(); │ │27 docs │ │DESCRIBE│ │.json  │  │                   │
+ │  │≤120k  │  │CSV/Parq │ │load_ds │ │→knowl. │ │→knowl. │ │+MySQL │  │                   │
+ │  │PartGrd│  │/JSONL   │ │save_   │ │.sqlite │ │.sqlite │ │lookup │  │                   │
+ │  │       │  │→df      │ │plot →  │ │        │ │        │ │       │  │                   │
+ │  │       │  │         │ │Card ───┼─┼────────┼─┼────────┼─┼───────┼──┘ (widget SSE)     │
+ │  └───┬───┘  └────┬────┘ └───┬────┘ └────────┘ └───┬────┘ └───────┘                    │
+ │      │           │          │                      │                                    │
+ │      │     ┌─────┴──────────┴──────┐               │                                   │
+ │      │     │   WorkspaceManager    │               │                                   │
+ │      │     │  .work/sessions/      │               │                                   │
+ │      ▼     │  {thread}/{run}/      │               │                                   │
+ │      │     │  *.parquet (datasets) │◀──────────────┘                                   │
+ │      │     │  manifest.json (log)  │  inspect_table upserts to knowledge.sqlite         │
+ │      │     └───────────────────────┘                                                   │
+ │      │       [post-turn cleanup: delete *.parquet · close shell · gen title → SQLite]   │
+ │      │                                                                                   │
+ │      ▼                                                                                   │
+ │  ┌────────────────────────────────────────────────────────────────────────────────────┐ │
+ │  │  DatasourceRegistry   app/investigation/datasources.py                             │ │
+ │  │  ensure_credentials():  zsh -lc "assume 3VDEV; env -0"  (cached, runs once)       │ │
+ │  │  → AWS_ACCESS_KEY_ID / SECRET / SESSION_TOKEN injected into process env            │ │
+ │  │                                                                                    │ │
+ │  │  datasource_for_table() routing:                                                   │ │
+ │  │  prod.monitoring.*  prod.site_metrics.*  billing_db.*  local.*  ──▶ redshift_core  │ │
+ │  │  prod.analytics.*  prod.common_output.*  prod.tax_reg.*  (default) ▶ redshift_anal │ │
+ │  │  priceeye.*  taxregression.*  ────────────────────────────────────▶ mysql_priceeye │ │
+ │  └──────────────┬──────────────────────────┬────────────────────────────┬─────────── ┘ │
+ └─────────────────┼──────────────────────────┼────────────────────────────┼──────────────┘
+                   ▼                          ▼                            ▼
+   ┌───────────────────────┐  ┌───────────────────────┐  ┌───────────────────────────────┐
+   │  Redshift Serverless  │  │  Redshift Serverless  │  │  MySQL (PriceEye)             │
+   │  Analytics cluster    │  │  Core cluster         │  │  priceeye.*  taxregression.*  │
+   │  prod.analytics.*     │  │  prod.monitoring.*    │  └───────────────────────────────┘
+   │  prod.common_output.* │  │  prod.site_metrics.*  │
+   │  prod.tax_reg.*  etc. │  │  billing_db.*  etc.   │  ┌───────────────────────────────┐
+   └───────────────────────┘  └───────────────────────┘  │  S3  (fetch_s3 only)          │
+                                                          │  anomaly-datasets             │
+                                                          │  derived-common-output        │
+                                                          │  collection-anomalies  etc.   │
+                                                          └───────────────────────────────┘
 ```
