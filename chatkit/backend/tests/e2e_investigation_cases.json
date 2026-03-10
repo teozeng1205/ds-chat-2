@@ -285,6 +285,116 @@
           "issue"
         ]
       }
+    },
+    {
+      "name": "aws_s3_ls",
+      "thread_id": "smoke-aws-s3-ls",
+      "question": "run aws s3 ls and tell me the first 3 bucket names you see",
+      "assertions": {
+        "required_tools": ["bash"],
+        "min_tool_calls": 1,
+        "answer_contains": ["s3-"]
+      }
+    },
+    {
+      "name": "aws_athena_workgroups",
+      "thread_id": "smoke-aws-athena-wg",
+      "question": "Use the AWS CLI to list all Athena workgroups on this account and tell me the names you see.",
+      "assertions": {
+        "required_tools": ["bash"],
+        "min_tool_calls": 1,
+        "answer_contains": ["workgroup"]
+      }
+    },
+    {
+      "name": "aws_cloudwatch_alarms",
+      "thread_id": "smoke-aws-cw-alarms",
+      "question": "Run the AWS CLI command to describe all CloudWatch alarms that are currently in ALARM state. Tell me how many there are and list any alarm names you see.",
+      "assertions": {
+        "required_tools": ["bash"],
+        "min_tool_calls": 1,
+        "answer_contains": ["alarm"]
+      }
+    },
+    {
+      "name": "aws_stepfunctions_list",
+      "thread_id": "smoke-aws-sfn-list",
+      "question": "Use the AWS CLI to list all Step Functions state machines on this account. Show me their names.",
+      "assertions": {
+        "required_tools": ["bash"],
+        "min_tool_calls": 1,
+        "answer_contains": ["state machine"]
+      }
+    },
+    {
+      "name": "aws_lambda_list",
+      "thread_id": "smoke-aws-lambda-list",
+      "question": "Use the AWS CLI to list all Lambda functions on this account. Show me the function names and runtimes.",
+      "assertions": {
+        "required_tools": ["bash"],
+        "min_tool_calls": 1,
+        "answer_contains": ["function"]
+      }
+    },
+    {
+      "name": "aws_secretsmanager_list",
+      "thread_id": "smoke-aws-secrets-list",
+      "question": "Use the AWS CLI to list all secrets in Secrets Manager on this account. Tell me the secret names you see.",
+      "assertions": {
+        "required_tools": ["bash"],
+        "min_tool_calls": 1,
+        "answer_contains": ["secret"]
+      }
+    },
+    {
+      "name": "aws_rds_instances",
+      "thread_id": "smoke-aws-rds-list",
+      "question": "Use the AWS CLI to list all RDS DB instances and Aurora clusters on this account. Show me the instance IDs, engine types, and statuses.",
+      "assertions": {
+        "required_tools": ["bash"],
+        "min_tool_calls": 1,
+        "answer_contains": ["instance"]
+      }
+    },
+    {
+      "name": "aws_priceeye_health_snapshot",
+      "thread_id": "smoke-aws-health-snapshot",
+      "question": "Give me a PriceEye health report: check CloudWatch alarms in ALARM state, then look for recent failed executions in CustomerCentricStepFunction and AggregationAnomaliesStepFunction.",
+      "assertions": {
+        "required_tools": ["bash"],
+        "min_tool_calls": 2,
+        "answer_contains": ["alarm", "execution"]
+      }
+    },
+    {
+      "name": "aws_pipeline_failure_triage",
+      "thread_id": "smoke-aws-sfn-triage",
+      "question": "Check ProviderCentricStepFunction for failed executions. If there are failures, describe the most recent one and tell me the error.",
+      "assertions": {
+        "required_tools": ["bash"],
+        "min_tool_calls": 2,
+        "answer_contains": ["execution"]
+      }
+    },
+    {
+      "name": "aws_data_freshness_glue",
+      "thread_id": "smoke-aws-glue-freshness",
+      "question": "Check if today's market anomaly data has landed — look at the most recent partitions in analytics_db for the market_level_anomalies table in Glue.",
+      "assertions": {
+        "required_tools": ["bash"],
+        "min_tool_calls": 1,
+        "answer_contains": ["partition"]
+      }
+    },
+    {
+      "name": "aws_logs_insights_lambda_errors",
+      "thread_id": "smoke-aws-logs-insights",
+      "question": "Use CloudWatch Logs Insights to query the last hour of logs from the anomalies_process_customer_v2 Lambda for ERROR messages. Tell me how many errors there were.",
+      "assertions": {
+        "required_tools": ["bash"],
+        "min_tool_calls": 2,
+        "answer_contains": ["log"]
+      }
     }
   ]
 }
