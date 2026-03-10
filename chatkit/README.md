@@ -101,3 +101,139 @@ E2E smoke reports with full model output and debug steps are written under:
   - `backend/app/investigation/knowledge/common_codes.json`
   - `backend/app/investigation/knowledge/task_recipes.json`
   - `backend/app/investigation/knowledge/sql_best_practices.md`
+
+## Repository Layout
+
+```
+ds-chat-2/
+├── .gitignore
+├── .claude/
+│   └── settings.local.json                         # Claude Code local settings
+├── .codex/
+│   └── environments/
+│       └── environment.toml                        # OpenAI Codex cloud agent config (runs assume 3VDEV; npm run dev)
+├── package.json                                    # Root workspace – delegates to chatkit/
+├── package-lock.json
+├── tables.md                                       # Root-level table quick reference
+│
+└── chatkit/                                        # Main application workspace
+    ├── README.md                                   # ← this file
+    ├── package.json                                # npm scripts: dev, backend:verify, backend:smoke, etc.
+    ├── package-lock.json
+    ├── .env.example                                # Required env vars (OPENAI_API_KEY, VITE_CHATKIT_API_URL, etc.)
+    ├── .gitignore
+    │
+    ├── backend/                                    # Python FastAPI service (:8000)
+    │   ├── pyproject.toml                          # Package config; deps: fastapi, openai-agents, openai-chatkit, threevictors
+    │   ├── .gitignore
+    │   ├── docs/
+    │   │   └── investigation-runtime.md            # Internal doc: investigation runtime architecture
+    │   │
+    │   ├── scripts/                                # Maintenance & smoke scripts
+    │   │   ├── run.sh                              # Dev launcher (uvicorn + hot-reload)
+    │   │   ├── run-production.sh                   # Production launcher
+    │   │   ├── verify_investigation.sh             # Full verify: unit tests + connectivity + E2E smokes
+    │   │   ├── refresh_table_metadata.py           # Sweeps Redshift/MySQL/S3 → common_table_live_metadata.json
+    │   │   ├── refresh_aws_infra.py                # Regenerates aws_infrastructure.md KB doc on demand
+    │   │   ├── enrich_common_tables.py             # Adds tier/freshness metadata to common tables JSON
+    │   │   ├── smoke_threevictors.py               # Live connectivity smoke (Redshift + MySQL + S3)
+    │   │   └── smoke_e2e.py                        # End-to-end agent smoke runner
+    │   │
+    │   ├── tests/                                  # Test suite
+    │   │   ├── cli_chat.py                         # Interactive CLI chat (no frontend needed)
+    │   │   ├── run_e2e_smoke.py                    # Runs e2e_investigation_cases.json against live agent
+    │   │   ├── e2e_investigation_cases.json        # Declarative E2E test cases (site issues, anomalies, billing, etc.)
+    │   │   ├── test_investigation_runtime.py       # Unit tests: executor, workspace, catalog, datasources
+    │   │   ├── test_shell_tools.py                 # Unit tests: shell_tools sandbox
+    │   │   └── test_table_sweep.py                 # Unit tests: metadata sweep logic
+    │   │
+    │   └── app/                                    # Application source
+    │       ├── __init__.py
+    │       ├── main.py                             # FastAPI entry: chatkit_endpoint(), mounts ChatKit server
+    │       ├── server.py                           # StarterChatServer: SQLite thread store, stream_agent_response()
+    │       ├── persistent_store.py                 # SQLite-backed thread/message persistence
+    │       ├── attachment_store.py                 # File attachment upload/retrieval
+    │       ├── chatkit.sqlite                      # SQLite DB (thread + message store, gitignored)
+    │       │
+    │       ├── agents/                             # Agent definitions (OpenAI Agents SDK)
+    │       │   ├── __init__.py
+    │       │   ├── investigation_agent.py          # Main agent: _build_instructions() with KB injection, 8 tools
+    │       │   └── ds_agent.py                     # DS agent: AWS/infra-aware variant with lean prompt
+    │       │
+    │       ├── tools/                              # Tool implementations exposed to agents
+    │       │   ├── __init__.py
+    │       │   ├── investigation_tools.py          # 8 tools: extract_sql_to_dataset, extract_s3_to_dataset,
+    │       │   │                                   #   run_python, resolve_codes, search_kb,
+    │       │   │                                   #   inspect_table_metadata, run_table_eda, publish_image
+    │       │   └── shell_tools.py                  # Sandboxed shell execution tools
+    │       │
+    │       └── investigation/                      # Core investigation pipeline
+    │           ├── __init__.py
+    │           ├── catalog.py                      # Dataset catalog: register/lookup artifacts by dataset_id
+    │           ├── datasources.py                  # Connectors: Redshift (analytics+core), MySQL, S3 via threevictors
+    │           ├── entity_resolution.py            # Resolves "JetBlue"→B6, "American"→AA via common_codes.json
+    │           ├── executor.py                     # SQL executor (SqlGuard read-only, PartitionGuard warnings, LIMIT clamp)
+    │           ├── runtime.py                      # Investigation pipeline runtime: orchestrates tools per turn
+    │           ├── shell_session.py                # Persistent shell session for run_python sandbox
+    │           ├── tools.py                        # Core tool logic (lower-level, called by investigation_tools.py)
+    │           ├── workspace.py                    # Per-thread per-run artifact storage at .work/sessions/{thread}/{run}/
+    │           │
+    │           └── knowledge/                      # Static knowledge base (editable, loaded at request time)
+    │               ├── tables.md                   # Human-readable table reference
+    │               ├── sql_best_practices.md       # SQL safety rules, partition filter requirements
+    │               ├── common_codes.json           # Provider/site/customer code→name aliases
+    │               ├── common_table_live_metadata.json  # 405-table live metadata: tier, max_sales_date,
+    │               │                               #   partitions, columns — regenerated by refresh_table_metadata.py
+    │               └── docs/                       # System documentation KB (27 files, ~15 KB each)
+    │                   ├── README.md               # KB index
+    │                   ├── overview.md             # PriceEye platform overview
+    │                   ├── priceeye_system.md      # 15KB comprehensive doc: 18 investigation patterns, process→table map
+    │                   ├── aws_infrastructure.md   # 3VDEV+3VPROD AWS inventory (Redshift, S3, Glue, Lambda, EMR)
+    │                   ├── priceeye-v2.md          # priceeye-v2 collection engine
+    │                   ├── priceeye-analytics.md   # Analytics pipeline overview
+    │                   ├── priceeye-monitoring.md  # Monitoring pipeline
+    │                   ├── priceeye-scheduling.md  # Scheduling system
+    │                   ├── priceeye-providers.md   # Provider configs and site codes
+    │                   ├── priceeye-customers.md   # Customer configs
+    │                   ├── priceeye-applications.md
+    │                   ├── priceeye-api.md
+    │                   ├── priceeye-vacations.md
+    │                   ├── ds-priceeye-analytics.md    # ds-priceeye-analytics repo (anomaly models)
+    │                   ├── ds-priceeye-data-collection.md  # ds-priceeye-data-collection repo (site metrics, ingest TTL)
+    │                   ├── ds-priceeye-enrichment.md   # ds-priceeye-enrichment repo (tax regression)
+    │                   ├── ds-customer-monitoring.md   # ds-customer-monitoring repo (billing)
+    │                   ├── ds-internal-monitoring.md   # ds-internal-monitoring repo (combined_audit)
+    │                   ├── ds-threevictors.md          # threevictors connector library
+    │                   ├── 3v-build-deploy.md          # Build and deploy patterns
+    │                   ├── ingest.md                   # Ingest pipeline
+    │                   ├── ingest-cache.md             # Cache ingest
+    │                   ├── ingest-sources.md           # Ingest source configs
+    │                   ├── federated_schemas.md        # Redshift Spectrum federated schemas
+    │                   ├── partition-creator.md        # Partition creator Lambda
+    │                   ├── event-launcher.md           # Event launcher
+    │                   ├── emr.md                      # EMR Spark cluster config
+    │                   └── spark-v3.md                 # Spark v3 job patterns
+    │
+    └── frontend/                                   # React+TypeScript UI (:3000)
+        ├── package.json
+        ├── package-lock.json
+        ├── index.html
+        ├── vite.config.ts                          # Vite config: proxies /chatkit → :8000
+        ├── tsconfig.json
+        ├── tsconfig.node.json
+        ├── postcss.config.mjs
+        ├── eslint.config.mjs
+        ├── .gitignore
+        ├── public/
+        │   └── favicon.ico
+        └── src/
+            ├── main.tsx                            # React entry point
+            ├── App.tsx                             # Root component
+            ├── index.css                           # Tailwind base styles
+            ├── vite-env.d.ts
+            ├── lib/
+            │   └── config.ts                       # VITE_CHATKIT_API_URL, VITE_CHATKIT_API_DOMAIN_KEY
+            └── components/
+                ├── ChatKitPanel.tsx                # Main chat UI: model selector, widget handlers, SSE streaming
+                └── SessionStateBar.tsx             # Session status bar (thread ID, model, connection state)
+```
