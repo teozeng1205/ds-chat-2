@@ -104,169 +104,187 @@ E2E smoke reports with full model output and debug steps are written under:
 
 ## Architecture
 
-### Request / Response Flow
+### 1. System Overview
 
 ```
-Browser (React)
-│  ChatKitPanel.tsx — model selector, message input, widget renderer
-│  SessionStateBar.tsx — polls GET /chatkit/session/{thread_id} for shell state
-│
-│  POST /chatkit   (SSE text/event-stream)
-▼
-FastAPI  app/main.py
-│  chatkit_endpoint()  →  StarterChatServer.process(payload)
-│                                │
-│                                ├─ load thread items from SQLite (last 50)
-│                                ├─ DSChatThreadItemConverter → agent_input[]
-│                                ├─ read model from inference_options
-│                                │
-│                                └─ build_agent(model)          ← ds_agent.py
-│                                       │  _build_instructions()
-│                                       │    loads at request time:
-│                                       │      common_table_live_metadata.json  (405 tables, tier+freshness)
-│                                       │      common_codes.json                (provider/site/customer aliases)
-│                                       │      priceeye_system.md               (18 investigation patterns)
-│                                       │      sql_best_practices.md
-│                                       │      today's date, current sales_date
-│                                       │
-│                                       └─ Agent(model, instructions, tools=[7])
-│
-│  Runner.run_streamed(agent, agent_input, max_turns=50)
-│    ↓ agent reasons, calls tools, reasons again … (up to 50 turns)
-│  stream_agent_response() → SSE chunks → StreamingResponse → browser
-│
-│  [post-turn cleanup]
-│    cleanup_thread_workspace(thread_id, mode="ephemeral_manifest")
-│      → deletes .work/sessions/{thread_id}/{run_id}/*.parquet  (datasets)
-│      → retains manifest.json
-│    close_session(thread_id)      → tears down persistent shell
-│    _maybe_set_thread_title()     → gpt-5-mini generates thread title → SQLite
-│
-▼
-Browser renders:  text • ProgressUpdate events • Card widgets (charts, tables)
-```
-
----
-
-### Agent Tool Layer
-
-```
-Investigation Agent  (OpenAI Agents SDK)
-│  System prompt: ~8 KB domain instructions + KB injected at runtime
-│  Model: gpt-5.3 (default) | gpt-5-mini (fast)  — user-selectable
-│
-├─[1] execute_sql(query, datasource?)
-│       │  SqlGuard.validate()      → blocks INSERT/UPDATE/DELETE/DROP; enforces LIMIT ≤ 120k
-│       │  PartitionGuard.check()   → warns if sales_date / customer filter missing
-│       │  datasource_for_table()   → routes by table prefix:
-│       │      prod.monitoring.*  / local.*  / billing_db.*  / collection_optimizer.*
-│       │          → redshift_core   (CoreRedshiftReader via threevictors)
-│       │      priceeye.*  / taxregression.*
-│       │          → mysql_priceeye  (PriceEyeMySQLReader via threevictors)
-│       │      everything else (prod.analytics.*, prod.common_output.*, prod.tax_reg.*, …)
-│       │          → redshift_analytics  (AnalyticsRedshiftReader via threevictors)
-│       │  result → DataFrame → WorkspaceManager.save_dataset()
-│       │      .work/sessions/{thread_id}/{run_id}/{dataset_id}.parquet
-│       └─ returns: dataset_id, row_count, columns, preview (20 rows), partition_warnings
-│
-├─[2] fetch_s3(bucket, key_or_prefix)
-│       │  DatasourceRegistry.fetch_s3_data()
-│       │    → ensure_credentials() (see credential flow below)
-│       │    → s3_util.S3Util (threevictors) lists objects under prefix
-│       │    → reads CSV / Parquet / JSONL / JSON; auto-detects delimiter
-│       │    → pd.concat() all files (up to 30) into one DataFrame
-│       │  result → WorkspaceManager.save_dataset()
-│       └─ returns: dataset_id, row_count, columns, preview, s3_keys[]
-│
-├─[3] run_python(code)
-│       │  OperatorRuntime.run_python()
-│       │    sandboxed exec scope provides:
-│       │      load_dataset(dataset_id)  → loads .parquet from workspace
-│       │      save_dataframe(df, name)  → writes new .parquet to workspace
-│       │      save_plot(fig, name)      → saves matplotlib fig to /tmp
-│       │      pd, np, plt, sns, json, Path
-│       │    no os.system / subprocess / shutil access
-│       │  auto-publish: scans result for image paths → _publish_image_widget()
-│       │    → reads file → saves as Attachment → streams Card widget to browser
-│       │        Card contains: Title, Image (base64 inline), Caption,
-│       │                       "Open Full Size" button, "Download PNG" button
-│       └─ returns: stdout, created_datasets[], created_analyses[], published_images[]
-│
-├─[4] search_kb(query)
-│       │  KnowledgeBase.retrieve()  →  knowledge.sqlite  (FTS index)
-│       │    indexes: tables.md, sql_best_practices.md, docs/*.md (27 files)
-│       └─ returns: candidate_tables[], table_hints (partition info)
-│
-├─[5] inspect_table(table_name, datasource?)
-│       │  DatasourceRegistry.inspect_table_metadata()
-│       │    Redshift: SELECT FROM svv_columns WHERE table_schema=... AND table_name=...
-│       │    MySQL:    DESCRIBE {schema}.{table}
-│       │  fetches 1 masked sample row  (first 2 + last 2 chars of each value)
-│       │  upserts result into knowledge.sqlite
-│       └─ returns: columns[], partitions[], sample_row_masked, tier
-│
-├─[6] resolve_codes(text)
-│       │  EntityResolver.resolve()
-│       │    1. LocalCodeCatalog  →  common_codes.json  (static aliases)
-│       │    2. MySQL fallback    →  priceeye.provider / priceeye.site / priceeye.customer
-│       └─ returns: providers[], sites[], customers[], unknown_tokens[]
-│
-└─[7] browse_repo_files(path_or_glob)
-        │  reads files under ~/git/  (source repos + documentation)
-        │  supports glob patterns:  'ds-priceeye-analytics/src/**/*.py'
-        └─ returns: count, files[{path, size, content (first 8 KB), truncated}]
+ ┌──────────────────────────────────────────────────────────────────────┐
+ │                          Browser  :3000                               │
+ │                                                                       │
+ │   ┌──────────────────────────┐   ┌───────────────────────────────┐   │
+ │   │      ChatKitPanel        │   │       SessionStateBar          │   │
+ │   │  · model selector        │   │  polls GET /session/{id}       │   │
+ │   │  · message composer      │   │  shows shell cwd + idle time   │   │
+ │   │  · SSE stream renderer   │   └───────────────────────────────┘   │
+ │   │  · Card widget display   │                                        │
+ │   └──────────┬───────────────┘                                        │
+ └──────────────┼───────────────────────────────────────────────────────┘
+                │  POST /chatkit  (SSE text/event-stream)
+                │  PUT/GET /chatkit/uploads/{id}  (attachments)
+                ▼
+ ┌──────────────────────────────────────────────────────────────────────┐
+ │                       FastAPI backend  :8000                          │
+ │                         app/main.py                                   │
+ │                                                                       │
+ │   ┌──────────────────────────────────────────────────────────────┐   │
+ │   │                    StarterChatServer                          │   │
+ │   │   · SQLiteStore  →  chatkit.sqlite  (threads + messages)     │   │
+ │   │   · LocalDiskAttachmentStore  →  chatkit_attachments/        │   │
+ │   │   · loads last 50 thread items, converts to agent_input[]    │   │
+ │   │   · picks model from inference_options (default gpt-5.3)     │   │
+ │   └──────────────────────────┬───────────────────────────────────┘   │
+ │                              │ build_agent(model)                     │
+ │                              ▼                                        │
+ │   ┌──────────────────────────────────────────────────────────────┐   │
+ │   │               DS Chat Investigation Agent                     │   │
+ │   │               (OpenAI Agents SDK)                             │   │
+ │   │                                                               │   │
+ │   │   System prompt assembled fresh each request:                 │   │
+ │   │   · today's date + current sales_date                        │   │
+ │   │   · 405-table metadata  (tier, freshness, partitions)        │   │
+ │   │   · provider/site/customer code aliases                       │   │
+ │   │   · 18 investigation patterns + SQL rules                     │   │
+ │   │                                                               │   │
+ │   │   Runner.run_streamed()  ←→  tool calls  (up to 50 turns)   │   │
+ │   └──────────────────────────┬───────────────────────────────────┘   │
+ │                              │ SSE chunks                             │
+ │                              ▼                                        │
+ │              stream_agent_response()  →  StreamingResponse            │
+ │              [post-turn] delete datasets · close shell · title gen    │
+ └──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### Data & Credential Layer
+### 2. Agent ↔ Tools ↔ Data
 
 ```
-DatasourceRegistry  (singleton, initialized once per process)
-│
-├─ ensure_credentials()   [called before every DB/S3 access]
-│    runs: zsh -lc "assume 3VDEV >/dev/null 2>&1; env -0"
-│    parses output → sets AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY /
-│                          AWS_SESSION_TOKEN / AWS_REGION in os.environ
-│    fallback: granted credential-process --profile 3VDEV --auto-login
-│    cached: _creds_ready flag (bootstraps once per process lifetime)
-│
-├─ redshift_analytics  →  AnalyticsRedshiftReader  (threevictors RedshiftConnector)
-│    properties: database-analytics-redshift-serverless-reader.properties
-│    tables: prod.analytics.*, prod.common_output.*, prod.data_lakes.*,
-│            prod.flight_summary.*, prod.midt_external.*, prod.federated_*,
-│            prod.billing.*, prod.tax_reg.*, prod.priceeye_output.*
-│
-├─ redshift_core  →  CoreRedshiftReader  (threevictors RedshiftConnector)
-│    properties: database-core-redshift-serverless-reader.properties
-│    tables: prod.monitoring.*, prod.site_metrics.*, prod.scheduling.*,
-│            billing_db.* (Glue/Spectrum external schema)
-│
-├─ mysql_priceeye  →  PriceEyeMySQLReader  (threevictors MySQLConnector)
-│    properties: database-priceeye-reader.properties
-│    tables: priceeye.*, sales_poc.*, taxregression.*
-│
-└─ S3  →  s3_util.S3Util  (threevictors)
-     buckets (examples):
-       s3-atp-3victors-3vdev-use1-anomaly-datasets
-       s3-atp-3victors-3vdev-use1-derived-common-output
-       s3-atp-3victors-3vdev-use1-collection-anomalies
-       s3-atp-3victors-3vprod-use1-pe-common-output
-       s3-atp-3victors-3vdev-use1-competitive-position
+                    ┌─────────────────────────────────────┐
+                    │         Investigation Agent          │
+                    │   reasons → picks tool → observes   │
+                    │   → reasons → picks tool → …        │
+                    └──┬──────┬──────┬──────┬──────┬──────┘
+                       │      │      │      │      │
+              ┌────────┘  ┌───┘  ┌───┘  ┌───┘  ┌───┘
+              ▼           ▼      ▼      ▼      ▼      ▼
+       ┌────────────┐ ┌───────┐ ┌──────────┐ ┌────────────┐ ┌──────────────┐ ┌───────────────┐
+       │execute_sql │ │fetch  │ │run_python│ │search_kb   │ │inspect_table │ │resolve_codes  │
+       │            │ │_s3    │ │          │ │            │ │              │ │               │
+       │SqlGuard    │ │       │ │sandboxed │ │FTS over    │ │svv_columns   │ │common_codes   │
+       │ read-only  │ │list   │ │exec():   │ │ tables.md  │ │ (Redshift)   │ │ .json         │
+       │ LIMIT≤120k │ │prefix │ │load_     │ │ docs/*.md  │ │DESCRIBE      │ │+ MySQL lookup │
+       │            │ │→ read │ │dataset() │ │(27 files)  │ │ (MySQL)      │ │ priceeye.     │
+       │Partition   │ │ CSV/  │ │save_plot │ │            │ │              │ │ provider/site │
+       │Guard warns │ │Parq/  │ │→ Card    │ │knowledge   │ │upserts into  │ │ /customer     │
+       │on missing  │ │JSONL  │ │ widget   │ │ .sqlite    │ │knowledge     │ │               │
+       │sales_date  │ │       │ │          │ │            │ │ .sqlite      │ │               │
+       └─────┬──────┘ └──┬────┘ └────┬─────┘ └────────────┘ └──────┬───────┘ └───────────────┘
+             │           │           │                               │
+             ▼           ▼           ▼                               ▼
+    ┌──────────────────────────────────────────────────────────────────────────────────┐
+    │                           DatasourceRegistry                                     │
+    │            ensure_credentials():  zsh -lc "assume 3VDEV; env -0"                │
+    │            → injects AWS_ACCESS_KEY_ID / SECRET / SESSION_TOKEN into env         │
+    │            → cached after first call (singleton per process)                     │
+    │                                                                                   │
+    │  datasource_for_table() routing:                                                 │
+    │  ┌─────────────────────────────┐  ┌──────────────────────────────────────────┐  │
+    │  │ prefix → redshift_core      │  │ prefix → redshift_analytics (default)    │  │
+    │  │  prod.monitoring.*          │  │  prod.analytics.*                        │  │
+    │  │  prod.site_metrics.*        │  │  prod.common_output.*                    │  │
+    │  │  prod.scheduling.*          │  │  prod.data_lakes.*                       │  │
+    │  │  billing_db.*               │  │  prod.flight_summary.*                   │  │
+    │  │  local.*                    │  │  prod.tax_reg.*                          │  │
+    │  └─────────────────────────────┘  │  prod.billing.*   prod.priceeye_output.* │  │
+    │  ┌─────────────────────────────┐  └──────────────────────────────────────────┘  │
+    │  │ prefix → mysql_priceeye     │                                                 │
+    │  │  priceeye.*                 │                                                 │
+    │  │  taxregression.*            │                                                 │
+    │  └─────────────────────────────┘                                                 │
+    └──────────┬─────────────────────────┬──────────────────────────────┬─────────────┘
+               ▼                         ▼                              ▼
+  ┌────────────────────────┐  ┌──────────────────────────┐  ┌───────────────────────┐
+  │  Redshift Serverless   │  │  Redshift Serverless     │  │  MySQL  (PriceEye)    │
+  │  Analytics cluster     │  │  Core cluster            │  │                       │
+  │  (threevictors         │  │  (threevictors           │  │  priceeye.*           │
+  │   RedshiftConnector)   │  │   RedshiftConnector)     │  │  taxregression.*      │
+  └────────────────────────┘  └──────────────────────────┘  └───────────────────────┘
 
-WorkspaceManager  →  .work/sessions/{thread_id}/{run_id}/
-│  {dataset_id}.parquet   — materialized query / S3 result (deleted post-turn)
-│  manifest.json          — query log, source log, event log  (retained)
-└─ /tmp/ds-chat-investigation/{thread_id}/{run_id}/activity.jsonl  — mirror log
+  fetch_s3 ──────────────────────────────────────────────────────────────────────────────▶
+                                                                   ┌───────────────────────┐
+                                                                   │  S3  (threevictors    │
+                                                                   │  s3_util.S3Util)      │
+                                                                   │  CSV / Parquet / JSONL│
+                                                                   └───────────────────────┘
+```
 
-SQLiteStore  →  app/chatkit.sqlite
-  threads table   — thread_id, title, created_at
-  items table     — message history (user + assistant turns)
-  attachments     — attachment metadata; payloads on LocalDiskAttachmentStore
+---
 
-KnowledgeBase  →  .work/knowledge/knowledge.sqlite
-  FTS index over: tables.md, sql_best_practices.md, docs/*.md
-  table_metadata  — upserted by inspect_table() calls
+### 3. Per-Turn Workspace Lifecycle
+
+```
+  User sends message
+        │
+        ▼
+  ┌─────────────────────────────────────────────────────────────────┐
+  │  WorkspaceManager   .work/sessions/{thread_id}/{run_id}/        │
+  │                                                                  │
+  │  execute_sql ──────▶  {dataset_id}.parquet  ◀── load_dataset()  │
+  │  fetch_s3    ──────▶  {dataset_id}.parquet       (in run_python)│
+  │  run_python  ──────▶  {dataset_id}.parquet                      │
+  │                        manifest.json  (query log, event log)     │
+  │                                                                  │
+  │  run_python → save_plot() ──▶  /tmp/{name}.png                  │
+  │                                    │                             │
+  │                                    ▼                             │
+  │                          _publish_image_widget()                 │
+  │                          · reads PNG bytes                       │
+  │                          · saves to LocalDiskAttachmentStore     │
+  │                          · streams Card widget via SSE ──────────┼──▶ browser
+  └─────────────────────────────────────────────────────────────────┘
+        │  turn ends
+        ▼
+  cleanup_thread_workspace(mode="ephemeral_manifest")
+  · deletes  *.parquet  (datasets freed)
+  · retains  manifest.json
+  close_session(thread_id)  →  shell process torn down
+  _maybe_set_thread_title() →  gpt-5-mini call → title saved to SQLite
+```
+
+---
+
+### 4. Knowledge Base
+
+```
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │  Static KB  (app/investigation/knowledge/)                                │
+  │                                                                            │
+  │  common_table_live_metadata.json ──▶ injected into system prompt         │
+  │    405 tables · tier · max_sales_date · partitions · first 15 columns    │
+  │    regenerated by:  scripts/refresh_table_metadata.py  (~55 min sweep)   │
+  │                                                                            │
+  │  common_codes.json ──────────────▶ injected into system prompt +         │
+  │    providers / sites / customers     EntityResolver.resolve()             │
+  │                                                                            │
+  │  sql_best_practices.md ──────────▶ FTS indexed in knowledge.sqlite       │
+  │  tables.md                                                                │
+  │  docs/*.md  (27 files, ~15 KB each)                                      │
+  │    priceeye_system.md   aws_infrastructure.md   ds-priceeye-analytics.md │
+  │    ds-internal-monitoring.md   ds-customer-monitoring.md   … etc.         │
+  └──────────────────────────────┬───────────────────────────────────────────┘
+                                 │  indexed into
+                                 ▼
+                    ┌────────────────────────────┐
+                    │  knowledge.sqlite           │
+                    │  (.work/knowledge/)         │
+                    │  · FTS full-text index      │
+                    │  · table_metadata cache     │
+                    │    (upserted by             │
+                    │     inspect_table calls)    │
+                    └────────────────────────────┘
+                                 │
+                                 │  queried by search_kb(query)
+                                 ▼
+                    agent gets: candidate_tables[], table_hints
 ```
 
 ---
