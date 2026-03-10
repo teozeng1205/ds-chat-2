@@ -7,11 +7,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-from agents import Agent
-from chatkit.agents import AgentContext
-
-from ..tools.investigation_tools import investigation_tools
-
 KNOWLEDGE_ROOT = Path(__file__).resolve().parents[1] / "investigation" / "knowledge"
 
 
@@ -166,18 +161,14 @@ Use `resolve_codes` to resolve natural language names (e.g. "JetBlue" -> B6, "Am
 **Route knowledge questions as follows:**
 
 - **"How does X work?" / "What does Y pipeline do?" / "Which table has Z?"** → call `search_kb` first for a fast indexed answer.
-- **"Show me the code for X" / "Where is Y implemented?" / "What does this function do?" / any question asking to read, show, or explain source code** → call `browse_repo_files` directly — do NOT wait for search_kb first.
-
-**`browse_repo_files` usage:**
-- Read a full doc: `browse_repo_files("documentations/priceeye-v2.md")`
-- List all docs: `browse_repo_files("documentations/*.md")`
-- Search a repo's source: `browse_repo_files("ds-priceeye-analytics/src/**/*.py")`
-- Read a specific file: `browse_repo_files("ds-priceeye-analytics/src/some_module.py")`
+- **"Show me the code for X" / "Where is Y implemented?" / "What does this function do?" / any question asking to read, show, or explain source code** → use shell tools directly:
+  `bash('find ~/git/ds-priceeye-analytics -name "*.py" | xargs grep -l "topic"')`
+  or `read_file("ds-priceeye-analytics/src/module.py")` / `list_dir("ds-priceeye-analytics/src")`
 
 **Escalation order for architecture/system questions:**
 1. search_kb (fast, indexed — good for table discovery and doc snippets)
-2. browse_repo_files with the specific doc (if more depth needed)
-3. browse_repo_files with a source glob (for implementation-level questions)""",
+2. read_file / list_dir on the specific repo path (for implementation-level questions)
+3. bash with grep/find for broad codebase search""",
 
         # ── Investigation patterns ──
         """## Investigation Patterns
@@ -436,11 +427,3 @@ Known S3 buckets and key patterns (use fetch_s3 with these):
     return "\n\n".join(section for section in sections if section)
 
 
-def build_investigation_agent(model: str) -> Agent[AgentContext[dict[str, Any]]]:
-    """Build the single investigation agent with rich domain instructions."""
-    return Agent[AgentContext[dict[str, Any]]](
-        model=model,
-        name="DS Chat Investigation Agent",
-        instructions=_build_instructions(),
-        tools=investigation_tools(),
-    )

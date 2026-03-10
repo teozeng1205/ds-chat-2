@@ -327,41 +327,7 @@ async def fetch_s3(
         return {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
 
 
-# ── Tool 3: run_python ──
-
-@function_tool
-async def run_python(
-    ctx: RunContextWrapper[AgentContext],
-    code: str,
-) -> dict[str, Any]:
-    """Execute Python/pandas code against workspace datasets.
-
-    Available in scope: load_dataset(id), list_datasets(), save_dataframe(df, name),
-    save_plot(fig, name), pd, np, plt, sns, json, Path.
-
-    Args:
-        code: Python code to execute. Use load_dataset(dataset_id) to load saved data.
-
-    Returns: stdout output, created_datasets, created_analyses, and any published images.
-    """
-    try:
-        runtime = get_runtime()
-        thread_id = _thread_id(ctx)
-        run_id = _get_or_create_run_id(thread_id)
-        await _stream_progress(ctx, "clock", "Running Python code.")
-        result = runtime.run_python(thread_id=thread_id, run_id=run_id, code=code)
-        result["published_images"] = await _auto_publish_images_from_result(ctx, result=result)
-        await _stream_progress(
-            ctx, "check-circle",
-            f"Python complete: {len(result.get('created_datasets', []))} datasets, {len(result.get('published_images', []))} images.",
-        )
-        return result
-    except Exception as exc:
-        log.exception("run_python failed")
-        return {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
-
-
-# ── Tool 4: inspect_table ──
+# ── Tool 3: inspect_table ──
 
 @function_tool
 async def inspect_table(
@@ -449,65 +415,6 @@ async def resolve_codes(
         return {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
 
 
-@function_tool
-async def browse_repo_files(
-    ctx: RunContextWrapper[AgentContext],
-    path_or_glob: str,
-) -> dict[str, Any]:
-    """Browse source files and documentation under ~/git/ for code explanation.
-
-    Args:
-        path_or_glob: Path relative to ~/git/ or a glob pattern.
-          Examples: 'documentations/ds-priceeye-analytics.md'
-                    'ds-priceeye-analytics/src/**/*.py'
-                    'documentations/*.md'  (list all docs)
-
-    Returns: {count, files: [{path, size, content (first 8000 chars), truncated}]}
-    """
-    import glob as _glob
-    base = Path("~/git").expanduser().resolve()
-    pattern = path_or_glob.strip() or "*"
-    if any(ch in pattern for ch in "*?[]"):
-        matches = [Path(p) for p in _glob.glob(str(base / pattern), recursive=True)]
-    else:
-        target = (base / pattern).resolve()
-        matches = [target] if target.exists() else []
-
-    entries: list[dict[str, Any]] = []
-    for p in matches[:20]:
-        if not p.is_file():
-            continue
-        try:
-            p.relative_to(base)
-        except ValueError:
-            continue
-        try:
-            text = p.read_text(encoding="utf-8", errors="replace")
-        except Exception:
-            continue
-        entries.append({
-            "path": str(p.relative_to(base)),
-            "size": p.stat().st_size,
-            "content": text[:8000],
-            "truncated": len(text) > 8000,
-        })
-
-    return {"count": len(entries), "files": entries}
-
-
-def investigation_tools() -> list[Any]:
-    """Return the 7 atomic tools for the investigation agent."""
-    return [
-        execute_sql,
-        fetch_s3,
-        run_python,
-        inspect_table,
-        search_kb,
-        resolve_codes,
-        browse_repo_files,
-    ]
-
-
 def investigation_tools_core() -> list[Any]:
     """Return the 5 core data tools for the coding agent (excludes run_python, browse_repo_files)."""
     return [
@@ -521,6 +428,5 @@ def investigation_tools_core() -> list[Any]:
 
 __all__ = [
     "cleanup_thread_workspace",
-    "investigation_tools",
     "investigation_tools_core",
 ]

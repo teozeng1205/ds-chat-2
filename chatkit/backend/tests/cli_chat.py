@@ -23,7 +23,7 @@ sys.path.insert(0, str(BACKEND_ROOT))
 
 from agents import Runner  # type: ignore[import]
 
-from app.agents.investigation_agent import build_investigation_agent
+from app.agents.ds_agent import build_agent
 from app.investigation.runtime import cleanup_thread_workspace
 
 
@@ -147,7 +147,7 @@ async def _run_repl(args: argparse.Namespace) -> int:
 
     thread_id = args.thread_id or _new_thread_id()
     context = _CliAgentContext(thread_id=thread_id)
-    agent = build_investigation_agent(args.model)
+    agent = build_agent(args.model)
     conversation: list[dict[str, Any]] = []
 
     print(f"Thread: {thread_id}")
