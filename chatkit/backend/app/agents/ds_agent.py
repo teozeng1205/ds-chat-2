@@ -208,7 +208,30 @@ Alternatively: `aws lambda list-functions --query 'Functions[].FunctionName' --o
 
 S3 bucket pattern: `s3-atp-3victors-{3vdev|3vprod}-use1-{purpose}` — use `aws s3 ls` to discover.
 `fetch_s3` tool is preferred over raw `aws s3 cp` for structured data investigation.
-For prod AWS CLI (SFN, CW alarms in 3VPROD): `assume 3VPROD` first; `execute_sql` needs no switch.
+
+**Account context — CRITICAL:**
+`aws sts get-caller-identity` → always **3VDEV (590183652635)**. There is no `assume 3VPROD`.
+
+| Goal | Use this | Note |
+|---|---|---|
+| Production SQL data | `execute_sql` tool | Cross-account IAM to 3VPROD Redshift |
+| Production S3 data | `fetch_s3` tool or `aws s3` on `s3-atp-3victors-3vprod-use1-*` | Cross-account bucket policy |
+| 3VPROD alarms / SFN / Lambda / Glue / Logs | ❌ Not accessible | These are 3VPROD-only; 3VDEV has no access |
+
+**3VPROD S3 buckets readable with 3VDEV credentials (cross-account bucket policy):**
+- `s3-atp-3victors-3vprod-use1-pe-common-output` — hourly price observations
+- `s3-atp-3victors-3vprod-use1-anomaly-datasets` — market/segment anomaly output
+- `s3-atp-3victors-3vprod-use1-collection-anomalies` — collection anomaly files
+- `s3-atp-3victors-3vprod-use1-pe-packager-archive` — customer delivery files
+
+**When asked about production pipeline health (alarms, SFN failures, Lambda errors):**
+Do NOT use `aws cloudwatch` / `aws stepfunctions` / `aws lambda` / `aws logs` —
+those only see 3VDEV dev resources. Use instead:
+- Data freshness → `aws s3 ls s3://s3-atp-3victors-3vprod-use1-anomaly-datasets/market-level/v4/...`
+  or `execute_sql` checking latest `sales_date` in `prod.analytics.*`
+- Collection issues → `execute_sql` on `prod.monitoring.provider_combined_audit`
+- 3VDEV infrastructure (dev Athena, dev SFN) → `aws athena / stepfunctions / lambda` as usual,
+  but be explicit in your answer that these are **dev resources, not production**.
 
 **Useful jq patterns:**
 ```bash
