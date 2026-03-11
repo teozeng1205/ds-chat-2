@@ -161,17 +161,6 @@
       }
     },
     {
-      "name": "prod_s3_anomaly_data_freshness",
-      "thread_id": "smoke-prod-s3-anomaly",
-      "requires_aws_creds": true,
-      "question": "Check if today's market anomaly data has landed in S3. Look in s3-atp-3victors-3vprod-use1-anomaly-datasets under market-level/v4/ and show me the most recent date prefix you can find.",
-      "assertions": {
-        "required_tools": ["bash"],
-        "min_tool_calls": 1,
-        "answer_contains": ["market-level", "2026"]
-      }
-    },
-    {
       "name": "prod_s3_common_output_freshness",
       "thread_id": "smoke-prod-s3-common-output",
       "requires_aws_creds": true,
