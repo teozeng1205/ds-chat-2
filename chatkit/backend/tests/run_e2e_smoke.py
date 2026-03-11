@@ -18,6 +18,7 @@ import asyncio
 import datetime
 import json
 import os
+import subprocess as _subprocess
 import sys
 import time
 import uuid
@@ -144,14 +145,49 @@ def _check_assertions(
     return failures
 
 
+# ── Pre-flight checks ──
+
+def _check_aws_creds() -> bool:
+    """Return True if AWS credentials are valid."""
+    try:
+        r = _subprocess.run(
+            ["aws", "sts", "get-caller-identity"],
+            capture_output=True, timeout=15
+        )
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
 # ── Main runner ──
 
 async def run_case(
     case: dict[str, Any],
     agent: Any,
     model: str,
+    aws_creds_ok: bool = True,
 ) -> dict[str, Any]:
     thread_id = case.get("thread_id") or f"smoke-{uuid.uuid4().hex[:10]}"
+
+    # Skip cred-dependent cases when AWS credentials are unavailable
+    if case.get("requires_aws_creds") and not aws_creds_ok:
+        return {
+            "name": case["name"],
+            "master": case.get("master", False),
+            "question": case["question"],
+            "model": model,
+            "thread_id": thread_id,
+            "elapsed_s": 0.0,
+            "passed": False,
+            "skipped": True,
+            "skip_reason": "aws_creds_unavailable",
+            "error": None,
+            "failures": [],
+            "tool_calls": [],
+            "progress_events": [],
+            "answer": "",
+        }
+
     context = _CliAgentContext(thread_id=thread_id)
     question = case["question"]
     assertions = case.get("assertions", {})
@@ -185,6 +221,8 @@ async def run_case(
         "thread_id": thread_id,
         "elapsed_s": elapsed,
         "passed": passed,
+        "skipped": False,
+        "skip_reason": None,
         "error": error,
         "failures": failures,
         "tool_calls": tool_calls,
@@ -204,15 +242,16 @@ def write_jsonl_log(results: list[dict[str, Any]], path: Path) -> None:
 def write_markdown_report(results: list[dict[str, Any]], path: Path, model: str) -> None:
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     total = len(results)
+    skipped = sum(1 for r in results if r.get("skipped"))
     passed = sum(1 for r in results if r["passed"])
-    failed = total - passed
+    failed = total - passed - skipped
 
     lines: list[str] = [
         f"# E2E Smoke Test Report",
         f"",
         f"**Date:** {now}  ",
         f"**Model:** `{model}`  ",
-        f"**Results:** {passed}/{total} passed  ",
+        f"**Results:** {passed}/{total} passed, {skipped} skipped (no AWS creds)  ",
         f"",
         f"---",
         f"",
@@ -226,7 +265,14 @@ def write_markdown_report(results: list[dict[str, Any]], path: Path, model: str)
         "|---|------|--------|-------------|------|",
     ]
     for i, r in enumerate(results, 1):
-        status = "✅ PASS" if r["passed"] else ("💥 ERROR" if r["error"] else "❌ FAIL")
+        if r.get("skipped"):
+            status = "⏭ SKIP"
+        elif r["passed"]:
+            status = "✅ PASS"
+        elif r["error"]:
+            status = "💥 ERROR"
+        else:
+            status = "❌ FAIL"
         tools = ", ".join(c["name"] for c in r["tool_calls"]) or "—"
         if len(tools) > 60:
             tools = tools[:57] + "..."
@@ -238,7 +284,14 @@ def write_markdown_report(results: list[dict[str, Any]], path: Path, model: str)
     # Per-case detail
     lines += ["## Case Details", ""]
     for i, r in enumerate(results, 1):
-        status = "✅ PASS" if r["passed"] else ("💥 ERROR" if r["error"] else "❌ FAIL")
+        if r.get("skipped"):
+            status = "⏭ SKIP"
+        elif r["passed"]:
+            status = "✅ PASS"
+        elif r["error"]:
+            status = "💥 ERROR"
+        else:
+            status = "❌ FAIL"
         master_tag = " ⭐ master" if r["master"] else ""
         lines += [
             f"### {i}. `{r['name']}`{master_tag} — {status}",
@@ -319,6 +372,10 @@ async def main() -> int:
     log_path = out_dir / f"e2e_smoke_{ts}.log"
     md_path = out_dir / f"e2e_smoke_{ts}.md"
 
+    aws_creds_ok = _check_aws_creds()
+    if not aws_creds_ok:
+        print("⚠️  AWS credentials unavailable — cred-dependent cases will be SKIPPED")
+
     agent = build_agent(args.model)
 
     print(f"Running {len(cases)} cases with model={args.model} (concurrency={args.concurrency})")
@@ -330,8 +387,12 @@ async def main() -> int:
     ) -> tuple[int, dict[str, Any]]:
         async with sem:
             master_tag = " [master]" if case.get("master") else ""
+            if case.get("requires_aws_creds") and not aws_creds_ok:
+                print(f"[{i}/{total}] {case['name']}{master_tag} SKIP (no AWS creds)")
+                result = await run_case(case, agent, model, aws_creds_ok=aws_creds_ok)
+                return i, result
             print(f"[{i}/{total}] {case['name']}{master_tag} starting...", flush=True)
-            result = await run_case(case, agent, model)
+            result = await run_case(case, agent, model, aws_creds_ok=aws_creds_ok)
             status = "PASS" if result["passed"] else ("ERROR" if result["error"] else "FAIL")
             print(f"[{i}/{total}] {case['name']}{master_tag} {status} ({result['elapsed_s']}s, {len(result['tool_calls'])} tool calls)")
             if result["error"]:
@@ -353,13 +414,15 @@ async def main() -> int:
     write_markdown_report(results, md_path, args.model)
 
     passed = sum(1 for r in results if r["passed"])
+    skipped = sum(1 for r in results if r.get("skipped"))
     total = len(results)
+    failed = total - passed - skipped
     print(f"\n{'='*50}")
-    print(f"Results: {passed}/{total} passed")
+    print(f"Results: {passed}/{total} passed, {skipped} skipped (no AWS creds)")
     print(f"Log:      {log_path}")
     print(f"Report:   {md_path}")
 
-    return 0 if passed == total else 1
+    return 0 if failed == 0 else 1
 
 
 if __name__ == "__main__":

@@ -161,14 +161,22 @@ Use `resolve_codes` to resolve natural language names (e.g. "JetBlue" -> B6, "Am
 **Route knowledge questions as follows:**
 
 - **"How does X work?" / "What does Y pipeline do?" / "Which table has Z?"** → call `search_kb` first for a fast indexed answer.
-- **"Show me the code for X" / "Where is Y implemented?" / "What does this function do?" / any question asking to read, show, or explain source code** → use shell tools directly:
-  `bash('find ~/git/ds-priceeye-analytics -name "*.py" | xargs grep -l "topic"')`
-  or `read_file("ds-priceeye-analytics/src/module.py")` / `list_dir("ds-priceeye-analytics/src")`
+- **"Show me the code for X" / "Where is Y implemented?" / "How does Y pipeline work?"** →
+  call `search_kb` first — it returns `document_hints` with excerpts from 24 indexed repo docs
+  (ds-priceeye-analytics, priceeye-v2, priceeye-monitoring, ds-customer-monitoring, ingest, etc.).
+  If the snippet is sufficient, no further tool call needed.
+  For implementation-level detail, follow up with `read_file` or `bash` on the specific path.
+
+**`search_kb` response fields:**
+- `candidate_tables` — matching table names
+- `table_hints` — table metadata with partition info and query examples
+- `document_hints` — list of `{source: "ds-priceeye-analytics.md", snippet: "...relevant excerpt..."}`.
+  Read the full doc with `read_file("~/git/documentations/{source}")` if you need more context.
 
 **Escalation order for architecture/system questions:**
-1. search_kb (fast, indexed — good for table discovery and doc snippets)
-2. read_file / list_dir on the specific repo path (for implementation-level questions)
-3. bash with grep/find for broad codebase search""",
+1. search_kb — returns both table hints AND doc snippets; covers most questions
+2. read_file("~/git/documentations/{source}") — for full doc when snippet isn't enough
+3. bash with grep/find — for implementation-level source code search""",
 
         # ── Investigation patterns ──
         """## Investigation Patterns

@@ -128,15 +128,46 @@ _TOOL_GUIDE = """## Tool Decision Guide
 
 _GIT_REPOS = """## Git Repositories
 
-All git repos live under `~/git/`. Common repos on this machine:
-- `~/git/ds-priceeye-analytics` — anomaly/scoring/tax-regression pipelines (Python + Spark)
-- `~/git/ds-internal-monitoring` — dedup + combined_audit pipeline
-- `~/git/ds-priceeye-data-collection` — collection optimizer, site metrics
-- `~/git/ds-customer-monitoring` — billing pipeline
-- `~/git/ds-priceeye-enrichment` — YQ/YR tax regression (runs Tuesdays)
-- `~/git/priceeye-v2` — core collection engine
+All git repos live under `~/git/`. Use `bash('ls ~/git')` to see what's on this machine.
+Docs for each repo: `~/git/documentations/{repo-name}.md` (or search_kb returns snippets).
 
-Use `bash('ls ~/git')` to see what's available on this machine."""
+### Core PriceEye Platform
+- `priceeye-v2` — Collection engine: 20+ provider Lambdas, SQS/Kinesis orchestration,
+  Redis/DynamoDB cache, Aurora MySQL audit. Java 17, 64 Maven modules.
+- `priceeye-providers` — Provider API integrations (AA, UA, DL, TP, QL2, Amadeus, etc.)
+- `priceeye-monitoring` — Glue ETL jobs that unload audit tables hourly; dedup pipeline;
+  ECS: verify-dedupe, error-mapper, swav-report. Feeds prod.monitoring.* schema.
+- `priceeye-analytics` — Legacy Java anomaly/competitive-position jobs
+- `priceeye-api`, `priceeye-customer`, `priceeye-scheduling` — API/customer/scheduling layers
+- `priceeye-applications`, `priceeye-vacations` — Application services
+
+### Data Science Pipelines (Python/Spark)
+- `ds-priceeye-analytics` — CIAAS pyramid: DCO → anomaly detect → alert → diagnose.
+  Outputs: market_level_anomalies, segment_level_anomalies, oag_score, revenue_score.
+- `ds-priceeye-data-collection` — Site metrics (cache/import/retry/capacity), sales POC,
+  YQYR cache, collection optimizer, AS dashboard.
+- `ds-priceeye-enrichment` — Tax regression (weekly Tuesday Step Function, 9-step ETL).
+  Outputs MySQL taxregression.tax_regression_v1 and S3 coefficients for AA.
+- `ds-internal-monitoring` — PriceEye system monitoring
+- `ds-customer-monitoring` — Hourly + daily billing pipeline; feeds billing_db.* tables.
+- `ds-threevictors` — Shared Python lib (threevictors pip package): MySQL/Redshift DAOs,
+  S3 util, config reader, Secrets Manager, EventBridge.
+
+### Data Ingestion
+- `ingest` — Multi-provider ingestion: Atlas/Delta S3/SW SFTP fetchers, KCL consumers.
+  Outputs Avro to `s3://dataset-ingest-{env}/`.
+- `ingest-sources`, `ingest-cache` — Source connectors and caching layer.
+
+### Infrastructure / Utilities
+- `emr` — EMR cluster management
+- `spark-v3` — Spark processing framework
+- `ds-python-box` — Python development utilities
+- `3v-build-deploy` — CI/CD build/deploy tooling
+
+### Documentation
+- `~/git/documentations/*.md` — 24 auto-generated repo-level wiki docs.
+  After KB enrichment, `search_kb("repo name or topic")` returns snippets directly.
+  For full docs: `read_file("~/git/documentations/ds-priceeye-analytics.md")`"""
 
 
 _AWS_GUIDE = """\
@@ -145,8 +176,10 @@ _AWS_GUIDE = """\
 `aws` CLI is available in every `bash()` call. Avoid mutating ops (s3 rm, delete-*, put-*).
 Region: `us-east-1`. Check identity: `aws sts get-caller-identity`
 
-For resource names (SFN ARNs, Lambda names, Glue DB names, bucket names, alarm names,
-schedules, health playbooks): `search_kb("aws infrastructure")` — everything is in the KB.
+Resource names (Lambda functions, SFN state machines, ECS clusters, alarm names):
+use `search_kb("aws infrastructure")` or `search_kb("lambda functions priceeye")` —
+the KB indexes ~/git/documentations/ which lists all deployed resource names per pipeline.
+Alternatively: `aws lambda list-functions --query 'Functions[].FunctionName' --output text`
 
 | Service | Key commands |
 |---|---|
@@ -165,10 +198,75 @@ schedules, health playbooks): `search_kb("aws infrastructure")` — everything i
 | Athena | `aws athena list-work-groups` / `get-query-execution --query-execution-id ID` |
 | CloudFormation | `aws cloudformation list-stacks` / `describe-stacks --stack-name NAME` |
 | EC2 metadata | `curl -s http://169.254.169.254/latest/meta-data/instance-type` |
+| ECS | `aws ecs list-clusters` / `list-services --cluster CLUSTER` / `list-tasks --cluster CLUSTER --service-name SVC` / `describe-tasks` |
+| SQS | `aws sqs list-queues` / `get-queue-attributes --queue-url URL --attribute-names All` |
+| Kinesis | `aws kinesis list-streams` / `describe-stream-summary --stream-name NAME` |
+| SNS | `aws sns list-topics` / `list-subscriptions-by-topic --topic-arn ARN` |
+| IAM | `aws iam list-roles --query 'Roles[?contains(RoleName,\`priceeye\`)].RoleName'` |
+| ECR | `aws ecr describe-repositories` / `describe-images --repository-name NAME` |
+| CloudTrail | `aws cloudtrail lookup-events --lookup-attributes AttributeKey=EventName,AttributeValue=StartExecution` |
 
 S3 bucket pattern: `s3-atp-3victors-{3vdev|3vprod}-use1-{purpose}` — use `aws s3 ls` to discover.
 `fetch_s3` tool is preferred over raw `aws s3 cp` for structured data investigation.
-For prod AWS CLI (SFN, CW alarms in 3VPROD): `assume 3VPROD` first; `execute_sql` needs no switch."""
+For prod AWS CLI (SFN, CW alarms in 3VPROD): `assume 3VPROD` first; `execute_sql` needs no switch.
+
+**Useful jq patterns:**
+```bash
+# Extract all failed SFN execution ARNs
+aws stepfunctions list-executions --state-machine-arn ARN --status-filter FAILED \
+  | jq -r '.executions[].executionArn'
+
+# Find Lambda errors in logs
+aws logs filter-log-events --log-group-name /aws/lambda/NAME \
+  --start-time $(($(date +%s)-3600))000 --filter-pattern "ERROR" \
+  | jq '[.events[] | {time: (.timestamp/1000|todate), msg: .message}]'
+
+# Get Step Function failure cause
+aws stepfunctions get-execution-history --execution-arn ARN \
+  | jq '.events[] | select(.type=="ExecutionFailed") | .executionFailedEventDetails'
+
+# List ECS task failures
+aws ecs list-tasks --cluster CLUSTER --desired-status STOPPED \
+  | jq -r '.taskArns[]' | xargs aws ecs describe-tasks --cluster CLUSTER --tasks \
+  | jq '.tasks[] | {task: .taskArn, stopped: .stoppedReason}'
+```"""
+
+
+_VENV_GUIDE = """## Python Environment
+
+The bash session has the ds-chat-2 backend venv pre-activated. `python3` gives you:
+pandas, numpy, pyarrow, matplotlib, seaborn, boto3, duckdb, **threevictors**.
+
+**threevictors** — ATPCO's internal data access library (same connectors as execute_sql/fetch_s3):
+
+```python
+# Redshift (requires valid AWS credentials, same as execute_sql)
+from threevictors.dao import redshift_connector
+reader = redshift_connector.RedshiftConnector()   # auto-detects analytics vs core
+# OR use the project wrappers for named clusters:
+import sys; sys.path.insert(0, '/path/to/chatkit/backend')
+from app.investigation.datasources import AnalyticsRedshiftReader, CoreRedshiftReader
+df = AnalyticsRedshiftReader().query(
+    "SELECT * FROM prod.analytics.market_level_anomalies "
+    "WHERE sales_date = 20260310 AND customer = 'B6' LIMIT 100"
+)
+
+# MySQL
+from app.investigation.datasources import PriceEyeMySQLReader
+df = PriceEyeMySQLReader().query("SELECT * FROM priceeye.site LIMIT 50")
+
+# S3 (direct, beyond what fetch_s3 tool handles)
+from threevictors.s3_util import s3_util
+s3 = s3_util.S3Util()
+keys = s3.find_keys_with_prefix('s3-atp-3victors-3vdev-use1-anomaly-datasets', 'market-level/v4/B6/2026/03/')
+```
+
+**When to use threevictors vs investigation tools:**
+- `execute_sql` / `fetch_s3` tools: preferred for standard queries (progress updates, dataset IDs, manifest)
+- threevictors in bash: best for bulk processing, cross-database joins, pipeline reproduction,
+  or when you want to write a reusable script (e.g., `/tmp/analyze_tax_regression.py`)
+
+**Note:** Requires valid AWS credentials. If execute_sql works, threevictors will too."""
 
 
 def _build_instructions() -> str:
@@ -178,6 +276,7 @@ def _build_instructions() -> str:
         _TOOL_GUIDE,
         _GIT_REPOS,
         _AWS_GUIDE,
+        _VENV_GUIDE,
         _investigation_instructions(),  # table metadata, codes, SQL patterns, KB
     ])
 

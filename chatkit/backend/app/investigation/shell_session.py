@@ -19,12 +19,17 @@ import time
 from pathlib import Path
 
 SENTINEL = "__DSCHAT_READY__"
-MAX_OUTPUT = 8192
+MAX_OUTPUT = 32768
 SESSION_TTL = 3600  # 1 hour idle → auto-close
+
+# Backend venv path — activate if present (safe no-op if absent)
+_BACKEND_ROOT = Path(__file__).resolve().parents[2]
+_VENV_ACTIVATE = _BACKEND_ROOT / ".venv" / "bin" / "activate"
 
 # PROMPT_COMMAND emits sentinel + CWD after every command; PS1 is cleared to
 # avoid extra noise. Using printf to avoid `echo` portability issues.
 _INIT_CMD = (
+    f'[ -f "{_VENV_ACTIVATE}" ] && source "{_VENV_ACTIVATE}"; '
     f'PROMPT_COMMAND=\'printf "{SENTINEL}:%s\\n" "$(pwd)"\'; '
     f'PS1=""\n'
 )

@@ -369,7 +369,8 @@ async def search_kb(
     Args:
         query: Natural language search query (e.g. 'market anomalies', 'site issues', 'combined audit').
 
-    Returns: candidate_tables, table_hints (with partition info).
+    Returns: candidate_tables, table_hints (with partition info), document_hints (list of
+    {source: filename, snippet: relevant excerpt} from indexed repo docs).
     """
     try:
         await _stream_progress(ctx, "search", f"Searching KB for: {query}")
