@@ -148,10 +148,20 @@ def _check_assertions(
 # ── Pre-flight checks ──
 
 def _check_aws_creds() -> bool:
-    """Return True if AWS credentials are valid."""
+    """Return True if any AWS credentials are valid (STS or S3 fallback)."""
     try:
         r = _subprocess.run(
             ["aws", "sts", "get-caller-identity"],
+            capture_output=True, timeout=15
+        )
+        if r.returncode == 0:
+            return True
+    except Exception:
+        pass
+    # Fallback: try a lightweight S3 access (cross-account bucket policy, no STS needed)
+    try:
+        r = _subprocess.run(
+            ["aws", "s3", "ls", "s3://s3-atp-3victors-3vprod-use1-anomaly-datasets/", "--page-size", "1"],
             capture_output=True, timeout=15
         )
         return r.returncode == 0
