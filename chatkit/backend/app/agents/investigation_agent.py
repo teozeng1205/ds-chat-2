@@ -40,7 +40,14 @@ def _load_common_table_metadata() -> str:
         freshness = f"last_date={table.get('max_sales_date', '?')}" if part_cols else "no_date_part"
         tier = table.get("tier", "")
         tier_str = f" [{tier}]" if tier else ""
-        lines.append(f"- `{name}`{tier_str} ({ds}) -- {freshness}. Partitions: {part_str}. Columns: {cols_str}")
+        git_repo = table.get("git_repo") or ""
+        s3_location = table.get("s3_location") or ""
+        lineage_str = ""
+        if git_repo:
+            lineage_str = f" | repo:{git_repo}"
+        if s3_location:
+            lineage_str += f" | s3:{s3_location}"
+        lines.append(f"- `{name}`{tier_str} ({ds}) -- {freshness}. Partitions: {part_str}. Columns: {cols_str}{lineage_str}")
     return "\n".join(lines)
 
 

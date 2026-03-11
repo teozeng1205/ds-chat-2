@@ -268,6 +268,75 @@ def _mask_value(value: Any) -> Any:
     return f"{text[:2]}***{text[-2:]}"
 
 
+def _fetch_s3_locations(registry: DatasourceRegistry) -> dict[str, str]:
+    """Query svv_external_tables on both clusters for Spectrum table S3 locations."""
+    locations: dict[str, str] = {}
+    for datasource in ("redshift_analytics", "redshift_core"):
+        try:
+            df = registry.execute_sql(
+                datasource,
+                "SELECT schemaname, tablename, location FROM svv_external_tables"
+            )
+            for _, row in df.iterrows():
+                key = f"{row['schemaname']}.{row['tablename']}"
+                locations[key] = str(row["location"])
+        except Exception:
+            pass
+    return locations
+
+
+def _load_codebase_map() -> dict[str, dict]:
+    """Load prefix-based codebase/S3 map from knowledge/table_codebase_map.yaml."""
+    import yaml  # pip install pyyaml (already a transitive dep via openai-agents)
+    path = KNOWLEDGE_ROOT / "table_codebase_map.yaml"
+    if not path.exists():
+        return {}
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return data.get("prefixes", {})
+
+
+def _apply_lineage(
+    row: dict[str, Any],
+    s3_locations: dict[str, str],
+    codebase_map: dict[str, dict],
+) -> None:
+    """Mutate row in-place: add s3_location, git_repo, git_path from auto-discovery + seed map."""
+    table_name = row.get("table_name", "")
+    tier = row.get("tier", "")
+    if tier == "local-only":
+        return  # skip local tables
+
+    # S3 from Spectrum: try 2-part suffix match (last 2 parts of 3-part name)
+    s3_loc = None
+    parts = table_name.split(".")
+    if len(parts) >= 2:
+        short_key = ".".join(parts[-2:])   # e.g. "analytics.market_level_anomalies_v4"
+        s3_loc = s3_locations.get(short_key) or s3_locations.get(table_name)
+
+    # Codebase map: longest prefix match
+    best_prefix = None
+    for prefix in codebase_map:
+        if table_name.startswith(prefix):
+            if best_prefix is None or len(prefix) > len(best_prefix):
+                best_prefix = prefix
+    lineage = codebase_map.get(best_prefix) if best_prefix else None
+
+    # s3_location: Spectrum result takes priority; fall back to map's s3_location
+    if s3_loc:
+        row["s3_location"] = s3_loc
+    elif lineage and lineage.get("s3_location"):
+        row["s3_location"] = lineage["s3_location"]
+    else:
+        row["s3_location"] = None
+
+    if lineage:
+        row["git_repo"] = lineage.get("git_repo")
+        row["git_path"] = lineage.get("git_path")
+    else:
+        row["git_repo"] = None
+        row["git_path"] = None
+
+
 def _refresh_table(registry: DatasourceRegistry, table_name: str) -> dict[str, Any]:
     """Inspect a single table and return its metadata row."""
     datasource = datasource_for_table(table_name)
@@ -343,6 +412,14 @@ def main() -> int:
 
     registry = DatasourceRegistry()
 
+    print("Fetching S3 locations from svv_external_tables...")
+    s3_locations = _fetch_s3_locations(registry)
+    print(f"  {len(s3_locations)} Spectrum table S3 locations found")
+
+    print("Loading codebase lineage map...")
+    codebase_map = _load_codebase_map()
+    print(f"  {len(codebase_map)} prefix entries in codebase map")
+
     # Full schema discovery across all datasources
     print("Discovering all schema tables from live datasources...")
     all_discovered: list[str] = []
@@ -371,6 +448,7 @@ def main() -> int:
     for idx, table_name in enumerate(all_tables, 1):
         print(f"  [{idx}/{len(all_tables)}] {table_name} ...", end=" ", flush=True)
         row = _refresh_table(registry, table_name)
+        _apply_lineage(row, s3_locations, codebase_map)
         status = row.get("status", "unknown")
         col_count = len(row.get("columns", []))
         max_date = row.get("max_sales_date", "")

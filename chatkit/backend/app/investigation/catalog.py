@@ -24,6 +24,9 @@ class TableKnowledge:
     sample_row: dict[str, Any] | None
     query_example: str | None
     analysis_example: str | None
+    s3_location: str | None = None
+    git_repo: str | None = None
+    git_path: str | None = None
 
 
 class LocalCodeCatalog:
@@ -122,6 +125,9 @@ class KnowledgeBase:
                     query_example TEXT,
                     analysis_example TEXT,
                     max_sales_date INTEGER,
+                    s3_location TEXT,
+                    git_repo TEXT,
+                    git_path TEXT,
                     updated_at REAL NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS kb_partitions (
@@ -159,10 +165,19 @@ class KnowledgeBase:
                 """
             )
             conn.commit()
-            # Schema migration: add max_sales_date if not present in existing DBs
+            # Schema migration: add new columns if not present in existing DBs
             col_names = [row[1] for row in conn.execute("PRAGMA table_info(kb_tables)").fetchall()]
             if "max_sales_date" not in col_names:
                 conn.execute("ALTER TABLE kb_tables ADD COLUMN max_sales_date INTEGER")
+                conn.commit()
+            if "s3_location" not in col_names:
+                conn.execute("ALTER TABLE kb_tables ADD COLUMN s3_location TEXT")
+                conn.commit()
+            if "git_repo" not in col_names:
+                conn.execute("ALTER TABLE kb_tables ADD COLUMN git_repo TEXT")
+                conn.commit()
+            if "git_path" not in col_names:
+                conn.execute("ALTER TABLE kb_tables ADD COLUMN git_path TEXT")
                 conn.commit()
         finally:
             conn.close()
@@ -271,10 +286,13 @@ class KnowledgeBase:
                 notes = str(row.get("notes", "") or "") + status_note
                 max_sales_date = live.get("max_sales_date")  # int YYYYMMDD or None
                 tier = live.get("tier") or row.get("tier", "common")
+                s3_location = live.get("s3_location")
+                git_repo = live.get("git_repo")
+                git_path = live.get("git_path")
                 conn.execute(
                     """
-                    INSERT INTO kb_tables (table_name, datasource, tier, notes, query_example, analysis_example, max_sales_date, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO kb_tables (table_name, datasource, tier, notes, query_example, analysis_example, max_sales_date, s3_location, git_repo, git_path, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         table_name,
@@ -284,6 +302,9 @@ class KnowledgeBase:
                         row.get("query_example"),
                         row.get("analysis_example"),
                         max_sales_date,
+                        s3_location,
+                        git_repo,
+                        git_path,
                         now,
                     ),
                 )
@@ -400,13 +421,13 @@ class KnowledgeBase:
             partition_info = self._load_partition_info(conn)
 
             table_rows = conn.execute(
-                "SELECT table_name, datasource, tier, notes, query_example, analysis_example, max_sales_date FROM kb_tables"
+                "SELECT table_name, datasource, tier, notes, query_example, analysis_example, max_sales_date, s3_location, git_repo, git_path FROM kb_tables"
             ).fetchall()
             yesterday_int = int(
                 (datetime.date.today() - datetime.timedelta(days=1)).strftime("%Y%m%d")
             )
             table_scored: list[tuple[float, dict[str, Any]]] = []
-            for table_name, datasource, tier, notes, query_example, analysis_example, max_sales_date in table_rows:
+            for table_name, datasource, tier, notes, query_example, analysis_example, max_sales_date, s3_location, git_repo, git_path in table_rows:
                 score = 0.0
                 text = f"{table_name} {notes}".lower()
                 for tok in tokens:
@@ -439,6 +460,9 @@ class KnowledgeBase:
                             "query_example": query_example,
                             "analysis_example": analysis_example,
                             "max_sales_date": max_sales_date,
+                            "s3_location": s3_location,
+                            "git_repo": git_repo,
+                            "git_path": git_path,
                             "partitions": partition_info.get(table_name, []),
                         },
                     )
@@ -488,14 +512,17 @@ class KnowledgeBase:
         sample_row_masked: dict[str, Any] | None,
         tier: str,
         notes: str,
+        s3_location: str | None = None,
+        git_repo: str | None = None,
+        git_path: str | None = None,
     ) -> None:
         now = time.time()
         conn = sqlite3.connect(self.db_path)
         try:
             conn.execute(
                 """
-                INSERT OR REPLACE INTO kb_tables (table_name, datasource, tier, notes, query_example, analysis_example, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO kb_tables (table_name, datasource, tier, notes, query_example, analysis_example, s3_location, git_repo, git_path, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     table_name,
@@ -504,6 +531,9 @@ class KnowledgeBase:
                     notes,
                     f"SELECT * FROM {table_name} LIMIT 200",
                     "Profile dataset and, if needed, run python analysis",
+                    s3_location,
+                    git_repo,
+                    git_path,
                     now,
                 ),
             )

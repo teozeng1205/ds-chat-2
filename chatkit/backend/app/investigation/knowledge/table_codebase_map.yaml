@@ -1,0 +1,75 @@
+# Table lineage seed — used by refresh_table_metadata.py at sweep time.
+# Longest prefix wins. git_path is relative to the repo root.
+prefixes:
+  "prod.monitoring.":
+    git_repo: ds-internal-monitoring
+    git_path: source/lambda/audit_aggregator/handler.py
+
+  "prod.common_output.":
+    git_repo: priceeye-v2
+    git_path: src/main/java/com/atpco/priceeye/output/CommonOutputWriter.java
+    s3_location: "s3://s3-atp-3victors-3vprod-use1-pe-common-output/"
+
+  "prod.analytics.market_level":
+    git_repo: ds-priceeye-analytics
+    git_path: src/jobs/market_anomalies/market_anomalies_handler.py
+    s3_location: "s3://s3-atp-3victors-3vprod-use1-anomaly-datasets/market-level/v4/"
+
+  "prod.analytics.segment_level":
+    git_repo: ds-priceeye-analytics
+    git_path: src/jobs/segment_anomalies/segment_anomalies_handler.py
+    s3_location: "s3://s3-atp-3victors-3vprod-use1-anomaly-datasets/segment-level/v4/"
+
+  "prod.analytics.competitive_position":
+    git_repo: ds-priceeye-analytics
+    git_path: src/jobs/competitive_position/competitive_position_handler.py
+    s3_location: "s3://s3-atp-3victors-3vprod-use1-anomaly-datasets/competitive-position/v3/"
+
+  "prod.analytics.dco":
+    git_repo: ds-priceeye-analytics
+    git_path: src/jobs/dco/dco_handler.py
+    s3_location: "s3://s3-atp-3victors-3vprod-use1-anomaly-datasets/dco/v2/"
+
+  "prod.analytics.":
+    git_repo: ds-priceeye-analytics
+    git_path: src/jobs/
+
+  "prod.site_metrics.":
+    git_repo: ds-priceeye-data-collection
+    git_path: source/site_metrics/handler.py
+    s3_location: "s3://s3-atp-3victors-3vprod-use1-sitemetrics/"
+
+  "collection_optimizer.":
+    git_repo: ds-priceeye-data-collection
+    git_path: source/collection_optimizer/
+
+  "yqyr_cache.":
+    git_repo: ds-priceeye-data-collection
+    git_path: source/yqyr_cache/
+
+  "billing_db.":
+    git_repo: ds-customer-monitoring
+    git_path: source/billing_unload/handler.py
+    s3_location: "s3://s3-atp-3victors-3vprod-use1-billing/v3/customer_daily_requests/"
+
+  "taxregression.":
+    git_repo: ds-priceeye-enrichment
+    git_path: source/tax_regression/handler.py
+    s3_location: "s3://s3-atp-3victors-3vprod-use1-ds-tax-regression/tax_reg_output/v1/"
+
+  "tax_reg.":
+    git_repo: ds-priceeye-enrichment
+    git_path: source/tax_regression/handler.py
+    s3_location: "s3://s3-atp-3victors-3vprod-use1-ds-tax-regression/tax_reg_output/v1/"
+
+  "priceeye.":
+    git_repo: priceeye-v2
+    git_path: src/main/java/com/atpco/priceeye/
+
+  "sales_poc.":
+    git_repo: ds-priceeye-data-collection
+    git_path: source/sales_poc/
+
+  "monitoring_db.":
+    git_repo: ds-internal-monitoring
+    git_path: source/lambda/audit_aggregator/handler.py
