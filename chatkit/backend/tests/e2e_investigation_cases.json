@@ -60,7 +60,7 @@
     {
       "name": "eda_competitive_position_b6",
       "thread_id": "thread-smoke-eda-b6",
-      "question": "make an EDA of competitive position of customer B6",
+      "question": "Use execute_sql to run an EDA of competitive position for customer B6 today. Query the analytics table, summarize the distribution, and show key stats.",
       "assertions": {
         "min_tool_calls": 2,
         "required_tools": [
