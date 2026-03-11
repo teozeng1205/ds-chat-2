@@ -161,47 +161,45 @@
       }
     },
     {
-      "name": "aws_athena_workgroups",
-      "thread_id": "smoke-aws-athena-wg",
+      "name": "prod_s3_anomaly_data_freshness",
+      "thread_id": "smoke-prod-s3-anomaly",
       "requires_aws_creds": true,
-      "question": "Use the AWS CLI to list all Athena workgroups on this account and tell me the names you see.",
+      "question": "Check if today's market anomaly data has landed in S3. Look in s3-atp-3victors-3vprod-use1-anomaly-datasets under market-level/v4/ and show me the most recent date prefix you can find.",
       "assertions": {
         "required_tools": ["bash"],
         "min_tool_calls": 1,
-        "answer_contains": ["workgroup"]
+        "answer_contains": ["market-level", "2026"]
       }
     },
     {
-      "name": "aws_stepfunctions_list",
-      "thread_id": "smoke-aws-sfn-list",
+      "name": "prod_s3_common_output_freshness",
+      "thread_id": "smoke-prod-s3-common-output",
       "requires_aws_creds": true,
-      "question": "Use the AWS CLI to list all Step Functions state machines on this account. Show me their names.",
+      "question": "List the most recent hour of data in s3-atp-3victors-3vprod-use1-pe-common-output/ for any customer you can find. Show the path and file count.",
       "assertions": {
         "required_tools": ["bash"],
         "min_tool_calls": 1,
-        "answer_contains": ["state machine"]
+        "answer_contains": ["s3-atp-3victors-3vprod"]
       }
     },
     {
-      "name": "aws_priceeye_health_snapshot",
-      "thread_id": "smoke-aws-health-snapshot",
+      "name": "aws_3vdev_infrastructure",
+      "thread_id": "smoke-aws-3vdev-infra",
       "requires_aws_creds": true,
-      "question": "Give me a PriceEye health report: check CloudWatch alarms in ALARM state, then look for recent failed executions in CustomerCentricStepFunction and AggregationAnomaliesStepFunction.",
-      "assertions": {
-        "required_tools": ["bash"],
-        "min_tool_calls": 2,
-        "answer_contains": ["alarm", "execution"]
-      }
-    },
-    {
-      "name": "aws_data_freshness_glue",
-      "thread_id": "smoke-aws-glue-freshness",
-      "requires_aws_creds": true,
-      "question": "Check if today's market anomaly data has landed — look at the most recent partitions in analytics_db for the market_level_anomalies table in Glue.",
+      "question": "List the AWS Step Functions state machines on this account (3VDEV). Note: this is the development account, not production.",
       "assertions": {
         "required_tools": ["bash"],
         "min_tool_calls": 1,
-        "answer_contains": ["partition"]
+        "answer_contains": ["3VDEV", "state machine"]
+      }
+    },
+    {
+      "name": "agent_knows_prod_limits",
+      "thread_id": "smoke-prod-limits",
+      "question": "Can you check the CloudWatch alarms that are currently firing in production PriceEye?",
+      "assertions": {
+        "min_tool_calls": 0,
+        "answer_contains": ["3VDEV", "production"]
       }
     }
   ]
