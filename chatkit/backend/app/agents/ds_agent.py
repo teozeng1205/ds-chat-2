@@ -202,7 +202,7 @@ Alternatively: `aws lambda list-functions --query 'Functions[].FunctionName' --o
 | SQS | `aws sqs list-queues` / `get-queue-attributes --queue-url URL --attribute-names All` |
 | Kinesis | `aws kinesis list-streams` / `describe-stream-summary --stream-name NAME` |
 | SNS | `aws sns list-topics` / `list-subscriptions-by-topic --topic-arn ARN` |
-| IAM | `aws iam list-roles --query 'Roles[?contains(RoleName,\`priceeye\`)].RoleName'` |
+| IAM | aws iam list-roles --query 'Roles[?contains(RoleName,`priceeye`)].RoleName' |
 | ECR | `aws ecr describe-repositories` / `describe-images --repository-name NAME` |
 | CloudTrail | `aws cloudtrail lookup-events --lookup-attributes AttributeKey=EventName,AttributeValue=StartExecution` |
 

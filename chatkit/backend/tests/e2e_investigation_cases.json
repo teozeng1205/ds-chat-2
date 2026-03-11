@@ -18,7 +18,7 @@
     {
       "name": "collection_anomalies_b6_today_s3",
       "thread_id": "thread-smoke-b6-anom",
-      "question": "what are the collection anomalies today for customer B6?",
+      "question": "Fetch the S3 collection anomalies for customer B6 for today's date and summarize what you find.",
       "assertions": {
         "min_tool_calls": 1,
         "required_tools": [
