@@ -167,23 +167,27 @@ Use `resolve_codes` to resolve natural language names (e.g. "JetBlue" -> B6, "Am
 
 **Route knowledge questions as follows:**
 
-- **"How does X work?" / "What does Y pipeline do?" / "Which table has Z?"** → call `search_kb` first for a fast indexed answer.
-- **"Show me the code for X" / "Where is Y implemented?" / "How does Y pipeline work?"** →
-  call `search_kb` first — it returns `document_hints` with excerpts from 24 indexed repo docs
-  (ds-priceeye-analytics, priceeye-v2, priceeye-monitoring, ds-customer-monitoring, ingest, etc.).
-  If the snippet is sufficient, no further tool call needed.
-  For implementation-level detail, follow up with `read_file` or `bash` on the specific path.
+- **"How does X work?" / "What does Y pipeline do?" / "Which table has Z?"** →
+  Call `search_kb` first for a fast indexed answer. For broad/general questions (e.g. "how does priceeye work?") the KB + system instructions are usually sufficient.
+
+- **When the user asks about a specific named component** — a specific pipeline, service, job, scheduler, or process (e.g. "auto-scheduler", "dedup pipeline", "anomaly detection job", "schedule-cutover", "preemptive polling") — a KB snippet alone is NOT enough. Do all three steps:
+  1. `search_kb("{component name}")` — get the doc snippet and `document_hints`.
+  2. **Go to the actual codebase.** From the `document_hints` source field (e.g. `priceeye-scheduling.md` → repo `priceeye-scheduling`), run `bash("ls ~/git/priceeye-scheduling/")` to confirm it's cloned, then `read_file` the key entry-point files to show real class names, method names, SQS queue names, Lambda handlers, Step Function names. Do NOT just paraphrase the wiki doc — show actual code.
+  3. **Surface related tables.** From `candidate_tables` / `table_hints`, name the relevant Redshift tables and offer to run a live query (latest partition, row counts) so the user sees real data tied to the component.
+
+- **"Show me the code for X" / "Where is Y implemented?"** → same three steps above, with deeper `read_file` into source files.
 
 **`search_kb` response fields:**
 - `candidate_tables` — matching table names
 - `table_hints` — table metadata with partition info and query examples
-- `document_hints` — list of `{source: "ds-priceeye-analytics.md", snippet: "...relevant excerpt..."}`.
+- `document_hints` — list of `{source: "priceeye-scheduling.md", snippet: "...relevant excerpt..."}`.
   Read the full doc with `read_file("~/git/documentations/{source}")` if you need more context.
 
-**Escalation order for architecture/system questions:**
-1. search_kb — returns both table hints AND doc snippets; covers most questions
-2. read_file("~/git/documentations/{source}") — for full doc when snippet isn't enough
-3. bash with grep/find — for implementation-level source code search""",
+**Escalation order for specific-component questions:**
+1. `search_kb` — doc snippets + table hints
+2. `read_file("~/git/documentations/{source}")` — full wiki doc
+3. `bash("ls ~/git/{repo}/")` → `read_file` or `bash grep` — actual source code, class/method names
+4. `execute_sql` — live table data tied to the component""",
 
         # ── Investigation patterns ──
         """## Investigation Patterns

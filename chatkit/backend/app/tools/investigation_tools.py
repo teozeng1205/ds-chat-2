@@ -416,18 +416,43 @@ async def resolve_codes(
         return {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
 
 
+@function_tool
+async def publish_image(
+    ctx: RunContextWrapper[AgentContext],
+    path: str,
+    display_name: str | None = None,
+) -> dict[str, Any]:
+    """Publish a saved image file as a Card widget with fullscreen and download buttons.
+
+    Args:
+        path: Absolute or /tmp/-relative path to the image file (PNG, JPG, SVG, etc).
+        display_name: Optional human-readable label shown on the card.
+
+    Returns: {published: true, attachment_id, image_url, path, mime_type}
+    """
+    try:
+        await _stream_progress(ctx, "image", f"Publishing image: {path}")
+        result = await _publish_image_widget(ctx, path=path, display_name=display_name)
+        return result
+    except Exception as exc:
+        log.exception("publish_image failed")
+        return {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
+
+
 def investigation_tools_core() -> list[Any]:
-    """Return the 5 core data tools for the coding agent (excludes run_python, browse_repo_files)."""
+    """Return the 6 core data tools for the coding agent (excludes run_python, browse_repo_files)."""
     return [
         execute_sql,
         fetch_s3,
         inspect_table,
         search_kb,
         resolve_codes,
+        publish_image,
     ]
 
 
 __all__ = [
     "cleanup_thread_workspace",
     "investigation_tools_core",
+    "publish_image",
 ]

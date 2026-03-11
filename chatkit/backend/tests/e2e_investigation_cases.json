@@ -190,6 +190,84 @@
         "min_tool_calls": 0,
         "answer_contains": ["3VDEV", "production"]
       }
+    },
+    {
+      "name": "cross_db_ql2_mysql_vs_redshift",
+      "thread_id": "smoke-cross-mysql-redshift",
+      "question": "Look up QL2's site configuration in MySQL (query priceeye.site for QL2) and then check their top collection errors in Redshift (prod.monitoring.provider_combined_audit for today). What do the site settings tell us about the error patterns you see?",
+      "assertions": {
+        "min_tool_calls": 3,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["QL2"]
+      }
+    },
+    {
+      "name": "cross_db_anomalies_vs_monitoring_b6",
+      "thread_id": "smoke-cross-anom-monitor",
+      "question": "For customer B6 today, query both prod.analytics.market_level_anomalies and prod.monitoring.provider_combined_audit in Redshift. Are the markets with the highest anomaly impact scores also showing collection issues in the monitoring data?",
+      "assertions": {
+        "min_tool_calls": 3,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["B6", "anomal"]
+      }
+    },
+    {
+      "name": "cross_db_s3_vs_sql_anomaly_match",
+      "thread_id": "smoke-cross-s3-sql",
+      "question": "Fetch the S3 collection anomaly data for customer B6 from today using fetch_s3, then query prod.analytics.market_level_anomalies for B6 on the same date using execute_sql. Do the two data sources agree on which markets have anomalies?",
+      "assertions": {
+        "min_tool_calls": 3,
+        "required_tools": ["fetch_s3", "execute_sql"],
+        "answer_contains": ["B6", "anomal"]
+      }
+    },
+    {
+      "name": "agent_knows_available_datasources",
+      "thread_id": "smoke-meta-datasources",
+      "question": "What data sources and databases can you connect to? Give me a complete summary of what's available, which tools access each, and any known limitations (e.g. what production resources you cannot reach).",
+      "assertions": {
+        "min_tool_calls": 0,
+        "answer_contains": ["Redshift", "MySQL"]
+      }
+    },
+    {
+      "name": "agent_knows_data_freshness",
+      "thread_id": "smoke-meta-freshness",
+      "question": "What is today's date, and how fresh is the data in the analytics tables? Check the actual latest sales_date available in prod.analytics.market_level_anomalies using execute_sql.",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["execute_sql"],
+        "answer_contains": ["sales_date", "2026"]
+      }
+    },
+    {
+      "name": "agent_knows_monitoring_schema",
+      "thread_id": "smoke-meta-monitoring",
+      "question": "What tables are in the prod.monitoring schema? Which ones are most useful for debugging PriceEye collection issues and why? Use search_kb to look this up.",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["search_kb"],
+        "answer_contains": ["monitoring", "audit"]
+      }
+    },
+    {
+      "name": "agent_knows_own_tools",
+      "thread_id": "smoke-meta-tools",
+      "question": "What investigation tools do you have available? List each one, what it does, and give a concrete example of when you'd use it over the others.",
+      "assertions": {
+        "min_tool_calls": 0,
+        "answer_contains": ["execute_sql", "fetch_s3"]
+      }
+    },
+    {
+      "name": "auto_scheduler_codebase_lookup",
+      "thread_id": "smoke-auto-scheduler-code",
+      "question": "How does the auto-scheduler work in priceeye-scheduling? Look it up in the knowledge base and then check the actual codebase to show me the real class names and entry points.",
+      "assertions": {
+        "min_tool_calls": 2,
+        "required_tools": ["search_kb", "bash"],
+        "answer_contains": ["priceeye-scheduling", "auto"]
+      }
     }
   ]
 }

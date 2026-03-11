@@ -69,8 +69,8 @@ Choose the right pattern based on complexity:
 
    - Use `/tmp/` for all temporary scripts and outputs.
    - Use `matplotlib.use('Agg')` BEFORE `import matplotlib.pyplot` — EC2 has no display.
-   - Save plots to `/tmp/plot.png`, then publish with `publish_image` (from investigation tools)
-     or `bash('base64 /tmp/plot.png')` to inline it.
+   - Save plots to `/tmp/plot.png`, then call `publish_image(path="/tmp/plot.png")` to render
+     as a card with fullscreen and download buttons. Never use `base64` to inline images.
    - Name scripts descriptively: `/tmp/analyze_site_issues.py`, `/tmp/plot_anomalies.py`.
 
 3. **For data investigation** — after `execute_sql` returns a dataset_id, you can load it

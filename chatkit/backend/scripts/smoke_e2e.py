@@ -30,7 +30,7 @@ sys.path.insert(0, str(BACKEND_ROOT))
 
 from agents import Runner  # type: ignore[import]
 
-from app.agents.investigation_agent import build_investigation_agent
+from app.agents.ds_agent import build_agent as build_investigation_agent
 from app.investigation.runtime import cleanup_thread_workspace, get_runtime
 
 
@@ -224,8 +224,10 @@ async def run_case(
         report["tool_call_count"] = len(tool_calls)
         report["answer"] = answer
         report["answer_length"] = len(answer)
-        report["assertions"] = _check_assertions(case, tool_calls, answer)
-        report["failed"] = False
+        assertion_result = _check_assertions(case, tool_calls, answer)
+        report["assertions"] = assertion_result
+        assertion_failed = assertion_result.get("checked") and not assertion_result.get("passed", True)
+        report["failed"] = assertion_failed
 
     except Exception as exc:
         report["failed"] = True
