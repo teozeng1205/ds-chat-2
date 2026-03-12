@@ -260,6 +260,26 @@
       }
     },
     {
+      "name": "python_trend_plot",
+      "thread_id": "smoke-python-trend-plot",
+      "question": "Use Python to generate a synthetic time-series dataset of 90 days of daily 'collection request counts' with a realistic upward trend plus noise, then plot it with a trend line overlaid. Save the plot and publish it as an image card.",
+      "assertions": {
+        "min_tool_calls": 1,
+        "required_tools": ["bash"],
+        "answer_contains": ["plot", "trend"]
+      }
+    },
+    {
+      "name": "python_sql_then_plot",
+      "thread_id": "smoke-python-sql-plot",
+      "question": "Query prod.monitoring.provider_combined_audit for today and get the top 10 providers by request count. Then use Python to plot a horizontal bar chart of the results and publish it as an image card.",
+      "assertions": {
+        "min_tool_calls": 2,
+        "required_tools": ["execute_sql", "bash"],
+        "answer_contains": ["chart", "provider"]
+      }
+    },
+    {
       "name": "auto_scheduler_codebase_lookup",
       "thread_id": "smoke-auto-scheduler-code",
       "question": "How does the auto-scheduler work in priceeye-scheduling? Look it up in the knowledge base and then check the actual codebase to show me the real class names and entry points.",
