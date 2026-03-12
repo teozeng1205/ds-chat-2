@@ -104,36 +104,60 @@ class DatasourceRegistry:
         return TableRef(schema=schema, table=table)
 
     def ensure_credentials(self) -> dict[str, Any]:
-        """Run `assume 3VDEV` once and load AWS env into current process."""
+        """Bootstrap AWS credentials for profile 3VDEV into the current process.
+
+        Uses `aws configure export-credentials` (static key/secret/token) instead of
+        `assume`, which sets AWS_CREDENTIAL_EXPIRATION and triggers a botocore
+        RefreshableCredentials loop that raises "credentials still expired".
+        Falls back to `assume` if export-credentials is unavailable.
+        """
         with self._cred_lock:
             if self._creds_ready:
                 return {"ok": True, "profile": "3VDEV", "cached": True}
 
-            cmd = "assume 3VDEV >/dev/null 2>&1; env -0"
-            proc = subprocess.run(
-                ["zsh", "-lc", cmd],
+            # Primary: aws configure export-credentials → static creds, no expiration var
+            export_proc = subprocess.run(
+                ["zsh", "-lc",
+                 "aws configure export-credentials --profile 3VDEV --format env 2>/dev/null"],
                 capture_output=True,
-                text=False,
+                text=True,
             )
-            if proc.returncode != 0:
-                stderr = proc.stderr.decode("utf-8", errors="replace") if proc.stderr else ""
-                raise CredentialsBootstrapError(
-                    f"Credential bootstrap failed for profile 3VDEV: {stderr.strip() or 'unknown error'}"
-                )
-
-            output = proc.stdout.decode("utf-8", errors="replace")
             loaded = 0
-            for pair in output.split("\x00"):
-                if not pair or "=" not in pair:
-                    continue
-                key, value = pair.split("=", 1)
-                if key.startswith("AWS_"):
-                    os.environ[key] = value
-                    loaded += 1
-            os.environ.setdefault("AWS_REGION", "us-east-1")
-            # Unset vars that cause botocore RefreshableCredentials loop
-            for _k in ("AWS_CREDENTIAL_EXPIRATION", "AWS_PROFILE", "AWS_DEFAULT_PROFILE"):
-                os.environ.pop(_k, None)
+            if export_proc.returncode == 0 and export_proc.stdout.strip():
+                for line in export_proc.stdout.splitlines():
+                    line = line.strip()
+                    if line.startswith("export "):
+                        line = line[len("export "):]
+                    if "=" not in line:
+                        continue
+                    key, _, value = line.partition("=")
+                    key = key.strip()
+                    value = value.strip().strip('"').strip("'")
+                    if key.startswith("AWS_"):
+                        os.environ[key] = value
+                        loaded += 1
+
+            if loaded == 0:
+                # Fallback: assume 3VDEV via zsh login shell
+                cmd = "assume 3VDEV >/dev/null 2>&1; env -0"
+                proc = subprocess.run(
+                    ["zsh", "-lc", cmd],
+                    capture_output=True,
+                    text=False,
+                )
+                if proc.returncode != 0:
+                    stderr = proc.stderr.decode("utf-8", errors="replace") if proc.stderr else ""
+                    raise CredentialsBootstrapError(
+                        f"Credential bootstrap failed for profile 3VDEV: {stderr.strip() or 'unknown error'}"
+                    )
+                output = proc.stdout.decode("utf-8", errors="replace")
+                for pair in output.split("\x00"):
+                    if not pair or "=" not in pair:
+                        continue
+                    key, value = pair.split("=", 1)
+                    if key.startswith("AWS_"):
+                        os.environ[key] = value
+                        loaded += 1
 
             if loaded == 0:
                 fallback = subprocess.run(
@@ -144,13 +168,19 @@ class DatasourceRegistry:
                 if fallback.returncode != 0:
                     stderr = fallback.stderr or ""
                     raise CredentialsBootstrapError(
-                        f"assume produced no AWS env and credential-process fallback failed: {stderr.strip() or 'unknown error'}"
+                        f"All credential bootstrap methods failed: {stderr.strip() or 'unknown error'}"
                     )
                 payload = json.loads(fallback.stdout)
                 os.environ["AWS_ACCESS_KEY_ID"] = str(payload.get("AccessKeyId") or "")
                 os.environ["AWS_SECRET_ACCESS_KEY"] = str(payload.get("SecretAccessKey") or "")
                 os.environ["AWS_SESSION_TOKEN"] = str(payload.get("SessionToken") or "")
                 loaded = 3
+
+            os.environ.setdefault("AWS_REGION", "us-east-1")
+            # Always unset these — they cause botocore RefreshableCredentials to loop
+            for _k in ("AWS_CREDENTIAL_EXPIRATION", "AWS_PROFILE", "AWS_DEFAULT_PROFILE"):
+                os.environ.pop(_k, None)
+
             self._creds_ready = True
             return {"ok": True, "profile": "3VDEV", "cached": False, "env_keys_loaded": loaded}
 
