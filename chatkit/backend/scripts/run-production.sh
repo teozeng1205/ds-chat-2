@@ -33,5 +33,7 @@ PY
   fi
 fi
 
-echo "Starting ChatKit backend on http://127.0.0.1:8000 ..."
-exec "$VENV_BIN/uvicorn" app.main:app --host 127.0.0.1 --port 8000
+HOST="${CHATKIT_HOST:-127.0.0.1}"
+PORT="${CHATKIT_PORT:-8000}"
+echo "Starting ChatKit backend on http://${HOST}:${PORT} ..."
+exec "$VENV_BIN/uvicorn" app.main:app --host "$HOST" --port "$PORT"

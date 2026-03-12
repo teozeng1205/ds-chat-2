@@ -380,7 +380,89 @@ async def fetch_url(
         return f"Error fetching {url}: {exc}"
 
 
-# ── Tool 7: run_parallel ──
+# ── Tool 7: render_image ──
+
+@function_tool
+async def render_image(
+    ctx: RunContextWrapper[AgentContext],  # type: ignore[type-arg]
+    file_path: str,
+    title: str = "Plot",
+) -> str:
+    """Display an image file inline in the chat as a widget card.
+
+    Use this after generating any plot or image file to show it to the user.
+    Supports PNG, JPEG, GIF, WebP, SVG files.
+
+    Args:
+        file_path: Absolute path to the image file (e.g. /tmp/plot.png).
+        title: Optional title shown above the image (default 'Plot').
+    """
+    import mimetypes
+    import os
+    import shutil
+
+    path = Path(file_path).expanduser().resolve()
+    if not path.exists():
+        return f"Error: file not found: {path}"
+    if not path.is_file():
+        return f"Error: not a file: {path}"
+
+    mime = mimetypes.guess_type(path.name)[0] or ""
+    if not mime.startswith("image/"):
+        return f"Error: {path.name} does not appear to be an image (mime={mime})"
+
+    # Copy to /tmp if not already there so the endpoint can serve it
+    dest = Path("/tmp") / path.name
+    if path != dest:
+        shutil.copy2(path, dest)
+
+    # Build public URL — use CHATKIT_PUBLIC_BASE_URL env var if set,
+    # otherwise fall back to the request's forwarded host
+    public_base = os.environ.get("CHATKIT_PUBLIC_BASE_URL", "").rstrip("/")
+    if not public_base:
+        request = getattr(getattr(ctx.context, "_request", None), None, None)
+        forwarded_host = None
+        if request is not None:
+            forwarded_host = getattr(request.headers, "get", lambda k: None)("x-forwarded-host")
+        if forwarded_host:
+            forwarded_proto = getattr(request.headers, "get", lambda k: "https")("x-forwarded-proto") or "https"
+            public_base = f"{forwarded_proto}://{forwarded_host}"
+        else:
+            # Hardcode the known domain as last resort
+            public_base = "https://chat.teozeng.com"
+
+    image_url = f"{public_base}/chatkit/images/{dest.name}"
+    download_url = image_url
+
+    try:
+        from chatkit.widgets import Image as ImageWidget
+        await ctx.context.stream_widget(
+            Card(
+                size="lg",
+                status={"type": "success", "title": title},
+                children=[
+                    {"type": "Image", "src": image_url, "alt": title, "fit": "contain", "maxHeight": 500},
+                    {
+                        "type": "Button",
+                        "label": "Download",
+                        "style": "secondary",
+                        "onClickAction": {
+                            "type": "download_url",
+                            "handler": "client",
+                            "loadingBehavior": "none",
+                            "payload": {"url": download_url, "filename": dest.name},
+                        },
+                    },
+                ],
+            )
+        )
+    except Exception as exc:
+        return f"Image saved to {dest}. Could not render widget: {exc}. URL: {image_url}"
+
+    return f"Image displayed inline. URL: {image_url}"
+
+
+# ── Tool 8: run_parallel ──
 
 class Experiment(BaseModel):
     """A single experiment for run_parallel."""
@@ -454,8 +536,8 @@ async def run_parallel(
 # ── Factory ──
 
 def shell_tools() -> list[Any]:
-    """Return all 7 shell/filesystem tools for the coding agent."""
-    return [bash, read_file, list_dir, edit_file, git, fetch_url, run_parallel]
+    """Return all shell/filesystem tools for the coding agent."""
+    return [bash, read_file, list_dir, edit_file, git, fetch_url, render_image, run_parallel]
 
 
 __all__ = [
@@ -465,6 +547,7 @@ __all__ = [
     "edit_file",
     "git",
     "fetch_url",
+    "render_image",
     "run_parallel",
     "shell_tools",
 ]

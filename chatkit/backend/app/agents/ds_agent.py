@@ -69,8 +69,8 @@ Choose the right pattern based on complexity:
 
    - Use `/tmp/` for all temporary scripts and outputs.
    - Use `matplotlib.use('Agg')` BEFORE `import matplotlib.pyplot` — EC2 has no display.
-   - Save plots to `/tmp/plot.png`, then call `publish_image(path="/tmp/plot.png")` to render
-     as a card with fullscreen and download buttons. Never use `base64` to inline images.
+   - Save plots to `/tmp/plot.png`, then call `render_image(file_path="/tmp/plot.png")` to render
+     as a card with a download button. Never use `base64` to inline images.
    - Name scripts descriptively: `/tmp/analyze_site_issues.py`, `/tmp/plot_anomalies.py`.
 
 3. **For data investigation** — after `execute_sql` returns a dataset_id, you can load it
@@ -110,6 +110,7 @@ _TOOL_GUIDE = """## Tool Decision Guide
 | Git log, diff, status, blame | `git` |
 | Search the web | `web_search` (built-in) |
 | Fetch a specific URL | `fetch_url` |
+| Display a plot or image inline | `render_image` |
 | Compare N approaches / benchmark | `run_parallel` |
 | Complex multi-step task (5+ steps) | `plan_task` first, then execute |
 | Query Redshift/MySQL | `execute_sql` |

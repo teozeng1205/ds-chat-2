@@ -51,6 +51,29 @@ async def session_state(thread_id: str) -> Response:
     })
 
 
+@app.get("/chatkit/images/{filename}")
+async def serve_image(filename: str, request: Request) -> Response:
+    """Serve an image file from /tmp so the agent can display it inline."""
+    import mimetypes
+    import re
+    from pathlib import Path
+
+    # Only allow safe filenames (no path traversal)
+    if not re.match(r'^[\w\-. ]+$', filename):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    path = Path("/tmp") / filename
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    mime = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    return Response(
+        content=path.read_bytes(),
+        media_type=mime,
+        headers={"Cache-Control": "private, max-age=300"},
+    )
+
+
 @app.get("/chatkit")
 async def chatkit_endpoint_info() -> Response:
     """Informational endpoint for accidental browser GETs; chat requests use POST."""
