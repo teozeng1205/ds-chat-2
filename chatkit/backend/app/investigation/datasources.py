@@ -110,10 +110,17 @@ class DatasourceRegistry:
         `assume`, which sets AWS_CREDENTIAL_EXPIRATION and triggers a botocore
         RefreshableCredentials loop that raises "credentials still expired".
         Falls back to `assume` if export-credentials is unavailable.
+        Falls back to ambient EC2 instance role credentials if all else fails.
         """
         with self._cred_lock:
             if self._creds_ready:
                 return {"ok": True, "profile": "3VDEV", "cached": True}
+
+            # Short-circuit: if explicit AWS credentials are already set (e.g. EC2 instance role
+            # or already-exported creds), skip the entire bootstrap sequence.
+            if os.environ.get("AWS_ACCESS_KEY_ID"):
+                self._creds_ready = True
+                return {"ok": True, "profile": "ambient", "cached": False}
 
             # Primary: aws configure export-credentials → static creds, no expiration var
             export_proc = subprocess.run(
@@ -145,36 +152,44 @@ class DatasourceRegistry:
                     capture_output=True,
                     text=False,
                 )
-                if proc.returncode != 0:
-                    stderr = proc.stderr.decode("utf-8", errors="replace") if proc.stderr else ""
-                    raise CredentialsBootstrapError(
-                        f"Credential bootstrap failed for profile 3VDEV: {stderr.strip() or 'unknown error'}"
-                    )
-                output = proc.stdout.decode("utf-8", errors="replace")
-                for pair in output.split("\x00"):
-                    if not pair or "=" not in pair:
-                        continue
-                    key, value = pair.split("=", 1)
-                    if key.startswith("AWS_"):
-                        os.environ[key] = value
-                        loaded += 1
+                if proc.returncode == 0:
+                    output = proc.stdout.decode("utf-8", errors="replace")
+                    for pair in output.split("\x00"):
+                        if not pair or "=" not in pair:
+                            continue
+                        key, value = pair.split("=", 1)
+                        if key.startswith("AWS_"):
+                            os.environ[key] = value
+                            loaded += 1
 
             if loaded == 0:
-                fallback = subprocess.run(
-                    ["granted", "credential-process", "--profile", "3VDEV", "--auto-login"],
+                try:
+                    fallback = subprocess.run(
+                        ["granted", "credential-process", "--profile", "3VDEV", "--auto-login"],
+                        capture_output=True,
+                        text=True,
+                    )
+                    if fallback.returncode == 0:
+                        payload = json.loads(fallback.stdout)
+                        os.environ["AWS_ACCESS_KEY_ID"] = str(payload.get("AccessKeyId") or "")
+                        os.environ["AWS_SECRET_ACCESS_KEY"] = str(payload.get("SecretAccessKey") or "")
+                        os.environ["AWS_SESSION_TOKEN"] = str(payload.get("SessionToken") or "")
+                        loaded = 3
+                except FileNotFoundError:
+                    pass  # granted not installed; fall through to ambient credentials
+
+            # Final check: verify that some credential source is available (env-var or instance role)
+            if loaded == 0:
+                verify = subprocess.run(
+                    ["aws", "sts", "get-caller-identity"],
                     capture_output=True,
                     text=True,
                 )
-                if fallback.returncode != 0:
-                    stderr = fallback.stderr or ""
+                if verify.returncode != 0:
                     raise CredentialsBootstrapError(
-                        f"All credential bootstrap methods failed: {stderr.strip() or 'unknown error'}"
+                        "All credential bootstrap methods failed and no ambient AWS credentials available"
                     )
-                payload = json.loads(fallback.stdout)
-                os.environ["AWS_ACCESS_KEY_ID"] = str(payload.get("AccessKeyId") or "")
-                os.environ["AWS_SECRET_ACCESS_KEY"] = str(payload.get("SecretAccessKey") or "")
-                os.environ["AWS_SESSION_TOKEN"] = str(payload.get("SessionToken") or "")
-                loaded = 3
+                # Ambient credentials (e.g. EC2 instance role) are usable — proceed without env vars
 
             os.environ.setdefault("AWS_REGION", "us-east-1")
             # Unset profile selectors so botocore uses the explicit env-var credentials,
