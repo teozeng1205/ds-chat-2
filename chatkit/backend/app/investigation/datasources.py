@@ -177,8 +177,11 @@ class DatasourceRegistry:
                 loaded = 3
 
             os.environ.setdefault("AWS_REGION", "us-east-1")
-            # Always unset these — they cause botocore RefreshableCredentials to loop
-            for _k in ("AWS_CREDENTIAL_EXPIRATION", "AWS_PROFILE", "AWS_DEFAULT_PROFILE"):
+            # Unset profile selectors so botocore uses the explicit env-var credentials,
+            # not the SSO profile (which re-triggers the refresh loop).
+            # Do NOT unset AWS_CREDENTIAL_EXPIRATION when creds are fresh — botocore
+            # needs it to maintain RefreshableCredentials correctly.
+            for _k in ("AWS_PROFILE", "AWS_DEFAULT_PROFILE"):
                 os.environ.pop(_k, None)
 
             self._creds_ready = True
