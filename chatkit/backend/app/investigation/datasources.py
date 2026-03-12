@@ -131,6 +131,9 @@ class DatasourceRegistry:
                     os.environ[key] = value
                     loaded += 1
             os.environ.setdefault("AWS_REGION", "us-east-1")
+            # Unset vars that cause botocore RefreshableCredentials loop
+            for _k in ("AWS_CREDENTIAL_EXPIRATION", "AWS_PROFILE", "AWS_DEFAULT_PROFILE"):
+                os.environ.pop(_k, None)
 
             if loaded == 0:
                 fallback = subprocess.run(
