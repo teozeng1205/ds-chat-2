@@ -431,7 +431,7 @@ async def publish_image(
     Returns: {published: true, attachment_id, image_url, path, mime_type}
     """
     try:
-        await _stream_progress(ctx, "image", f"Publishing image: {path}")
+        await _stream_progress(ctx, "images", f"Publishing image: {path}")
         result = await _publish_image_widget(ctx, path=path, display_name=display_name)
         return result
     except Exception as exc:

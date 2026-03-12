@@ -30,7 +30,7 @@ from .attachment_store import LocalDiskAttachmentStore, default_attachment_dir
 
 MAX_RECENT_ITEMS = 50
 MAX_AGENT_TURNS = 50
-DEFAULT_MODEL = "gpt-5.3"
+DEFAULT_MODEL = "gpt-5.2"
 TITLE_MODEL = "gpt-5-mini"
 MAX_TITLE_CHARS = 80
 MAX_TITLE_USER_TEXTS = 4

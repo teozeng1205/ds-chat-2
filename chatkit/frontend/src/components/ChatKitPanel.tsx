@@ -126,42 +126,27 @@ export function ChatKitPanel() {
         showDelete: true,
       },
       startScreen: {
-        greeting: "DS Chat — coding agent & data investigator",
+        greeting: "Welcome to 3Vchat, Chat about Anything",
         prompts: [
           {
-            label: "Run a script",
-            prompt:
-              "write a python script that prints row counts of the 5 largest parquet files in ~/git/ds-priceeye-analytics and run it",
-            icon: "square-code" as const,
-          },
-          {
-            label: "Git diff summary",
-            prompt:
-              "show what changed in ds-priceeye-analytics in the last 5 commits and summarize",
-            icon: "square-code" as const,
-          },
-          {
-            label: "Parallel experiments",
-            prompt:
-              "run pandas vs polars loading the same parquet file from ~/git/ds-priceeye-analytics — compare performance",
-            icon: "chart" as const,
-          },
-          {
-            label: "Site issues",
-            prompt: "what are the top site issues for QL2 on 20260211",
+            label: "What's wrong with QL2?",
+            prompt: "What's wrong with QL2?",
             icon: "analytics" as const,
           },
           {
-            label: "Search + implement",
-            prompt:
-              "search for the fastest way to read parquet in Python, then benchmark it on a file from the ds repo",
+            label: "How does autoscheduler work?",
+            prompt: "Super detailed how autoscheduler work?",
             icon: "square-code" as const,
           },
           {
-            label: "Edit codebase",
-            prompt:
-              "explain the main entrypoint of ds-priceeye-analytics then add a docstring to the main function",
-            icon: "square-code" as const,
+            label: "Anomalies for B6 today",
+            prompt: "What are the anomalies today for customer B6?",
+            icon: "analytics" as const,
+          },
+          {
+            label: "Daily PriceEye Report",
+            prompt: "Give me a daily Priceeye Report",
+            icon: "chart" as const,
           },
         ],
       },
@@ -173,9 +158,9 @@ export function ChatKitPanel() {
         placeholder: "Code, shell, git, data investigation, web search...",
         models: [
           {
-            id: "gpt-5.3",
+            id: "gpt-5.2",
             label: "Default",
-            description: "gpt-5.3 — most capable",
+            description: "gpt-5.2 — most capable",
             default: true,
           },
           {
@@ -183,11 +168,7 @@ export function ChatKitPanel() {
             label: "Fast",
             description: "gpt-5-mini — fastest",
           },
-          {
-            id: "gpt-5.2",
-            label: "Balanced",
-            description: "gpt-5.2 — previous default",
-          },
+
         ],
       },
     }),
