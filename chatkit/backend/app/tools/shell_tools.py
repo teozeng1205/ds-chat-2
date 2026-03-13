@@ -72,7 +72,7 @@ async def bash(
 
     Args:
         command: The bash command to run.
-        timeout: Max seconds to wait (default 120, max 600).
+        timeout: Max seconds to wait (default 120, max 1800).
     """
     thread_id = _thread_id(ctx)
     await _stream_progress(ctx, "square-code", f"$ {command[:80]}")
@@ -81,46 +81,90 @@ async def bash(
 
     # Stream live chunks for long-running commands
     output_chunks: list[str] = []
+    start_time = time.monotonic()
     last_streamed = time.monotonic()
-    async for chunk in shell.run_streaming(command, timeout=min(timeout, 600)):
-        output_chunks.append(chunk)
-        # Relay a progress update every ~2 seconds
+    last_activity = time.monotonic()
+    async for chunk in shell.run_streaming(command, timeout=min(timeout, 1800)):
         now = time.monotonic()
-        if now - last_streamed >= 2.0:
-            preview = "".join(output_chunks)[-150:]
+        if chunk:
+            output_chunks.append(chunk)
+            last_activity = now
+        # Relay a progress update every ~2 seconds when there's output
+        if chunk and now - last_streamed >= 2.0:
+            preview = "".join(output_chunks)[-300:]
             await _stream_progress(ctx, "square-code", f"$ {command[:40]}\n…{preview}")
             last_streamed = now
+        # Heartbeat every 30s when silent — keeps nginx SSE connection alive
+        elif not chunk and now - last_activity >= 30.0:
+            last_activity = now
+            elapsed = int(now - start_time)
+            await _stream_progress(ctx, "clock", f"Still running… ({elapsed}s elapsed)")
 
     output = "".join(output_chunks)
     if not output:
         output = ""
+
+    elapsed_total = int(time.monotonic() - start_time)
+    line_count = output.count("\n") + (1 if output and not output.endswith("\n") else 0)
 
     exit_ok = not any(
         output.rstrip().endswith(marker)
         for marker in ("Error", "error", "not found", "failed", "No such")
     )
 
-    # Publish a Terminal Card with copy button
+    # Build Card title with elapsed time
+    elapsed_str = f" ({elapsed_total}s)" if elapsed_total >= 2 else ""
+    card_title = f"$ {command[:60]}{elapsed_str}"
+
+    # Build subtitle for large output
+    subtitle = f"{line_count} lines" if line_count > 50 else None
+
+    # "View Full Output" button for large outputs via data URL
+    import base64 as _base64
+    full_output_url = (
+        "data:text/plain;base64,"
+        + _base64.b64encode(output.encode("utf-8", errors="replace")).decode("ascii")
+    )
+
+    # Publish a Terminal Card with copy + view-full-output buttons
     status_type = "success" if exit_ok else "error"
+    card_status: dict = {"type": status_type, "title": card_title}
+    if subtitle:
+        card_status["subtitle"] = subtitle
+
+    card_children: list = [
+        {"type": "Markdown", "value": f"```\n{output}\n```"},
+        {
+            "type": "Button",
+            "label": "Copy",
+            "style": "secondary",
+            "onClickAction": {
+                "type": "copy_to_clipboard",
+                "handler": "client",
+                "loadingBehavior": "none",
+                "payload": {"text": output},
+            },
+        },
+    ]
+    if line_count > 50:
+        card_children.append({
+            "type": "Button",
+            "label": "View Full Output",
+            "style": "secondary",
+            "onClickAction": {
+                "type": "open_url",
+                "handler": "client",
+                "loadingBehavior": "none",
+                "payload": {"url": full_output_url},
+            },
+        })
+
     try:
         await ctx.context.stream_widget(
             Card(
                 size="lg",
-                status={"type": status_type, "title": f"$ {command[:60]}"},
-                children=[
-                    {"type": "Markdown", "value": f"```\n{output}\n```"},
-                    {
-                        "type": "Button",
-                        "label": "Copy",
-                        "style": "secondary",
-                        "onClickAction": {
-                            "type": "copy_to_clipboard",
-                            "handler": "client",
-                            "loadingBehavior": "none",
-                            "payload": {"text": output},
-                        },
-                    },
-                ],
+                status=card_status,
+                children=card_children,
             )
         )
     except Exception:

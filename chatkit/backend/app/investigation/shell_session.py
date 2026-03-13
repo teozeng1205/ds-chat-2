@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 
 SENTINEL = "__DSCHAT_READY__"
-MAX_OUTPUT = 32768
+MAX_OUTPUT = 131072
 SESSION_TTL = 3600  # 1 hour idle → auto-close
 
 # Backend venv path — activate if present (safe no-op if absent)
@@ -129,7 +129,7 @@ class PersistentShell:
         """Run a command and return combined stdout+stderr output."""
         self._last_used = time.monotonic()
         self._write(command + "\n")
-        output = await self._drain_to_sentinel(timeout=min(timeout, 600))
+        output = await self._drain_to_sentinel(timeout=min(timeout, 1800))
         # Tail to MAX_OUTPUT — most recent output is most relevant
         if len(output) > MAX_OUTPUT:
             output = (
@@ -149,7 +149,7 @@ class PersistentShell:
 
         loop = asyncio.get_event_loop()
         buf = b""
-        deadline = loop.time() + min(timeout, 600)
+        deadline = loop.time() + min(timeout, 1800)
         sentinel_prefix = (SENTINEL + ":").encode()
         first_line_consumed = False
 
