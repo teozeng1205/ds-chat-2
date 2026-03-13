@@ -132,46 +132,8 @@ _TOOL_GUIDE = """## Tool Decision Guide
 
 _GIT_REPOS = """## Git Repositories
 
-All git repos live under `~/git/`. Use `bash('ls ~/git')` to see what's on this machine.
-Docs for each repo: `~/git/documentations/{repo-name}.md` (or search_kb returns snippets).
-
-### Core PriceEye Platform
-- `priceeye-v2` — Collection engine: 20+ provider Lambdas, SQS/Kinesis orchestration,
-  Redis/DynamoDB cache, Aurora MySQL audit. Java 17, 64 Maven modules.
-- `priceeye-providers` — Provider API integrations (AA, UA, DL, TP, QL2, Amadeus, etc.)
-- `priceeye-monitoring` — Glue ETL jobs that unload audit tables hourly; dedup pipeline;
-  ECS: verify-dedupe, error-mapper, swav-report. Feeds prod.monitoring.* schema.
-- `priceeye-analytics` — Legacy Java anomaly/competitive-position jobs
-- `priceeye-api`, `priceeye-customer`, `priceeye-scheduling` — API/customer/scheduling layers
-- `priceeye-applications`, `priceeye-vacations` — Application services
-
-### Data Science Pipelines (Python/Spark)
-- `ds-priceeye-analytics` — CIAAS pyramid: DCO → anomaly detect → alert → diagnose.
-  Outputs: market_level_anomalies, segment_level_anomalies, oag_score, revenue_score.
-- `ds-priceeye-data-collection` — Site metrics (cache/import/retry/capacity), sales POC,
-  YQYR cache, collection optimizer, AS dashboard.
-- `ds-priceeye-enrichment` — Tax regression (weekly Tuesday Step Function, 9-step ETL).
-  Outputs MySQL taxregression.tax_regression_v1 and S3 coefficients for AA.
-- `ds-internal-monitoring` — PriceEye system monitoring
-- `ds-customer-monitoring` — Hourly + daily billing pipeline; feeds billing_db.* tables.
-- `ds-threevictors` — Shared Python lib (threevictors pip package): MySQL/Redshift DAOs,
-  S3 util, config reader, Secrets Manager, EventBridge.
-
-### Data Ingestion
-- `ingest` — Multi-provider ingestion: Atlas/Delta S3/SW SFTP fetchers, KCL consumers.
-  Outputs Avro to `s3://dataset-ingest-{env}/`.
-- `ingest-sources`, `ingest-cache` — Source connectors and caching layer.
-
-### Infrastructure / Utilities
-- `emr` — EMR cluster management
-- `spark-v3` — Spark processing framework
-- `ds-python-box` — Python development utilities
-- `3v-build-deploy` — CI/CD build/deploy tooling
-
-### Documentation
-- `~/git/documentations/*.md` — 24 auto-generated repo-level wiki docs.
-  After KB enrichment, `search_kb("repo name or topic")` returns snippets directly.
-  For full docs: `read_file("~/git/documentations/ds-priceeye-analytics.md")`"""
+All git repos live under `~/git/`. Use `bash('ls ~/git')` to list them.
+Full docs: `~/git/documentations/{repo-name}.md` — or `search_kb` returns snippets."""
 
 
 _AWS_GUIDE = """\
@@ -237,26 +199,7 @@ those only see 3VDEV dev resources. Use instead:
 - 3VDEV infrastructure (dev Athena, dev SFN) → `aws athena / stepfunctions / lambda` as usual,
   but be explicit in your answer that these are **dev resources, not production**.
 
-**Useful jq patterns:**
-```bash
-# Extract all failed SFN execution ARNs
-aws stepfunctions list-executions --state-machine-arn ARN --status-filter FAILED \
-  | jq -r '.executions[].executionArn'
-
-# Find Lambda errors in logs
-aws logs filter-log-events --log-group-name /aws/lambda/NAME \
-  --start-time $(($(date +%s)-3600))000 --filter-pattern "ERROR" \
-  | jq '[.events[] | {time: (.timestamp/1000|todate), msg: .message}]'
-
-# Get Step Function failure cause
-aws stepfunctions get-execution-history --execution-arn ARN \
-  | jq '.events[] | select(.type=="ExecutionFailed") | .executionFailedEventDetails'
-
-# List ECS task failures
-aws ecs list-tasks --cluster CLUSTER --desired-status STOPPED \
-  | jq -r '.taskArns[]' | xargs aws ecs describe-tasks --cluster CLUSTER --tasks \
-  | jq '.tasks[] | {task: .taskArn, stopped: .stoppedReason}'
-```"""
+"""
 
 
 _VENV_GUIDE = """## Python Environment
@@ -287,11 +230,6 @@ from threevictors.s3_util import s3_util
 s3 = s3_util.S3Util()
 keys = s3.find_keys_with_prefix('s3-atp-3victors-3vdev-use1-anomaly-datasets', 'market-level/v4/B6/2026/03/')
 ```
-
-**When to use threevictors vs investigation tools:**
-- `execute_sql` / `fetch_s3` tools: preferred for standard queries (progress updates, dataset IDs, manifest)
-- threevictors in bash: best for bulk processing, cross-database joins, pipeline reproduction,
-  or when you want to write a reusable script (e.g., `/tmp/analyze_tax_regression.py`)
 
 **Note:** Requires valid AWS credentials. If execute_sql works, threevictors will too."""
 
