@@ -71,6 +71,8 @@ Choose the right pattern based on complexity:
    - Use `matplotlib.use('Agg')` BEFORE `import matplotlib.pyplot` — EC2 has no display.
    - Save plots to `/tmp/plot.png`, then call `render_image(file_path="/tmp/plot.png")` to render
      as a card with a download button. Never use `base64` to inline images.
+   - After saving any output file the user asked for (CSV, JSON, Excel, PDF, etc.), call
+     `download_file(file_path="/tmp/output.csv")` so they can download it directly from the chat.
    - Name scripts descriptively: `/tmp/analyze_site_issues.py`, `/tmp/plot_anomalies.py`.
 
 3. **For data investigation** — after `execute_sql` returns a dataset_id, you can load it
@@ -111,6 +113,7 @@ _TOOL_GUIDE = """## Tool Decision Guide
 | Search the web | `web_search` (built-in) |
 | Fetch a specific URL | `fetch_url` |
 | Display a plot or image inline | `render_image` |
+| Make a file downloadable from the chat | `bash` to create → `download_file` |
 | Compare N approaches / benchmark | `run_parallel` |
 | Complex multi-step task (5+ steps) | `plan_task` first, then execute |
 | Query Redshift/MySQL | `execute_sql` |

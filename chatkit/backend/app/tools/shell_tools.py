@@ -487,7 +487,98 @@ async def render_image(
     return f"Image displayed inline."
 
 
-# ── Tool 8: run_parallel ──
+# ── Tool 8: download_file ──
+
+@function_tool
+async def download_file(
+    ctx: RunContextWrapper[AgentContext],  # type: ignore[type-arg]
+    file_path: str,
+    title: str = "",
+    description: str = "",
+) -> str:
+    """Make any file downloadable from the chat as a card with a Download button.
+
+    Use this after the agent creates a file the user may want to keep:
+    CSV exports, JSON reports, Excel sheets, PDFs, text files, etc.
+    Supports any file up to ~10 MB. For images, prefer render_image.
+
+    Args:
+        file_path: Absolute or ~/git/-relative path to the file.
+        title: Card title (defaults to filename).
+        description: Optional one-line description shown under the title.
+    """
+    import base64
+    import mimetypes
+
+    path = _resolve_path(file_path)
+    if not path.exists():
+        return f"Error: file not found: {path}"
+    if not path.is_file():
+        return f"Error: not a file: {path}"
+
+    file_bytes = path.read_bytes()
+    size_mb = len(file_bytes) / (1024 * 1024)
+    if size_mb > 10:
+        return (
+            f"Error: file is {size_mb:.1f} MB — too large for in-chat download (10 MB limit). "
+            f"The file is at {path}. Use scp or rsync to retrieve it."
+        )
+    if not file_bytes:
+        return f"Error: file is empty: {path}"
+
+    await _stream_progress(ctx, "download", f"Preparing {path.name} for download…")
+
+    mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    inline_data_url = f"data:{mime};base64,{base64.b64encode(file_bytes).decode('ascii')}"
+
+    card_title = title or path.name
+    size_str = f"{len(file_bytes):,} bytes" if size_mb < 0.1 else f"{size_mb:.1f} MB"
+    subtitle = description or f"{size_str} · {path.suffix.lstrip('.').upper() or 'file'}"
+
+    # Build preview for text-based formats
+    children: list[Any] = []
+    text_mimes = {"text/csv", "application/json", "text/plain", "text/markdown", "text/html"}
+    if mime in text_mimes or path.suffix.lower() in {".csv", ".json", ".txt", ".md", ".log"}:
+        try:
+            text_preview = file_bytes.decode("utf-8", errors="replace")
+            lines = text_preview.splitlines()[:20]
+            preview_text = "\n".join(lines)
+            if len(text_preview.splitlines()) > 20:
+                preview_text += "\n…"
+            lang = {"text/csv": "csv", "application/json": "json"}.get(mime, "")
+            children.append({"type": "Markdown", "text": f"```{lang}\n{preview_text}\n```"})
+        except Exception:
+            pass
+
+    children.append(
+        {
+            "type": "Button",
+            "label": "Download",
+            "style": "secondary",
+            "onClickAction": {
+                "type": "download_url",
+                "handler": "client",
+                "loadingBehavior": "none",
+                "payload": {"url": inline_data_url, "filename": path.name},
+            },
+        }
+    )
+
+    try:
+        await ctx.context.stream_widget(
+            Card(
+                size="lg",
+                status={"type": "success", "title": card_title, "subtitle": subtitle},
+                children=children,
+            )
+        )
+    except Exception as exc:
+        return f"File saved at {path}. Could not render download widget: {exc}"
+
+    return f"File available for download: {path.name}"
+
+
+# ── Tool 9: run_parallel ──
 
 class Experiment(BaseModel):
     """A single experiment for run_parallel."""
@@ -562,7 +653,7 @@ async def run_parallel(
 
 def shell_tools() -> list[Any]:
     """Return all shell/filesystem tools for the coding agent."""
-    return [bash, read_file, list_dir, edit_file, git, fetch_url, render_image, run_parallel]
+    return [bash, read_file, list_dir, edit_file, git, fetch_url, render_image, download_file, run_parallel]
 
 
 __all__ = [
@@ -573,6 +664,7 @@ __all__ = [
     "git",
     "fetch_url",
     "render_image",
+    "download_file",
     "run_parallel",
     "shell_tools",
 ]
