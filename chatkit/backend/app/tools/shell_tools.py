@@ -128,9 +128,7 @@ async def bash(
 
     # Publish a Terminal Card with copy + view-full-output buttons
     status_type = "success" if exit_ok else "error"
-    card_status: dict = {"type": status_type, "title": card_title}
-    if subtitle:
-        card_status["subtitle"] = subtitle
+    card_status: dict = {"type": status_type, "title": card_title, "text": subtitle or ""}
 
     card_children: list = [
         {"type": "Markdown", "value": f"```\n{output}\n```"},
@@ -325,7 +323,7 @@ async def edit_file(
             await ctx.context.stream_widget(
                 Card(
                     size="lg",
-                    status={"type": "success", "title": f"Edited {path.name}"},
+                    status={"type": "success", "title": f"Edited {path.name}", "text": ""},
                     children=[
                         {"type": "Markdown", "value": f"```diff\n{diff_text}\n```"},
                     ],
@@ -464,7 +462,7 @@ async def render_image(
         await ctx.context.stream_widget(
             Card(
                 size="lg",
-                status={"type": "success", "title": title},
+                status={"type": "success", "title": title, "text": title},
                 children=[
                     {"type": "Image", "src": inline_data_url, "alt": title, "fit": "contain", "maxHeight": 500},
                     {
@@ -546,7 +544,7 @@ async def download_file(
             if len(text_preview.splitlines()) > 20:
                 preview_text += "\n…"
             lang = {"text/csv": "csv", "application/json": "json"}.get(mime, "")
-            children.append({"type": "Markdown", "text": f"```{lang}\n{preview_text}\n```"})
+            children.append({"type": "Markdown", "value": f"```{lang}\n{preview_text}\n```"})
         except Exception:
             pass
 
@@ -568,7 +566,7 @@ async def download_file(
         await ctx.context.stream_widget(
             Card(
                 size="lg",
-                status={"type": "success", "title": card_title, "subtitle": subtitle},
+                status={"type": "success", "title": card_title, "text": subtitle},
                 children=children,
             )
         )
