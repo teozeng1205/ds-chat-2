@@ -1,6 +1,4 @@
 import { useEffect, useState } from "react";
-import { LATEST_VERSION, SEEN_KEY } from "../lib/changelog";
-import { ChangelogModal } from "./ChangelogModal";
 
 interface SessionState {
   alive: boolean;
@@ -16,17 +14,6 @@ interface SessionStateBarProps {
 
 export function SessionStateBar({ threadId }: SessionStateBarProps) {
   const [state, setState] = useState<SessionState | null>(null);
-  const [showChangelog, setShowChangelog] = useState(false);
-  const [hasUnseen, setHasUnseen] = useState(
-    () => localStorage.getItem(SEEN_KEY) !== LATEST_VERSION
-  );
-
-  const openChangelog = () => {
-    localStorage.setItem(SEEN_KEY, LATEST_VERSION);
-    setHasUnseen(false);
-    setShowChangelog(true);
-  };
-
   useEffect(() => {
     if (!threadId) {
       setState(null);
@@ -84,15 +71,7 @@ export function SessionStateBar({ threadId }: SessionStateBarProps) {
         {state?.alive && (state.idle_secs ?? 0) > 10 && (
           <span className="text-slate-400">idle {state.idle_secs}s</span>
         )}
-        <button onClick={openChangelog}
-                className="relative text-slate-400 hover:text-slate-600 text-xs flex items-center gap-1">
-          {hasUnseen && (
-            <span className="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full bg-blue-500" />
-          )}
-          What's new
-        </button>
       </div>
-      {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
     </div>
   );
 }
