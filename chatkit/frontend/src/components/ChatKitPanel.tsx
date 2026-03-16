@@ -156,6 +156,7 @@ export function ChatKitPanel() {
       composer: {
         attachments: { enabled: true, maxCount: 5, maxSize: 25 * 1024 * 1024 },
         placeholder: "Code, shell, git, data investigation, web search...",
+        dictation: { enabled: true },
         models: [
           {
             id: "gpt-5.2",
