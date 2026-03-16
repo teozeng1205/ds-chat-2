@@ -14,8 +14,10 @@ from chatkit.agents import AgentContext, ThreadItemConverter, stream_agent_respo
 from chatkit.server import ChatKitServer
 from chatkit.types import (
     Attachment,
+    AudioInput,
     ThreadMetadata,
     ThreadStreamEvent,
+    TranscriptionResult,
     UserMessageItem,
     UserMessageTagContent,
 )
@@ -220,6 +222,15 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
         self.local_attachment_store = LocalDiskAttachmentStore(default_attachment_dir())
         self._title_client = AsyncOpenAI()
         super().__init__(self.store, attachment_store=self.local_attachment_store)
+
+    async def transcribe(self, audio_input: AudioInput, context: dict[str, Any]) -> TranscriptionResult:
+        import io
+        client = AsyncOpenAI()
+        result = await client.audio.transcriptions.create(
+            model="whisper-1",
+            file=("audio.webm", io.BytesIO(audio_input.data), audio_input.mime_type),
+        )
+        return TranscriptionResult(text=result.text)
 
     async def save_attachment_payload(self, attachment_id: str, payload: bytes) -> None:
         await self.local_attachment_store.write_attachment_bytes(attachment_id, payload)

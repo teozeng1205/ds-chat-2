@@ -5,7 +5,7 @@ from __future__ import annotations
 import time as _time
 
 from chatkit.server import StreamingResult
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
@@ -82,24 +82,6 @@ async def serve_image(filename: str, request: Request) -> Response:
         headers={"Cache-Control": "private, max-age=300"},
     )
 
-
-@app.post("/chatkit/transcriptions")
-async def transcribe_audio(
-    file: UploadFile = File(...),
-    model: str = Form("whisper-1"),
-) -> JSONResponse:
-    """Proxy audio to OpenAI Whisper and return the transcript."""
-    import io
-    from openai import AsyncOpenAI
-
-    client = AsyncOpenAI()
-    audio_bytes = await file.read()
-    filename = file.filename or "audio.webm"
-    result = await client.audio.transcriptions.create(
-        model=model,
-        file=(filename, io.BytesIO(audio_bytes), file.content_type or "audio/webm"),
-    )
-    return JSONResponse({"text": result.text})
 
 
 @app.get("/chatkit")
