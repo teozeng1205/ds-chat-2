@@ -81,24 +81,44 @@ function ChatKitCore({
         greeting: "Welcome to 3Vchat, Chat about Anything",
         prompts: [
           {
-            label: "What's wrong with QL2?",
-            prompt: "What's wrong with QL2?",
+            label: "B6 anomalies by impact score",
+            prompt: "What are the anomalies for B6 today? Give me a distribution by impact score and render it as a chart in the chat.",
             icon: "analytics" as const,
           },
           {
-            label: "How does autoscheduler work?",
-            prompt: "Super detailed how autoscheduler work?",
+            label: "How does PriceEye work?",
+            prompt: "Give me a PDF document explaining how PriceEye works — cover the core concepts, data flow, and key components.",
+            icon: "book-open" as const,
+          },
+          {
+            label: "Site issues + past trends",
+            prompt: "Give me visualizations on the site issues today, along with past trends over the last 30 days.",
+            icon: "chart" as const,
+          },
+          {
+            label: "Smartest 3V customer?",
+            prompt: "Which customer is the smartest among 3V's customers? Define your own metrics and justify your ranking.",
+            icon: "agent" as const,
+          },
+          {
+            label: "QL2: MySQL config vs Redshift errors",
+            prompt: "Look up QL2's site configuration in MySQL (query priceeye.site for QL2) and then check their top collection errors in Redshift (prod.monitoring.provider_combined_audit for today). What do the site settings tell us about the error patterns you see?",
+            icon: "bug" as const,
+          },
+          {
+            label: "Top providers bar chart",
+            prompt: "Query prod.monitoring.provider_combined_audit for today and get the top 10 providers by request count. Then use Python to plot a horizontal bar chart of the results and publish it as an image card in the chat.",
+            icon: "chart" as const,
+          },
+          {
+            label: "How does auto-scheduler work?",
+            prompt: "How does the auto-scheduler work in priceeye-scheduling? Look it up in the knowledge base and then check the actual codebase to show me the real class names and entry points.",
             icon: "square-code" as const,
           },
           {
-            label: "Anomalies for B6 today",
-            prompt: "What are the anomalies today for customer B6?",
-            icon: "analytics" as const,
-          },
-          {
-            label: "Daily PriceEye Report",
-            prompt: "Give me a daily Priceeye Report",
-            icon: "chart" as const,
+            label: "How fresh is the data?",
+            prompt: "What is today's date, and how fresh is the data in the analytics tables? Check the actual latest sales_date available in prod.analytics.market_level_anomalies.",
+            icon: "calendar" as const,
           },
         ],
       },
