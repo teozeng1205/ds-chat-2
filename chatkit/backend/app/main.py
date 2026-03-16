@@ -39,15 +39,24 @@ async def chatkit_endpoint(request: Request) -> Response:
 
 
 @app.get("/chatkit/session/{thread_id}")
-async def session_state(thread_id: str) -> Response:
+async def session_state(thread_id: str, request: Request) -> Response:
     """Return persistent shell session state for a thread (used by SessionStateBar)."""
     shell = _shell_registry.get(thread_id)
+    meta = await chatkit_server.get_session_meta(thread_id, {"request": request})
     if not shell:
-        return JSONResponse({"alive": False, "cwd": None, "idle_secs": None})
+        return JSONResponse({
+            "alive": False,
+            "cwd": None,
+            "idle_secs": None,
+            "model": meta["model"],
+            "turn_count": meta["turn_count"],
+        })
     return JSONResponse({
         "alive": shell.is_alive(),
         "cwd": shell.last_cwd,
         "idle_secs": int(_time.monotonic() - shell._last_used),
+        "model": meta["model"],
+        "turn_count": meta["turn_count"],
     })
 
 

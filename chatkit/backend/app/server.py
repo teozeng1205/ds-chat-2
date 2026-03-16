@@ -267,6 +267,28 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
         thread.title = title
         await self.store.save_thread(thread, context=context)
 
+    async def get_session_meta(self, thread_id: str, context: dict[str, Any]) -> dict[str, Any]:
+        """Return model and turn count for the given thread."""
+        items_page = await self.store.load_thread_items(
+            thread_id,
+            after=None,
+            limit=MAX_RECENT_ITEMS,
+            order="desc",
+            context=context,
+        )
+        items = items_page.data
+        turn_count = sum(1 for item in items if not isinstance(item, UserMessageItem))
+        model: str | None = None
+        for item in items:  # desc order — most recent first
+            if isinstance(item, UserMessageItem):
+                opts = getattr(item, "inference_options", None)
+                if opts:
+                    m = getattr(opts, "model", None)
+                    if m:
+                        model = m
+                        break
+        return {"model": model, "turn_count": turn_count}
+
     async def respond(
         self,
         thread: ThreadMetadata,
