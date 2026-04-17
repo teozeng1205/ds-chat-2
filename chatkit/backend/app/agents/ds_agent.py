@@ -9,19 +9,23 @@ from __future__ import annotations
 
 from typing import Any
 
-from agents import Agent, WebSearchTool
+from agents import Agent, ModelSettings, WebSearchTool
+from agents.model_settings import ModelRetrySettings
 from agents.models.openai_responses import OpenAIResponsesModel
 from openai import AsyncOpenAI
 
+from ..tools.catalog_tools import catalog_tools
 from ..tools.investigation_tools import investigation_tools_core
+from ..tools.ops_tools import ops_tools
 from ..tools.shell_tools import shell_tools
+from ..tools.streams_tools import streams_tools
 from .investigation_agent import _build_instructions as _investigation_instructions
 
 # ── Planner sub-agent ──
 # Bounded, cheap model for generating execution plans on complex tasks.
 _PLANNER = Agent(
     name="planner",
-    model="gpt-5-mini",
+    model="gpt-5.4-mini",
     instructions="""Generate a numbered execution plan for complex multi-step tasks.
 Each step: which tool, exact input, expected output. Be concrete and executable.
 Max 10 steps. Prefer the fewest steps that reliably solve the task.""",
@@ -118,9 +122,18 @@ _TOOL_GUIDE = """## Tool Decision Guide
 | Complex multi-step task (5+ steps) | `plan_task` first, then execute |
 | Query Redshift/MySQL | `execute_sql` |
 | Fetch S3 data | `fetch_s3` |
-| Inspect table schema | `inspect_table` |
+| Inspect table schema (local cache) | `inspect_table` |
+| Inspect table schema (live Glue catalog) | `glue_get_table`, `glue_get_partitions` |
 | Search knowledge base | `search_kb` |
 | Resolve provider/site/customer codes | `resolve_codes` |
+| List Step Functions executions (e.g. recent failures) | `sfn_list_executions`, `sfn_describe_execution`, `sfn_get_execution_history` |
+| See what broke in a Lambda | `lambda_get_last_errors` |
+| Ad-hoc log query | `logs_insights_query` |
+| Inspect ECS service health | `ecs_describe_tasks`, `ecs_list_stopped_reasons` |
+| Current CloudWatch alarms | `cloudwatch_alarms` |
+| What does an EventBridge rule do | `eventbridge_describe_rule` |
+| Tail a live ingest stream | `kinesis_tail` |
+| Show an existing BI dashboard | `quicksight_list_dashboards`, `quicksight_get_embed_url` |
 
 **`edit_file` contract (read-before-edit enforced):**
 1. Call `read_file` on the target file to get exact content with line numbers.
@@ -289,6 +302,7 @@ def build_agent(model: str) -> Agent[Any]:
     """Build the DS Chat coding + data science agent."""
     return Agent(
         model=OpenAIResponsesModel(model=model, openai_client=AsyncOpenAI()),
+        model_settings=ModelSettings(retry=ModelRetrySettings(max_retries=2)),
         name="DS Chat Agent",
         instructions=_build_instructions(),
         tools=[
@@ -303,6 +317,9 @@ def build_agent(model: str) -> Agent[Any]:
             ),
             *shell_tools(),
             *investigation_tools_core(),
+            *ops_tools(),        # SFN / Lambda logs / Logs Insights / ECS / alarms / EventBridge
+            *streams_tools(),    # kinesis_tail
+            *catalog_tools(),    # glue_get_table / glue_get_partitions / quicksight_*
         ],
     )
 
