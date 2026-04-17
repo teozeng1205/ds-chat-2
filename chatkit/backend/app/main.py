@@ -9,10 +9,22 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
+from .config import load_config
 from .investigation.shell_session import _registry as _shell_registry
 from .server import StarterChatServer
+from .tracing import install_sqlite_tracing
 
 app = FastAPI(title="ChatKit Starter API")
+
+# Install SQLite tracing once at import time (idempotent).
+# Every agent run writes traces + spans to app/.data/ds-chat-traces.sqlite,
+# and token usage is extracted from GenerationSpanData into ds-chat-cost.sqlite.
+if load_config().tracing_enabled:
+    try:
+        install_sqlite_tracing()
+    except Exception as _exc:  # noqa: BLE001 — tracing must never crash startup
+        import logging as _log
+        _log.getLogger(__name__).warning("tracing install failed: %s", _exc)
 
 app.add_middleware(
     CORSMiddleware,

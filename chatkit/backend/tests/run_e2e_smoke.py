@@ -32,6 +32,14 @@ from agents import Runner  # type: ignore[import]
 
 from app.agents.ds_agent import build_agent
 from app.investigation.runtime import cleanup_thread_workspace
+from app.tracing import install_sqlite_tracing
+
+# Install tracing for smoke runs too, so we can inspect what the agent
+# actually did afterwards. Idempotent — safe to call multiple times.
+try:
+    install_sqlite_tracing()
+except Exception as _exc:  # noqa: BLE001
+    print(f"[warn] tracing install failed: {_exc}")
 
 
 # ── CLI context stubs ──
