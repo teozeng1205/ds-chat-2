@@ -24,16 +24,18 @@ from chatkit.types import (
 from openai import AsyncOpenAI
 
 from .agents.ds_agent import build_agent
+from .cost import record_tokens
 from .persistent_store import SQLiteStore, default_sqlite_path
 from .investigation.runtime import cleanup_thread_workspace
 from .investigation.shell_session import close_session
 from .attachment_store import LocalDiskAttachmentStore, default_attachment_dir
+from .tracing import current_trace_id
 
 
 MAX_RECENT_ITEMS = 50
 MAX_AGENT_TURNS = 200
-DEFAULT_MODEL = "gpt-5.2"
-TITLE_MODEL = "gpt-5-mini"
+DEFAULT_MODEL = "gpt-5.4"
+TITLE_MODEL = "gpt-5.4-mini"
 MAX_TITLE_CHARS = 80
 MAX_TITLE_USER_TEXTS = 4
 MAX_TITLE_SOURCE_CHARS = 1000
@@ -279,7 +281,7 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
         await self.store.save_thread(thread, context=context)
 
     async def get_session_meta(self, thread_id: str, context: dict[str, Any]) -> dict[str, Any]:
-        """Return model and turn count for the given thread."""
+        """Return model, turn count, and thread-level cost totals."""
         items_page = await self.store.load_thread_items(
             thread_id,
             after=None,
@@ -298,7 +300,17 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
                     if m:
                         model = m
                         break
-        return {"model": model, "turn_count": turn_count}
+
+        # Best-effort cost totals. Never crash the endpoint over telemetry.
+        totals: dict[str, Any] = {"tokens": 0, "dollars": 0.0}
+        try:
+            from .cost import get_cost_store  # lazy import
+            raw = get_cost_store().thread_totals(thread_id)
+            totals = {"tokens": int(raw.get("total_tokens", 0)), "dollars": float(raw.get("dollars", 0.0))}
+        except Exception as exc:  # noqa: BLE001
+            log.debug("cost totals lookup failed for %s: %s", thread_id, exc)
+
+        return {"model": model, "turn_count": turn_count, "totals": totals}
 
     async def respond(
         self,
@@ -341,6 +353,22 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
         compatible_result = _StreamingResultCompatWrapper(result)
         async for event in stream_agent_response(agent_context, compatible_result):
             yield event
+
+        # Record tokens + dollars for this turn. Best-effort — never crash
+        # the post-stream path over telemetry.
+        try:
+            usage = getattr(getattr(result, "context_wrapper", None), "usage", None)
+            if usage is not None:
+                trace_id = getattr(getattr(result, "trace", None), "trace_id", None) or current_trace_id()
+                record_tokens(
+                    model=selected_model,
+                    input_tokens=int(getattr(usage, "input_tokens", 0) or 0),
+                    output_tokens=int(getattr(usage, "output_tokens", 0) or 0),
+                    thread_id=thread.id,
+                    trace_id=trace_id,
+                )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("cost record failed for thread %s: %s", thread.id, exc)
 
         try:
             cleanup_thread_workspace(thread.id, mode="ephemeral_manifest")
