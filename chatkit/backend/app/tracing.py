@@ -26,11 +26,23 @@ import queue
 import sqlite3
 import threading
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
-from agents import add_trace_processor
-from agents.tracing import Span, Trace, get_current_trace
-from agents.tracing.processor_interface import TracingProcessor
+# Agents-SDK symbols are imported lazily so this module stays importable
+# on environments where an older `agents` is on PYTHONPATH (e.g. system
+# Python). Callers of install_sqlite_tracing() must have agents>=0.13.2.
+if TYPE_CHECKING:  # pragma: no cover
+    from agents.tracing import Span, Trace
+
+try:
+    from agents.tracing.processor_interface import TracingProcessor as _SDKTracingProcessor
+except Exception:  # pragma: no cover — fallback for old SDKs
+    import abc as _abc
+
+    class _SDKTracingProcessor(_abc.ABC):  # type: ignore[no-redef]
+        """Minimal stand-in so this module imports even if the SDK is too old.
+        install_sqlite_tracing() will raise a clear error in that case.
+        """
 
 log = logging.getLogger(__name__)
 
@@ -96,14 +108,14 @@ def _json(obj: Any) -> str:
         return json.dumps({"_unserializable": repr(obj)[:400]})
 
 
-def _span_kind(span: Span[Any]) -> str:
+def _span_kind(span: "Span[Any]") -> str:
     data = getattr(span, "span_data", None)
     if data is None:
         return "unknown"
     return type(data).__name__
 
 
-class SQLiteTracingProcessor(TracingProcessor):
+class SQLiteTracingProcessor(_SDKTracingProcessor):
     """TracingProcessor that appends traces + spans to a SQLite file.
 
     Writes happen on a background worker thread from a bounded queue.
@@ -124,16 +136,16 @@ class SQLiteTracingProcessor(TracingProcessor):
 
     # ── TracingProcessor interface ──
 
-    def on_trace_start(self, trace: Trace) -> None:
+    def on_trace_start(self, trace: "Trace") -> None:
         self._enqueue(("trace_start", _trace_snapshot(trace)))
 
-    def on_trace_end(self, trace: Trace) -> None:
+    def on_trace_end(self, trace: "Trace") -> None:
         self._enqueue(("trace_end", _trace_snapshot(trace)))
 
-    def on_span_start(self, span: Span[Any]) -> None:
+    def on_span_start(self, span: "Span[Any]") -> None:
         self._enqueue(("span_start", _span_snapshot(span)))
 
-    def on_span_end(self, span: Span[Any]) -> None:
+    def on_span_end(self, span: "Span[Any]") -> None:
         self._enqueue(("span_end", _span_snapshot(span)))
 
     def shutdown(self, timeout: float | None = None) -> None:
@@ -203,7 +215,7 @@ class SQLiteTracingProcessor(TracingProcessor):
         conn.commit()
 
 
-def _trace_snapshot(trace: Trace) -> dict[str, Any]:
+def _trace_snapshot(trace: "Trace") -> dict[str, Any]:
     exported = {}
     try:
         exported = trace.export() or {}
@@ -218,7 +230,7 @@ def _trace_snapshot(trace: Trace) -> dict[str, Any]:
     }
 
 
-def _span_snapshot(span: Span[Any]) -> dict[str, Any]:
+def _span_snapshot(span: "Span[Any]") -> dict[str, Any]:
     exported = {}
     try:
         exported = span.export() or {}
@@ -255,6 +267,13 @@ def install_sqlite_tracing(db_path: Path | None = None) -> SQLiteTracingProcesso
     with _LOCK:
         if _INSTALLED is not None:
             return _INSTALLED
+        try:
+            from agents import add_trace_processor  # type: ignore[import]
+        except ImportError as exc:
+            raise RuntimeError(
+                "install_sqlite_tracing requires openai-agents>=0.13.2 "
+                "(agents.add_trace_processor not found)"
+            ) from exc
         resolved = db_path or default_trace_db_path()
         processor = SQLiteTracingProcessor(resolved)
         add_trace_processor(processor)
@@ -265,6 +284,10 @@ def install_sqlite_tracing(db_path: Path | None = None) -> SQLiteTracingProcesso
 
 def current_trace_id() -> str | None:
     """Return the trace_id of the currently-running trace, if any."""
+    try:
+        from agents.tracing import get_current_trace  # type: ignore[import]
+    except Exception:
+        return None
     try:
         trace = get_current_trace()
     except Exception:
