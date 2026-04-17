@@ -265,6 +265,12 @@ async def _auto_publish_images_from_result(
 
 # ── Tool 1: execute_sql ──
 
+def _date_bucket() -> str:
+    """Day-resolution partition for the cache key. Stale queries expire at midnight UTC."""
+    import datetime as _dt
+    return _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
+
+
 @function_tool
 async def execute_sql(
     ctx: RunContextWrapper[AgentContext],
@@ -278,17 +284,70 @@ async def execute_sql(
         datasource: One of 'redshift_analytics', 'redshift_core', 'mysql_priceeye'. Auto-detected if omitted.
 
     Returns: columns, row_count, preview rows (first 20), dataset_id, partition_warnings.
+    If the identical query was run within the last 15 minutes, a cached preview
+    is returned with `cached: True` and `dataset_id: None` — call execute_sql
+    again (e.g., with a slightly different LIMIT or WHERE) if you need a fresh
+    per-thread dataset for Python analysis.
     """
     try:
         runtime = get_runtime()
         thread_id = _thread_id(ctx)
         run_id = _get_or_create_run_id(thread_id)
+
+        # ── Cache lookup ────────────────────────────────────────
+        # Cache only the preview-shaped payload; strip dataset_id because it
+        # points into a per-thread workspace that's cleaned up each turn.
+        cache_payload: dict[str, Any] | None = None
+        cache_hit_age: float | None = None
+        try:
+            from app.config import load_config  # lazy — avoids circular imports in tests
+            from app.investigation.query_cache import get_query_cache
+            if load_config().query_cache_enabled:
+                hit = get_query_cache().get(query, datasource or "_auto", extra=[_date_bucket()])
+                if hit is not None:
+                    cache_payload = dict(hit.payload)
+                    cache_hit_age = hit.age_seconds
+        except Exception as exc:  # noqa: BLE001 — telemetry, never crash
+            log.debug("query cache read failed: %s", exc)
+
+        if cache_payload is not None:
+            await _stream_progress(
+                ctx, "check-circle",
+                f"SQL cached ({int(cache_hit_age or 0)}s old): {cache_payload.get('row_count')} rows.",
+            )
+            cache_payload.update({
+                "cached": True,
+                "cache_age_seconds": int(cache_hit_age or 0),
+                "dataset_id": None,
+                "dataset_note": (
+                    "Cached preview — dataset not materialized this turn. "
+                    "If you need a dataset for Python analysis, tweak the query "
+                    "(e.g., adjust LIMIT) to force a fresh run."
+                ),
+            })
+            return cache_payload
+
+        # ── Fresh execution ─────────────────────────────────────
         await _stream_progress(ctx, "clock", f"Running SQL on {datasource or 'auto-detected datasource'}.")
+        t0 = time.monotonic()
         result = runtime.execute_sql(thread_id=thread_id, run_id=run_id, query=query, datasource=datasource)
+        elapsed = time.monotonic() - t0
         await _stream_progress(
             ctx, "check-circle",
-            f"SQL complete: {result.get('row_count')} rows, dataset_id={result.get('dataset_id')}.",
+            f"SQL complete: {result.get('row_count')} rows in {elapsed:.1f}s, dataset_id={result.get('dataset_id')}.",
         )
+
+        # ── Cache write ─────────────────────────────────────────
+        try:
+            from app.config import load_config
+            from app.investigation.query_cache import get_query_cache
+            if load_config().query_cache_enabled and isinstance(result, dict) and result.get("ok", True):
+                # Don't cache dataset_id (it's per-thread-ephemeral) or errors.
+                to_cache = {k: v for k, v in result.items() if k != "dataset_id"}
+                get_query_cache().put(query, to_cache, datasource or "_auto", extra=[_date_bucket()])
+        except Exception as exc:  # noqa: BLE001
+            log.debug("query cache write failed: %s", exc)
+
         return result
     except Exception as exc:
         log.exception("execute_sql failed")
@@ -316,10 +375,12 @@ async def fetch_s3(
         thread_id = _thread_id(ctx)
         run_id = _get_or_create_run_id(thread_id)
         await _stream_progress(ctx, "clock", f"Fetching S3 data from {bucket}.")
+        t0 = time.monotonic()
         result = runtime.fetch_s3(thread_id=thread_id, run_id=run_id, bucket=bucket, key_or_prefix=key_or_prefix)
+        elapsed = time.monotonic() - t0
         await _stream_progress(
             ctx, "check-circle",
-            f"S3 fetch complete: {result.get('row_count')} rows, {len(result.get('s3_keys', []))} files.",
+            f"S3 fetch complete: {result.get('row_count')} rows, {len(result.get('s3_keys', []))} files in {elapsed:.1f}s.",
         )
         return result
     except Exception as exc:
