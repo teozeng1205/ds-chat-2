@@ -14,6 +14,7 @@ from agents.model_settings import ModelRetrySettings
 from agents.models.openai_responses import OpenAIResponsesModel
 from openai import AsyncOpenAI
 
+from ..skills import SkillRegistry, render_skills
 from ..tools.catalog_tools import catalog_tools
 from ..tools.investigation_tools import investigation_tools_core
 from ..tools.ops_tools import ops_tools
@@ -285,9 +286,32 @@ tail -f /tmp/capacity.log
 | Full pipeline reproduction | 1800 (max) |"""
 
 
+_SKILLS_PREAMBLE = """## Skills
+
+Task-specific playbooks are provided below wrapped in <skill name="..."> tags.
+Use them as authoritative guidance when the user's request matches their topic.
+"""
+
+
+def _load_skills_section() -> str:
+    """Load all shipped skills and render them once.
+
+    Kept simple — today every skill is inlined. When the skill count
+    grows, swap in `choose_skills(user_message, registry, k=3)` per-
+    turn by passing the message into build_agent.
+    """
+    try:
+        registry = SkillRegistry.load()
+        if not registry.skills:
+            return ""
+        return _SKILLS_PREAMBLE + render_skills(registry.skills)
+    except Exception:
+        return ""
+
+
 def _build_instructions() -> str:
-    """Compose instructions from coding identity + investigation domain knowledge."""
-    return "\n\n".join([
+    """Compose instructions from coding identity + investigation domain knowledge + skills."""
+    parts = [
         _CODING_IDENTITY,
         _TOOL_GUIDE,
         _LONG_RUNNING_GUIDE,
@@ -295,7 +319,11 @@ def _build_instructions() -> str:
         _AWS_GUIDE,
         _VENV_GUIDE,
         _investigation_instructions(),  # table metadata, codes, SQL patterns, KB
-    ])
+    ]
+    skills_section = _load_skills_section()
+    if skills_section:
+        parts.append(skills_section)
+    return "\n\n".join(parts)
 
 
 def build_agent(model: str) -> Agent[Any]:
