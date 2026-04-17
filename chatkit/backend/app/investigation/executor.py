@@ -73,7 +73,17 @@ class SqlGuard:
 
 
 class PartitionGuard:
-    """Validates that queries include required partition predicates in WHERE clause."""
+    """Validates that queries include required partition predicates in WHERE clause.
+
+    Two modes:
+      1. Legacy classmethod `check(query, table_name=None)` uses a static
+         hardcoded map of known tables → partition columns. Kept
+         unchanged for existing call sites.
+      2. Instance mode constructed via `PartitionGuard.from_glue(glue_catalog)`:
+         `check_live(query, table_name=None)` looks up partition keys
+         live from the Glue Data Catalog. Falls back to the static map
+         when Glue can't resolve the table.
+    """
 
     # Known table -> required partition columns mapping
     _REQUIRED_PARTITIONS: dict[str, list[str]] = {
@@ -86,15 +96,19 @@ class PartitionGuard:
         "prod.common_output.common_output_format": ["sales_date"],
     }
 
+    def __init__(self, glue_catalog: Any | None = None) -> None:
+        self._glue = glue_catalog
+
+    @classmethod
+    def from_glue(cls, glue_catalog: Any) -> "PartitionGuard":
+        """Build a guard that consults the live Glue catalog on each check."""
+        return cls(glue_catalog=glue_catalog)
+
     @classmethod
     def check(cls, query: str, table_name: str | None = None) -> list[str]:
-        """Check if query includes required partition filters.
-
-        Returns list of warnings (empty if all required partitions are present).
-        """
+        """Legacy classmethod check against the static map. Unchanged."""
         warnings: list[str] = []
         if table_name is None:
-            # Try to extract table name from query
             tables = cls._extract_table_names(query)
         else:
             tables = [table_name.strip().lower()]
@@ -102,7 +116,6 @@ class PartitionGuard:
         lowered_query = query.lower()
 
         for table in tables:
-            # Try exact match first, then suffix match
             required = cls._REQUIRED_PARTITIONS.get(table)
             if required is None:
                 for known_table, partitions in cls._REQUIRED_PARTITIONS.items():
@@ -121,6 +134,74 @@ class PartitionGuard:
                     )
 
         return warnings
+
+    def check_live(self, query: str, table_name: str | None = None) -> list[str]:
+        """Instance check. Uses Glue when available, falls back to the static map.
+
+        Missing-partition warnings use the same wording as the legacy
+        classmethod so downstream UI is consistent.
+        """
+        warnings: list[str] = []
+        tables = (
+            [table_name.strip().lower()]
+            if table_name is not None
+            else self._extract_table_names(query)
+        )
+        lowered_query = query.lower()
+
+        for table in tables:
+            required = self._required_for(table)
+            if required is None:
+                continue
+            for partition_col in required:
+                if partition_col.lower() not in lowered_query:
+                    warnings.append(
+                        f"Query on {table} is missing required partition filter: {partition_col}. "
+                        f"Add WHERE {partition_col} = <value> to avoid full table scan."
+                    )
+        return warnings
+
+    def _required_for(self, table: str) -> list[str] | None:
+        """Resolve partition columns for a table, Glue first then static fallback."""
+        if self._glue is not None:
+            glue_partitions = self._lookup_glue(table)
+            if glue_partitions is not None:
+                return glue_partitions
+
+        static = self._REQUIRED_PARTITIONS.get(table)
+        if static is not None:
+            return static
+        for known_table, partitions in self._REQUIRED_PARTITIONS.items():
+            if table.endswith(known_table) or known_table.endswith(table):
+                return partitions
+        return None
+
+    def _lookup_glue(self, table: str) -> list[str] | None:
+        """Ask Glue for partition keys. Accepts 'db.name', 'schema.db.name', or bare."""
+        ref_parts = [p for p in table.split(".") if p]
+        db: str | None
+        name: str
+        if len(ref_parts) >= 2:
+            db, name = ref_parts[-2], ref_parts[-1]
+        else:
+            db, name = None, ref_parts[-1] if ref_parts else table
+
+        try:
+            if db is not None:
+                found = self._glue.get_table(db, name)
+                if found is None:
+                    hits = self._glue.discover_table(name)
+                    found = hits[0] if hits else None
+            else:
+                hits = self._glue.discover_table(name)
+                found = hits[0] if hits else None
+        except Exception:
+            return None
+
+        if found is None:
+            return None
+        keys = list(getattr(found, "partition_key_names", ()) or ())
+        return keys or None
 
     @staticmethod
     def _extract_table_names(query: str) -> list[str]:
