@@ -6,6 +6,19 @@ interface SessionState {
   idle_secs: number | null;
   model: string | null;
   turn_count: number;
+  totals?: { tokens: number; dollars: number };
+}
+
+function formatDollars(d: number): string {
+  if (d < 0.01) return `$${d.toFixed(4)}`;
+  if (d < 1) return `$${d.toFixed(3)}`;
+  return `$${d.toFixed(2)}`;
+}
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return `${n}`;
 }
 
 interface SessionStateBarProps {
@@ -62,11 +75,24 @@ export function SessionStateBar({ threadId }: SessionStateBarProps) {
       <div className="ml-auto flex items-center gap-3">
         {state?.model && (
           <span className="text-slate-400 shrink-0">
-            {state.model === "gpt-5-mini" ? "mini" : state.model}
+            {({
+              "gpt-5.4": "5.4",
+              "gpt-5.4-mini": "mini",
+              "gpt-5-mini": "mini",
+              "gpt-5.2": "5.2",
+            } as Record<string, string>)[state.model] ?? state.model}
           </span>
         )}
         {state != null && state.turn_count > 0 && (
           <span className="text-slate-400 shrink-0">{state.turn_count}t</span>
+        )}
+        {state?.totals && state.totals.tokens > 0 && (
+          <span
+            className="text-slate-400 shrink-0"
+            title={`${state.totals.tokens.toLocaleString()} tokens · ${formatDollars(state.totals.dollars)}`}
+          >
+            {formatTokens(state.totals.tokens)} · {formatDollars(state.totals.dollars)}
+          </span>
         )}
         {state?.alive && (state.idle_secs ?? 0) > 10 && (
           <span className="text-slate-400">idle {state.idle_secs}s</span>
