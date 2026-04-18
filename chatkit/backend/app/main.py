@@ -70,6 +70,41 @@ async def session_state(thread_id: str, request: Request) -> Response:
     })
 
 
+@app.post("/chatkit/feedback")
+async def post_feedback(request: Request) -> Response:
+    """Record a thumbs-up / thumbs-down on an assistant message.
+
+    Body JSON: {thread_id, verdict: 1|-1, message_id?, comment?, user_id?}
+    """
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="body must be JSON")
+
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="body must be a JSON object")
+
+    thread_id = payload.get("thread_id")
+    verdict = payload.get("verdict")
+    if not thread_id or not isinstance(thread_id, str):
+        raise HTTPException(status_code=400, detail="thread_id is required")
+    if verdict not in (1, -1, "1", "-1"):
+        raise HTTPException(status_code=400, detail="verdict must be 1 or -1")
+
+    from .feedback import get_feedback_store
+    try:
+        entry_id = get_feedback_store().record(
+            thread_id=thread_id,
+            verdict=int(verdict),
+            message_id=payload.get("message_id"),
+            comment=payload.get("comment"),
+            user_id=payload.get("user_id"),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return JSONResponse({"ok": True, "id": entry_id})
+
+
 @app.get("/chatkit/images/{filename}")
 async def serve_image(filename: str, request: Request) -> Response:
     """Serve an image file from /tmp so the agent can display it inline."""
