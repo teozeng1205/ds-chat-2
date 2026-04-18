@@ -6,6 +6,24 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "2026-04-18",
+    date: "Apr 18, 2026",
+    items: [
+      "14 new AWS tools: Step Functions inspection, Lambda errors, Logs Insights, ECS tasks, alarms, EventBridge, Kinesis tails, Glue catalog, QuickSight dashboards",
+      "Semantic knowledge base — ask in plain English (\"JetBlue\", \"auto-scheduler\") and get the right tables, codes, and docs; 697-chunk embedded index",
+      "Real planner + reviewer sub-agents — planner probes the environment before emitting a plan; reviewer fact-checks numeric claims in the final answer",
+      "New \"details\" button in the header opens a side drawer — session stats, 👍/👎 on the last answer, and editable preferences the agent remembers across threads",
+      "Agent can now remember things you tell it (\"I'm on the B6 team\", \"default to prod.analytics\") via remember / recall / list_memories / forget tools",
+      "Live Glue catalog backs `inspect_table` and partition-warning checks — always current, no stale snapshots",
+      "New `write_file` tool fixes the long-running Python/plotting hangs — scripts reliably write and run in ~10–30s instead of stalling",
+      "Running tokens and dollar cost visible in the header bar; per-turn cost logged to SQLite for review",
+      "Agent traces persisted locally — every run's spans + tool calls queryable after the fact",
+      "Task-specific \"skills\" load automatically: SQL investigation, pipeline ops, AWS read-only, Python venv, long-running scripts, git repos",
+      "Query-result cache: identical SQL within 15 minutes returns instantly",
+      "All feature gates removed — nothing to configure, the full agent is on by default",
+    ],
+  },
+  {
     version: "2026-03-28",
     date: "Mar 28, 2026",
     items: [
