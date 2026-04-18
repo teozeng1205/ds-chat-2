@@ -300,13 +300,11 @@ async def execute_sql(
         cache_payload: dict[str, Any] | None = None
         cache_hit_age: float | None = None
         try:
-            from app.config import load_config  # lazy — avoids circular imports in tests
             from app.investigation.query_cache import get_query_cache
-            if load_config().query_cache_enabled:
-                hit = get_query_cache().get(query, datasource or "_auto", extra=[_date_bucket()])
-                if hit is not None:
-                    cache_payload = dict(hit.payload)
-                    cache_hit_age = hit.age_seconds
+            hit = get_query_cache().get(query, datasource or "_auto", extra=[_date_bucket()])
+            if hit is not None:
+                cache_payload = dict(hit.payload)
+                cache_hit_age = hit.age_seconds
         except Exception as exc:  # noqa: BLE001 — telemetry, never crash
             log.debug("query cache read failed: %s", exc)
 
@@ -339,9 +337,8 @@ async def execute_sql(
 
         # ── Cache write ─────────────────────────────────────────
         try:
-            from app.config import load_config
             from app.investigation.query_cache import get_query_cache
-            if load_config().query_cache_enabled and isinstance(result, dict) and result.get("ok", True):
+            if isinstance(result, dict) and result.get("ok", True):
                 # Don't cache dataset_id (it's per-thread-ephemeral) or errors.
                 to_cache = {k: v for k, v in result.items() if k != "dataset_id"}
                 get_query_cache().put(query, to_cache, datasource or "_auto", extra=[_date_bucket()])
@@ -424,17 +421,12 @@ def _semantic_hits(query: str, *, top_k: int = 5) -> list[dict[str, Any]]:
     """Best-effort semantic search over the pre-built embedding index.
 
     Returns an empty list when:
-      - SEMANTIC_KB_ENABLED is off,
       - the index file doesn't exist yet (run
         `python -m app.investigation.knowledge.build_embeddings` to build),
       - the OpenAI embedding call fails.
     Never raises.
     """
     try:
-        from app.config import load_config
-        if not load_config().semantic_kb_enabled:
-            return []
-
         from pathlib import Path
         backend_root = Path(__file__).resolve().parents[2]
         index_path = backend_root / "app" / ".data" / "ds-chat-semantic.sqlite"
@@ -480,10 +472,11 @@ async def search_kb(
     Args:
         query: Natural language search query (e.g. 'market anomalies', 'site issues', 'combined audit').
 
-    Returns: candidate_tables, table_hints (with partition info), document_hints,
-    and — when SEMANTIC_KB_ENABLED=1 and the embedding index has been built —
-    semantic_hits (hybrid cosine+lexical ranked chunks, each with score, snippet,
-    and source path).
+    Returns: candidate_tables, table_hints (with partition info), document_hints.
+    When the embedding index has been built (run
+    `python -m app.investigation.knowledge.build_embeddings`), the result also
+    carries `semantic_hits` — hybrid cosine+lexical ranked chunks with score,
+    snippet, and source path.
     """
     try:
         await _stream_progress(ctx, "search", f"Searching KB for: {query}")
