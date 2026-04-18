@@ -12,6 +12,7 @@ import glob as _glob
 import logging
 import os
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -339,6 +340,73 @@ async def edit_file(
         return f"Error editing {file_path}: {exc}"
 
 
+# ── Tool: write_file ──
+
+_WRITE_FILE_ROOTS: tuple[Path, ...] = (
+    Path("/tmp").resolve(),
+    Path(tempfile.gettempdir()).resolve(),
+    Path("~/git").expanduser().resolve(),
+    Path("~/.work").expanduser().resolve(),
+    Path.cwd().resolve(),
+)
+
+
+def _is_inside(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+@function_tool
+async def write_file(
+    ctx: RunContextWrapper[AgentContext],  # type: ignore[type-arg]
+    file_path: str,
+    content: str,
+    overwrite: bool = True,
+) -> str:
+    """Write text content to a file via direct file I/O (NOT via the PTY).
+
+    Prefer this over `bash("cat > /tmp/foo.py << 'PYEOF' ... PYEOF")` for any
+    script longer than a few lines. Heredocs through the persistent PTY can
+    stall when input buffering surprises the shell; direct file I/O avoids
+    that failure mode entirely and is significantly faster.
+
+    Writes are restricted to /tmp, ~/git, ~/.work, and the current working
+    directory for safety.
+
+    Args:
+        file_path: Absolute path or ~-relative. Relative paths anchor at ~/git/.
+        content: The full file content. No heredoc, no escaping — just raw text.
+        overwrite: If False, fails when the target already exists (default: True).
+    """
+    try:
+        path = _resolve_path(file_path)
+
+        # Sandbox: reject writes outside allowed roots
+        allowed = any(
+            _is_inside(path, root) for root in _WRITE_FILE_ROOTS
+        )
+        if not allowed:
+            return (
+                f"Error: write_file refuses paths outside /tmp, ~/git, ~/.work, or cwd. "
+                f"Resolved path: {path}"
+            )
+
+        if path.exists() and not overwrite:
+            return f"Error: {path} exists and overwrite=False"
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        existed = path.exists()
+        path.write_text(content, encoding="utf-8")
+
+        action = "overwrote" if existed else "wrote"
+        return f"OK: {action} {path} ({len(content)} chars)"
+    except Exception as exc:
+        return f"Error writing {file_path}: {exc}"
+
+
 # ── Tool 5: git ──
 
 @function_tool
@@ -653,7 +721,10 @@ async def run_parallel(
 
 def shell_tools() -> list[Any]:
     """Return all shell/filesystem tools for the coding agent."""
-    return [bash, read_file, list_dir, edit_file, git, fetch_url, render_image, download_file, run_parallel]
+    return [
+        bash, read_file, list_dir, edit_file, write_file,
+        git, fetch_url, render_image, download_file, run_parallel,
+    ]
 
 
 __all__ = [
@@ -661,6 +732,7 @@ __all__ = [
     "read_file",
     "list_dir",
     "edit_file",
+    "write_file",
     "git",
     "fetch_url",
     "render_image",
