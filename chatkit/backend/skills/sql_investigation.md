@@ -29,8 +29,8 @@ whole table and time out or throttle neighbours:
 | `prod.monitoring.combined_audit` | `sales_date` |
 | `prod.common_output.common_output_format` | `sales_date` |
 
-When `GLUE_PARTITION_GUARD_ENABLED=1`, partition keys come live from Glue instead
-of the static map.
+Partition keys come live from Glue (via `glue_get_table`) when the catalog is
+reachable, with the static map above as a fallback when Glue can't answer.
 
 ## Patterns
 

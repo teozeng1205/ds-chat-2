@@ -14,7 +14,6 @@ from agents.model_settings import ModelRetrySettings
 from agents.models.openai_responses import OpenAIResponsesModel
 from openai import AsyncOpenAI
 
-from ..config import PlannerReviewerMode, load_config
 from ..skills import SkillRegistry, render_skills
 from ..tools.catalog_tools import catalog_tools
 from ..tools.investigation_tools import investigation_tools_core
@@ -27,17 +26,6 @@ from .planner import as_agent_tool as _planner_as_tool
 from .planner import build_planner_agent
 from .reviewer import as_agent_tool as _reviewer_as_tool
 from .reviewer import build_reviewer_agent
-
-# ── Planner sub-agent ──
-# Bounded, cheap model for generating execution plans on complex tasks.
-_PLANNER = Agent(
-    name="planner",
-    model="gpt-5.4-mini",
-    instructions="""Generate a numbered execution plan for complex multi-step tasks.
-Each step: which tool, exact input, expected output. Be concrete and executable.
-Max 10 steps. Prefer the fewest steps that reliably solve the task.""",
-    tools=[],
-)
 
 
 _CODING_IDENTITY = """You are DS Chat — a general-purpose coding and data science agent
@@ -201,33 +189,6 @@ def _build_instructions() -> str:
     return "\n\n".join(parts)
 
 
-def _planning_tools() -> list[Any]:
-    """Pick the planner/reviewer tools based on PLANNER_REVIEWER_MODE.
-
-    off (default): legacy cheap planner (gpt-5.4-mini, no tools). Matches
-                   today's behavior exactly.
-    on / shadow:   real planner sub-agent w/ read-only tools + reviewer
-                   sub-agent for answer grounding.
-    """
-    mode = load_config().planner_reviewer_mode
-    if mode is PlannerReviewerMode.OFF:
-        return [
-            _PLANNER.as_tool(
-                tool_name="plan_task",
-                tool_description=(
-                    "Generate a step-by-step execution plan for complex tasks (5+ steps). "
-                    "Returns a numbered plan with tool, input, and expected output per step."
-                ),
-                max_turns=5,
-            ),
-        ]
-
-    return [
-        _planner_as_tool(build_planner_agent()),
-        _reviewer_as_tool(build_reviewer_agent()),
-    ]
-
-
 def build_agent(model: str) -> Agent[Any]:
     """Build the DS Chat coding + data science agent."""
     return Agent(
@@ -237,7 +198,8 @@ def build_agent(model: str) -> Agent[Any]:
         instructions=_build_instructions(),
         tools=[
             WebSearchTool(search_context_size="medium"),
-            *_planning_tools(),
+            _planner_as_tool(build_planner_agent()),     # real sub-agent w/ read-only tools
+            _reviewer_as_tool(build_reviewer_agent()),   # grounded-verdict JSON reviewer
             *shell_tools(),
             *investigation_tools_core(),
             *ops_tools(),        # SFN / Lambda logs / Logs Insights / ECS / alarms / EventBridge

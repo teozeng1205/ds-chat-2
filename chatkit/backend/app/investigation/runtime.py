@@ -29,22 +29,13 @@ REPO_ROOT = BACKEND_ROOT.parent.parent
 
 
 def _partition_check(validated_query: str) -> list[str]:
-    """Resolve partition warnings via Glue (live) or the static map.
+    """Resolve partition warnings via Glue first, static map as fallback.
 
-    Controlled by GLUE_PARTITION_GUARD_ENABLED. When on, partition keys
-    come from `aws glue get-table` and reflect the real catalog. When
-    off (default), the legacy classmethod + hardcoded map is used.
-    Glue lookups gracefully fall back to the static map if the table
-    isn't in Glue or any AWS error is raised.
+    Partition keys come live from `aws glue get-table` when the catalog
+    is reachable. When Glue can't answer (no creds, table not in Glue,
+    any AWS error), fall back to the static hardcoded map so the guard
+    never fails the query.
     """
-    try:
-        from app.config import load_config  # lazy to avoid cycles at import time
-    except Exception:
-        return PartitionGuard.check(validated_query)
-
-    if not load_config().glue_partition_guard_enabled:
-        return PartitionGuard.check(validated_query)
-
     try:
         from .glue_catalog import get_default_catalog
         guard = PartitionGuard.from_glue(get_default_catalog())
@@ -203,9 +194,7 @@ class InvestigationRuntime:
         effective_datasource = datasource or datasource_for_table(query)
         validated_query = self.guard.validate(query)
 
-        # Partition guard warnings. When GLUE_PARTITION_GUARD_ENABLED=1 we
-        # resolve the required partition keys live from the Glue catalog;
-        # otherwise we use the static hardcoded map (current behavior).
+        # Partition guard warnings — Glue catalog first, static map fallback.
         partition_warnings = _partition_check(validated_query)
 
         started = time.time()
