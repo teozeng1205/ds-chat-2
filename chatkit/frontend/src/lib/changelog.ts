@@ -6,6 +6,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "2026-03-28",
+    date: "Mar 28, 2026",
+    items: [
+      "Upgraded to gpt-5.4 — latest model, smarter analysis and code generation",
+      "SQL and S3 queries now show elapsed time in the progress stream",
+      "Agent retries automatically on transient API failures — fewer dropped runs",
+      "Updated agent SDK to 0.13.2 with MCP resource support and stability fixes",
+    ],
+  },
+  {
     version: "2026-03-14",
     date: "Mar 14, 2026",
     items: [
