@@ -63,20 +63,27 @@ Choose the right pattern based on complexity:
    - Produces output files, plots, or datasets
    - Needs to be re-runnable or readable after execution
 
-   **Always use this pattern:**
-   ```bash
-   cat > /tmp/script.py << 'PYEOF'
-   import pandas as pd
-   import matplotlib
-   matplotlib.use('Agg')   # ALWAYS set Agg before importing pyplot for headless EC2
-   import matplotlib.pyplot as plt
-
-   df = pd.read_parquet('/path/to/file.parquet')
-   print(df.shape)
-   # ... rest of script
-   PYEOF
-   python3 /tmp/script.py
+   **Always use this pattern — `write_file` then `bash` to run:**
    ```
+   write_file(
+     file_path="/tmp/plot_anomalies.py",
+     content='''
+import pandas as pd
+import matplotlib
+matplotlib.use('Agg')   # ALWAYS set Agg before importing pyplot for headless EC2
+import matplotlib.pyplot as plt
+
+df = pd.read_parquet('/path/to/file.parquet')
+print(df.shape)
+# ... rest of script
+''',
+   )
+   bash("python3 /tmp/plot_anomalies.py")
+   ```
+
+   **Do NOT use heredocs via bash** (`cat > /tmp/foo.py << 'PYEOF' … PYEOF`) — heredocs through
+   the persistent PTY frequently stall on multi-line input. `write_file` is direct file I/O
+   and avoids that failure mode entirely. Only use `bash` for the actual execution step.
 
    - Use `/tmp/` for all temporary scripts and outputs.
    - Use `matplotlib.use('Agg')` BEFORE `import matplotlib.pyplot` — EC2 has no display.
@@ -118,6 +125,7 @@ _TOOL_GUIDE = """## Tool Decision Guide
 | Run any command, script, test, install | `bash` |
 | Read a file (with line numbers) | `read_file` |
 | Browse a directory | `list_dir` |
+| Create a new file (script / config / text) | `write_file` (NOT `bash` heredoc) |
 | Edit a file | `read_file` first → `edit_file` |
 | Explore a codebase | `bash` (find/grep/cat) + `read_file` + `list_dir` + `git` |
 | Git log, diff, status, blame | `git` |
