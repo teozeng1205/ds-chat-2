@@ -24,7 +24,7 @@ import logging
 import threading
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable, Optional
+from typing import Any, Callable, Optional
 
 log = logging.getLogger(__name__)
 

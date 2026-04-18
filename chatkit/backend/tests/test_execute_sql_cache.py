@@ -1,16 +1,15 @@
 """Integration test for the execute_sql cache wrapper.
 
-We don't go through the Agents SDK's FunctionTool shim (whose context
-expects richer state than we want to fake). Instead we invoke the
-inner async function directly, confirm that the second call is a
-cache hit, and that disabling the flag always re-runs.
+We don't go through the Agents SDK's FunctionTool shim (its invocation
+context expects richer state than we want to fake). Instead we
+reproduce the cache-hit/-miss logic inline against the real
+QueryCache singleton and a fake runtime, confirming that identical
+queries hit the cache and that dataset_id is stripped on hits.
 """
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -41,46 +40,14 @@ class _FakeRuntime:
         }
 
 
-class _FakeCtxCtx:
-    async def stream(self, _event: Any) -> None:
-        pass
-
-
-def _ctx() -> Any:
-    return SimpleNamespace(context=SimpleNamespace(thread=SimpleNamespace(id="T1"), request_context={}, store=None, progress_events=[], stream=_FakeCtxCtx().stream))
-
-
-def _unwrap(function_tool_obj: Any) -> Any:
-    """Return the underlying async Python function behind a FunctionTool."""
-    # openai-agents 0.13.x exposes the wrapped fn at `.on_invoke_tool.__wrapped__`
-    # or via `.function` / `.python_callable`. Try attributes in order; fall
-    # back to attribute discovery.
-    for attr in ("python_callable", "function", "_function", "_python_callable"):
-        fn = getattr(function_tool_obj, attr, None)
-        if callable(fn):
-            return fn
-    # last resort — search __dict__ for a coroutine function
-    for v in function_tool_obj.__dict__.values():
-        if callable(v) and asyncio.iscoroutinefunction(v):
-            return v
-    raise AssertionError("could not locate underlying function")
-
-
 def test_first_fresh_second_cached(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.investigation.query_cache import get_query_cache
     from app.tools import investigation_tools as it
 
     fake_runtime = _FakeRuntime()
     monkeypatch.setattr(it, "get_runtime", lambda: fake_runtime)
     monkeypatch.setattr(it, "_get_or_create_run_id", lambda _tid: "run-1")
-
-    # Test via the cache directly — we test wiring by verifying that
-    # calling execute_sql twice with the same query + datasource only
-    # causes a single runtime hit.
-    from app.investigation.query_cache import get_query_cache
     cache = get_query_cache()
-
-    # Simulate the tool body directly (bypass the SDK wrapper).
-    import time as _time
 
     def _simulate_call(query: str, datasource: str | None = None) -> dict[str, Any]:
         # This mirrors the logic in execute_sql: check cache → if hit, return;
