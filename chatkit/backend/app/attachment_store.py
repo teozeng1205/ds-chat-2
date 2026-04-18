@@ -32,6 +32,12 @@ class LocalDiskAttachmentStore(AttachmentStore[dict[str, Any]]):
         return (self.root_dir / f"{attachment_id}.bin").resolve()
 
     def _build_upload_url(self, attachment_id: str, context: dict[str, Any]) -> str:
+        """Always return an absolute URL. ChatKit's pydantic validator rejects
+        relative URLs on AttachmentUploadDescriptor, so every branch below
+        produces a scheme://host/path string. The order prefers explicit
+        configuration, then load-balancer hints, then the request itself,
+        then a localhost fallback for internal / test contexts.
+        """
         request = context.get("request") if isinstance(context, dict) else None
         attachment_path = f"/chatkit/uploads/{quote(attachment_id, safe='')}"
 
@@ -49,7 +55,17 @@ class LocalDiskAttachmentStore(AttachmentStore[dict[str, Any]]):
             if origin:
                 return f"{origin.rstrip('/')}{attachment_path}"
 
-        return attachment_path
+            # Fall back to the request's own scheme + host (always set on a
+            # real FastAPI Request).
+            scheme = request.url.scheme or "http"
+            netloc = request.url.netloc
+            if netloc:
+                return f"{scheme}://{netloc}{attachment_path}"
+
+        # No request context (internal / test call). Use a localhost default
+        # plus optional env override so the URL is always absolute.
+        fallback_base = os.getenv("CHATKIT_INTERNAL_BASE_URL", "http://localhost:8000")
+        return f"{fallback_base.rstrip('/')}{attachment_path}"
 
     async def create_attachment(
         self, input: AttachmentCreateParams, context: dict[str, Any]
