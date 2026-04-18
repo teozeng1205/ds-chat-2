@@ -70,6 +70,56 @@ async def session_state(thread_id: str, request: Request) -> Response:
     })
 
 
+@app.get("/chatkit/memory")
+async def list_user_memory() -> Response:
+    """Return the user-scoped memory list.
+
+    Until auth lands we use the shared DEFAULT_USER_ID, so every client
+    sees the same preferences. When auth arrives, scope this by user id.
+    """
+    from .memory import DEFAULT_USER_ID, get_memory_store
+    items = get_memory_store().list(scope="user", scope_id=DEFAULT_USER_ID)
+    return JSONResponse({"scope": "user", "items": items})
+
+
+@app.put("/chatkit/memory")
+async def put_user_memory(request: Request) -> Response:
+    """Upsert a user-scoped memory entry. Body: {key, value}."""
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="body must be JSON")
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="body must be a JSON object")
+    key = payload.get("key")
+    value = payload.get("value")
+    if not isinstance(key, str) or not key.strip():
+        raise HTTPException(status_code=400, detail="key is required")
+    if not isinstance(value, str):
+        raise HTTPException(status_code=400, detail="value is required")
+    if len(key) > 120 or len(value) > 4000:
+        raise HTTPException(status_code=400, detail="key <= 120 chars, value <= 4000 chars")
+    from .memory import DEFAULT_USER_ID, get_memory_store
+    get_memory_store().put(scope="user", scope_id=DEFAULT_USER_ID, key=key.strip(), value=value)
+    return JSONResponse({"ok": True})
+
+
+@app.delete("/chatkit/memory/{key}")
+async def delete_user_memory(key: str) -> Response:
+    """Delete a user-scoped memory entry by key."""
+    from .memory import DEFAULT_USER_ID, get_memory_store
+    deleted = get_memory_store().delete(scope="user", scope_id=DEFAULT_USER_ID, key=key)
+    return JSONResponse({"ok": True, "deleted": deleted})
+
+
+@app.get("/chatkit/feedback/summary/{thread_id}")
+async def feedback_summary(thread_id: str) -> Response:
+    """Return thumbs-up / thumbs-down totals for one thread."""
+    from .feedback import get_feedback_store
+    summary = get_feedback_store().summary_by_thread(thread_id)
+    return JSONResponse(summary)
+
+
 @app.post("/chatkit/feedback")
 async def post_feedback(request: Request) -> Response:
     """Record a thumbs-up / thumbs-down on an assistant message.
