@@ -420,6 +420,56 @@ async def inspect_table(
 
 # ── Tool 5: search_kb ──
 
+def _semantic_hits(query: str, *, top_k: int = 5) -> list[dict[str, Any]]:
+    """Best-effort semantic search over the pre-built embedding index.
+
+    Returns an empty list when:
+      - SEMANTIC_KB_ENABLED is off,
+      - the index file doesn't exist yet (run
+        `python -m app.investigation.knowledge.build_embeddings` to build),
+      - the OpenAI embedding call fails.
+    Never raises.
+    """
+    try:
+        from app.config import load_config
+        if not load_config().semantic_kb_enabled:
+            return []
+
+        from pathlib import Path
+        backend_root = Path(__file__).resolve().parents[2]
+        index_path = backend_root / "app" / ".data" / "ds-chat-semantic.sqlite"
+        if not index_path.exists():
+            return []
+
+        from openai import OpenAI
+        from app.investigation.semantic_index import SemanticIndex, tokenize
+        client = OpenAI()
+        resp = client.embeddings.create(model="text-embedding-3-large", input=[query])
+        q_vec = list(resp.data[0].embedding)
+
+        idx = SemanticIndex(index_path)
+        try:
+            hits = idx.hybrid_search(q_vec, lexical_terms=tokenize(query), top_k=top_k)
+        finally:
+            idx.close()
+
+        return [
+            {
+                "id": h.id,
+                "kind": h.kind,
+                "score": round(h.score, 4),
+                "cosine": round(h.cosine, 4),
+                "lexical": round(h.lexical, 4),
+                "snippet": h.text[:600],
+                "source": (h.metadata or {}).get("source"),
+            }
+            for h in hits
+        ]
+    except Exception as exc:  # noqa: BLE001 — semantic path is best-effort
+        log.debug("semantic KB search skipped: %s", exc)
+        return []
+
+
 @function_tool
 async def search_kb(
     ctx: RunContextWrapper[AgentContext],
@@ -430,16 +480,27 @@ async def search_kb(
     Args:
         query: Natural language search query (e.g. 'market anomalies', 'site issues', 'combined audit').
 
-    Returns: candidate_tables, table_hints (with partition info), document_hints (list of
-    {source: filename, snippet: relevant excerpt} from indexed repo docs).
+    Returns: candidate_tables, table_hints (with partition info), document_hints,
+    and — when SEMANTIC_KB_ENABLED=1 and the embedding index has been built —
+    semantic_hits (hybrid cosine+lexical ranked chunks, each with score, snippet,
+    and source path).
     """
     try:
         await _stream_progress(ctx, "search", f"Searching KB for: {query}")
         runtime = get_runtime()
         result = runtime.search_kb(query=query)
+
+        # Best-effort semantic overlay. Additive: never replaces the
+        # lexical path, just adds a `semantic_hits` field when available.
+        sem = _semantic_hits(query)
+        if sem:
+            result["semantic_hits"] = sem
+
         await _stream_progress(
             ctx, "check-circle",
-            f"KB search complete: {len(result.get('candidate_tables', []))} tables found.",
+            f"KB search complete: {len(result.get('candidate_tables', []))} tables"
+            + (f", {len(sem)} semantic hits" if sem else "")
+            + ".",
         )
         return result
     except Exception as exc:
