@@ -26,6 +26,32 @@ log = logging.getLogger(__name__)
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = BACKEND_ROOT.parent.parent
+
+
+def _partition_check(validated_query: str) -> list[str]:
+    """Resolve partition warnings via Glue (live) or the static map.
+
+    Controlled by GLUE_PARTITION_GUARD_ENABLED. When on, partition keys
+    come from `aws glue get-table` and reflect the real catalog. When
+    off (default), the legacy classmethod + hardcoded map is used.
+    Glue lookups gracefully fall back to the static map if the table
+    isn't in Glue or any AWS error is raised.
+    """
+    try:
+        from app.config import load_config  # lazy to avoid cycles at import time
+    except Exception:
+        return PartitionGuard.check(validated_query)
+
+    if not load_config().glue_partition_guard_enabled:
+        return PartitionGuard.check(validated_query)
+
+    try:
+        from .glue_catalog import get_default_catalog
+        guard = PartitionGuard.from_glue(get_default_catalog())
+        return guard.check_live(validated_query)
+    except Exception as exc:  # noqa: BLE001 — never crash the query over the guard
+        log.debug("Glue partition guard fell back to static map: %s", exc)
+        return PartitionGuard.check(validated_query)
 WORK_ROOT = BACKEND_ROOT / ".work"
 SESSION_ROOT = WORK_ROOT / "sessions"
 KB_RUNTIME_ROOT = WORK_ROOT / "knowledge"
@@ -177,8 +203,10 @@ class InvestigationRuntime:
         effective_datasource = datasource or datasource_for_table(query)
         validated_query = self.guard.validate(query)
 
-        # Partition guard warnings
-        partition_warnings = PartitionGuard.check(validated_query)
+        # Partition guard warnings. When GLUE_PARTITION_GUARD_ENABLED=1 we
+        # resolve the required partition keys live from the Glue catalog;
+        # otherwise we use the static hardcoded map (current behavior).
+        partition_warnings = _partition_check(validated_query)
 
         started = time.time()
         frame = self.registry.execute_sql(effective_datasource, validated_query)
