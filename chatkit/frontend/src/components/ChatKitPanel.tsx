@@ -131,15 +131,15 @@ function ChatKitCore({
         dictation: { enabled: true },
         models: [
           {
-            id: "gpt-5.2",
+            id: "gpt-5.4",
             label: "Default",
-            description: "gpt-5.2 — most capable",
+            description: "gpt-5.4 — most capable",
             default: true,
           },
           {
-            id: "gpt-5-mini",
+            id: "gpt-5.4-mini",
             label: "Fast",
-            description: "gpt-5-mini — fastest",
+            description: "gpt-5.4-mini — fastest",
           },
         ],
       },
