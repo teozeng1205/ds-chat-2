@@ -315,25 +315,50 @@ def test_operator_runtime_can_save_new_dataset(tmp_path: Path):
 # ── Datasource Registry Tests ──
 
 
-def test_datasource_registry_runs_assume_3vdev(monkeypatch: pytest.MonkeyPatch):
-    calls: list[list[str]] = []
+def test_datasource_registry_runs_export_credentials_then_falls_back_to_assume(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The bootstrap has two paths — first `aws configure export-credentials`
+    (text=True, str output), and if that loads nothing, `assume 3VDEV; env -0`
+    (text=False, bytes output). The mock must honor the `text` kwarg so
+    `line.startswith("export ")` gets a str, not bytes.
+    """
+    # Make sure no ambient AWS creds short-circuit the bootstrap.
+    for k in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_PROFILE",
+              "AWS_DEFAULT_PROFILE", "AWS_CREDENTIAL_EXPIRATION"):
+        monkeypatch.delenv(k, raising=False)
+
+    calls: list[tuple[list[str], bool]] = []
 
     class _Proc:
-        returncode = 0
-        stdout = b"AWS_ACCESS_KEY_ID=abc\x00AWS_SECRET_ACCESS_KEY=def\x00AWS_SESSION_TOKEN=ghi\x00"
-        stderr = b""
+        def __init__(self, *, returncode: int, stdout):
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = b"" if isinstance(stdout, bytes) else ""
 
-    def _fake_run(cmd, capture_output, text):
-        del capture_output
-        del text
-        calls.append(cmd)
-        return _Proc()
+    def _fake_run(cmd, capture_output=False, text=False, **_kw):
+        calls.append((cmd, bool(text)))
+        # First call: export-credentials with text=True → return str, empty
+        # stdout so the primary path "loads 0" and we fall through.
+        if text and cmd[0] == "zsh" and "export-credentials" in cmd[-1]:
+            return _Proc(returncode=0, stdout="")
+        # Second call: assume 3VDEV via zsh with text=False → return bytes with
+        # NUL-separated KEY=VALUE pairs that the fallback parses.
+        if not text and cmd[0] == "zsh" and "assume 3VDEV" in cmd[-1]:
+            payload = (
+                b"AWS_ACCESS_KEY_ID=abc\x00"
+                b"AWS_SECRET_ACCESS_KEY=def\x00"
+                b"AWS_SESSION_TOKEN=ghi\x00"
+            )
+            return _Proc(returncode=0, stdout=payload)
+        # Anything else (sts get-caller-identity etc.) — succeed empty.
+        return _Proc(returncode=0, stdout="" if text else b"")
 
     monkeypatch.setattr("subprocess.run", _fake_run)
     registry = DatasourceRegistry()
     result = registry.ensure_credentials()
 
     assert result["ok"] is True
-    assert calls
-    assert calls[0][0] == "zsh"
-    assert "assume 3VDEV" in calls[0][-1]
+    # Both the primary and fallback paths ran in order.
+    assert any("export-credentials" in c[0][-1] for c in calls)
+    assert any("assume 3VDEV" in c[0][-1] for c in calls)
