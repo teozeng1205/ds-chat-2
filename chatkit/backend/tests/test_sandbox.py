@@ -59,21 +59,15 @@ def test_rejects_eval_exec_compile() -> None:
         assert any(x.kind == "forbidden_call" for x in v), f"failed to reject: {expr}"
 
 
-def test_rejects_dunder_name_access() -> None:
-    code = "x = ().__class__.__mro__[1].__subclasses__()"
-    v = check_code(code)
-    # __class__ / __mro__ / __subclasses__ attribute access on tuples;
-    # our dunder check fires on the Name node ().__class__ but wait —
-    # that's an Attribute, not a Name. The dunder check targets bare
-    # Name references like __builtins__. Attribute-dunder access is
-    # caught by forbidden_attribute-style checks when the base is one
-    # of the module names; here the base is a literal, so we accept.
-    # We DO catch `__builtins__` as a Name though:
+def test_rejects_bare_dunder_name() -> None:
+    # Bare dunder names like __builtins__ or __import__ used as a Name
+    # reference (not a call) are caught by the dunder-Name rule. The
+    # chained `().__class__.__mro__[1].__subclasses__()` trick still
+    # parses cleanly at the AST level, but subsequent `import os` or
+    # equivalent to reach something dangerous is blocked by the forbidden-
+    # import / forbidden-call rules, and the subprocess layer caps
+    # anything that slips past.
     assert check_code("__builtins__")[0].kind == "forbidden_dunder"
-    # And the chained mro trick is still runnable at runtime in
-    # principle — but in practice it won't import os because `import os`
-    # is blocked in the AST. Belt and suspenders: the subprocess
-    # resource limits + env scrubbing are the backstop.
 
 
 def test_rejects_attribute_access_on_forbidden_module_alias() -> None:
@@ -125,23 +119,26 @@ def test_run_sandboxed_rejects_pre_subprocess(tmp_path: Path) -> None:
     assert any(v.kind == "forbidden_import" for v in result.violations)
 
 
-def test_run_sandboxed_scrubs_env(tmp_path: Path, monkeypatch) -> None:
-    # Poison env with a fake secret; script must not see it.
-    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "sekrit")
-    code = """
-import os as _imported_os  # blocked by AST — we will not reach this
-"""
-    # Actually that's blocked by AST; let's use a subtler one: inspect
-    # environ directly via a dunder-free path that IS allowed.
-    # Note: even os is blocked, so we cannot directly check the env
-    # from inside. Instead we prove scrub worked by printing os.environ
-    # from a second, trusted invocation with a separate env — but here
-    # it's easier to assert indirectly by running a script that the
-    # AST permits: reading a file.
-    # Skip the secret-access-negative since all direct env reads are
-    # already blocked at AST layer; the scrub is defense in depth.
-    result = run_sandboxed("print('ok')", workspace_dir=tmp_path, timeout_s=5)
-    assert result.ok is True
+def test_scrub_env_drops_secrets_and_keeps_basics(monkeypatch) -> None:
+    # The subprocess gets only _scrub_env()'s allowlist — AWS creds and
+    # other secrets must not leak in. We test the helper directly because
+    # reading the env from inside the sandbox is itself blocked by the
+    # AST layer (belt + suspenders).
+    from app.investigation.sandbox import _scrub_env
+    base = {
+        "AWS_SECRET_ACCESS_KEY": "sekrit",
+        "OPENAI_API_KEY": "sk-sekrit",
+        "HOME": "/Users/whoever",
+        "PATH": "/usr/bin",
+        "LANG": "en_US.UTF-8",
+    }
+    scrubbed = _scrub_env(base)
+    assert "AWS_SECRET_ACCESS_KEY" not in scrubbed
+    assert "OPENAI_API_KEY" not in scrubbed
+    assert "HOME" not in scrubbed
+    assert scrubbed["PATH"] == "/usr/bin"
+    assert scrubbed["LANG"] == "en_US.UTF-8"
+    assert scrubbed["PYTHONUNBUFFERED"] == "1"
 
 
 def test_run_sandboxed_captures_created_files(tmp_path: Path) -> None:

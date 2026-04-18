@@ -7,7 +7,6 @@ no OpenAI call is made.
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 from app.investigation.knowledge import build_embeddings as be

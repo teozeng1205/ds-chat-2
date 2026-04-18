@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.config import Config, PlannerReviewerMode, load_config
+from app.config import PlannerReviewerMode, load_config
 
 
 def _clear(monkeypatch: pytest.MonkeyPatch, *names: str) -> None:
