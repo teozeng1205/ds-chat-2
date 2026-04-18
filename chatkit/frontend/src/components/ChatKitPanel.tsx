@@ -8,6 +8,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { CHATKIT_API_DOMAIN_KEY, CHATKIT_API_URL } from "../lib/config";
 import { CHANGELOG, LATEST_VERSION, SEEN_KEY } from "../lib/changelog";
 import { SessionStateBar } from "./SessionStateBar";
+import { DetailsDrawer } from "./DetailsDrawer";
 
 const THREAD_STORAGE_KEY = "ds-chat:last-thread-id";
 const THEME_STORAGE_KEY = "ds-chat:theme";
@@ -155,6 +156,7 @@ function ChatKitCore({
 
 export function ChatKitPanel() {
   const [showAbout, setShowAbout] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window === "undefined") return "dark";
     return (window.localStorage.getItem(THEME_STORAGE_KEY) as Theme | null) ?? "light";
@@ -261,7 +263,15 @@ export function ChatKitPanel() {
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden">
-      <SessionStateBar threadId={currentThreadId} />
+      <SessionStateBar
+        threadId={currentThreadId}
+        onOpenDetails={() => setShowDetails(true)}
+      />
+      <DetailsDrawer
+        open={showDetails}
+        onClose={() => setShowDetails(false)}
+        threadId={currentThreadId}
+      />
       <ChatKitCore
         key={theme}
         theme={theme}

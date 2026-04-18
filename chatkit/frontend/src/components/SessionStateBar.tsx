@@ -23,9 +23,10 @@ function formatTokens(n: number): string {
 
 interface SessionStateBarProps {
   threadId: string | null;
+  onOpenDetails?: () => void;
 }
 
-export function SessionStateBar({ threadId }: SessionStateBarProps) {
+export function SessionStateBar({ threadId, onOpenDetails }: SessionStateBarProps) {
   const [state, setState] = useState<SessionState | null>(null);
   useEffect(() => {
     if (!threadId) {
@@ -96,6 +97,16 @@ export function SessionStateBar({ threadId }: SessionStateBarProps) {
         )}
         {state?.alive && (state.idle_secs ?? 0) > 10 && (
           <span className="text-slate-400">idle {state.idle_secs}s</span>
+        )}
+        {onOpenDetails && (
+          <button
+            onClick={onOpenDetails}
+            className="ml-1 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-[11px]"
+            aria-label="Open session details"
+            title="Session details, feedback, and your remembered preferences"
+          >
+            details
+          </button>
         )}
       </div>
     </div>
