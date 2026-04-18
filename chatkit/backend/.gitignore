@@ -17,3 +17,7 @@ knowledgebase/.index/*
 !knowledgebase/.index/vector/.gitkeep
 .work/
 tests/smoke_reports/
+
+# Runtime SQLite state written by tracing / cost / query-cache /
+# semantic-index at app/.data/ds-chat-*.sqlite.
+app/.data/
