@@ -53,21 +53,21 @@ export function DetailsDrawer({ open, onClose, threadId }: DetailsDrawerProps) {
   const refresh = useCallback(async () => {
     const tasks: Promise<void>[] = [
       fetch("/chatkit/memory")
-        .then(r => r.json())
-        .then(b => setMemory((b?.items as MemoryItem[]) ?? []))
+        .then(r => r.json() as Promise<{ items?: MemoryItem[] }>)
+        .then(b => setMemory(b.items ?? []))
         .catch(() => setMemory([])),
     ];
     if (threadId) {
       tasks.push(
         fetch(`/chatkit/session/${threadId}`)
-          .then(r => r.json())
-          .then(b => setSession(b as SessionInfo))
+          .then(r => r.json() as Promise<SessionInfo>)
+          .then(b => setSession(b))
           .catch(() => setSession(null))
       );
       tasks.push(
         fetch(`/chatkit/feedback/summary/${threadId}`)
-          .then(r => r.json())
-          .then(b => setFeedback(b as FeedbackSummary))
+          .then(r => r.json() as Promise<FeedbackSummary>)
+          .then(b => setFeedback(b))
           .catch(() => setFeedback(null))
       );
     } else {
@@ -201,7 +201,7 @@ export function DetailsDrawer({ open, onClose, threadId }: DetailsDrawerProps) {
             </h3>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => sendFeedback(1)}
+                onClick={() => { void sendFeedback(1); }}
                 disabled={feedbackBusy || !threadId}
                 className="px-3 py-1.5 rounded border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
                 aria-label="Thumbs up"
@@ -209,7 +209,7 @@ export function DetailsDrawer({ open, onClose, threadId }: DetailsDrawerProps) {
                 👍
               </button>
               <button
-                onClick={() => sendFeedback(-1)}
+                onClick={() => { void sendFeedback(-1); }}
                 disabled={feedbackBusy || !threadId}
                 className="px-3 py-1.5 rounded border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
                 aria-label="Thumbs down"
@@ -250,7 +250,7 @@ export function DetailsDrawer({ open, onClose, threadId }: DetailsDrawerProps) {
                     </div>
                   </div>
                   <button
-                    onClick={() => deleteMemory(item.key)}
+                    onClick={() => { void deleteMemory(item.key); }}
                     className="text-slate-400 hover:text-red-500 text-xs shrink-0"
                     aria-label={`Delete memory ${item.key}`}
                   >
@@ -278,7 +278,7 @@ export function DetailsDrawer({ open, onClose, threadId }: DetailsDrawerProps) {
                 className="w-full px-2 py-1.5 text-xs rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950"
               />
               <button
-                onClick={addMemory}
+                onClick={() => { void addMemory(); }}
                 disabled={saveBusy || !newKey.trim() || !newValue.trim()}
                 className="w-full px-3 py-1.5 rounded bg-slate-800 dark:bg-slate-100 text-slate-100 dark:text-slate-900 text-xs disabled:opacity-40"
               >
