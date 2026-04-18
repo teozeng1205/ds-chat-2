@@ -33,7 +33,7 @@
     {
       "name": "how_does_priceeye_work",
       "thread_id": "thread-smoke-priceeye-arch",
-      "question": "how does priceeye work?",
+      "question": "how does priceeye work? Use search_kb to ground your answer in the indexed documentation and quote at least one specific source file.",
       "assertions": {
         "min_tool_calls": 1,
         "required_tools": [

@@ -92,6 +92,18 @@ def _raw_get(raw: Any, key: str, default: str = "") -> str:
     return str(getattr(raw, key, None) or default)
 
 
+_HOSTED_TYPE_NAMES: dict[str, str] = {
+    # Hosted tools surface as objects whose `raw_item.type` encodes the kind
+    # (no `name` attribute). Map the common ones to friendly names so smoke
+    # assertions over required_tools work.
+    "web_search_call": "web_search",
+    "file_search_call": "file_search",
+    "computer_call": "computer_use",
+    "code_interpreter_call": "code_interpreter",
+    "image_generation_call": "image_generation",
+}
+
+
 def _extract_tool_calls(result: Any) -> list[dict[str, str]]:
     calls: dict[str, dict[str, str]] = {}
     ordered_ids: list[str] = []
@@ -101,9 +113,16 @@ def _extract_tool_calls(result: Any) -> list[dict[str, str]]:
         raw = getattr(item, "raw_item", None)
         if item_type == "tool_call_item":
             # Responses API: raw may be a dict with "id"/"call_id"/"name"/"arguments"
+            # OR a typed object like ResponseFunctionWebSearch whose `.type` is
+            # "web_search_call" (no `.name`).
             call_id = _raw_get(raw, "call_id") or _raw_get(raw, "id") or f"call_{counter}"
             counter += 1
-            name = _raw_get(raw, "name") or "unknown_tool"
+            name = (
+                _raw_get(raw, "name")
+                or _HOSTED_TYPE_NAMES.get(_raw_get(raw, "type"))
+                or _raw_get(raw, "type")
+                or "unknown_tool"
+            )
             args = _raw_get(raw, "arguments")
             calls[call_id] = {"name": name, "arguments": _compact_json(args), "output": ""}
             ordered_ids.append(call_id)

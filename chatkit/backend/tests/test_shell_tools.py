@@ -11,68 +11,93 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-# ── Minimal stubs so we can import without the full chatkit package ──
-# These MUST be set before any `from app.*` imports so the real
-# investigation_tools import chain (→ attachment_store → chatkit.store)
-# never executes.
+# ── Save + stub + restore sys.modules ──
+#
+# These tests call `bash(ctx, ...)` etc. directly, which requires
+# `agents.function_tool` to be a pass-through identity decorator so
+# the tools aren't wrapped as FunctionTool objects.
+#
+# To keep the stubs scoped to THIS test module (so they don't break
+# test_semantic_search_wiring / test_execute_sql_cache / etc. in the
+# same pytest run), we snapshot the modules we're about to mutate and
+# restore them at teardown.
 
-# Pre-stub investigation_tools module so app/tools/__init__.py succeeds
-_inv_stub = types.ModuleType("app.tools.investigation_tools")
-_inv_stub.investigation_tools = lambda: []  # type: ignore[attr-defined]
-_inv_stub.investigation_tools_core = lambda: []  # type: ignore[attr-defined]
-sys.modules["app.tools.investigation_tools"] = _inv_stub
-
-# Stub chatkit packages if not installed
-for mod_name in [
+_STUBBED_MODULE_NAMES = (
+    "app.tools.investigation_tools",
+    "app.tools.shell_tools",
     "chatkit",
     "chatkit.agents",
     "chatkit.types",
     "chatkit.widgets",
     "chatkit.server",
     "agents",
-]:
-    if mod_name not in sys.modules:
-        sys.modules[mod_name] = types.ModuleType(mod_name)
+    "httpx",
+)
+_ORIGINAL_MODULES: dict[str, object] = {
+    name: sys.modules[name] for name in _STUBBED_MODULE_NAMES if name in sys.modules
+}
+_NEWLY_STUBBED: set[str] = set()
 
-# agents stubs
+
+def _stub_module(name: str) -> types.ModuleType:
+    if name not in sys.modules:
+        sys.modules[name] = types.ModuleType(name)
+        _NEWLY_STUBBED.add(name)
+    return sys.modules[name]  # type: ignore[return-value]
+
+
+# Force a stub for app.tools.investigation_tools so app/tools/__init__.py
+# can import without pulling in chatkit.store. Preserve any real module
+# via _ORIGINAL_MODULES so the teardown puts it back.
+_inv_stub = types.ModuleType("app.tools.investigation_tools")
+_inv_stub.investigation_tools = lambda: []  # type: ignore[attr-defined]
+_inv_stub.investigation_tools_core = lambda: []  # type: ignore[attr-defined]
+sys.modules["app.tools.investigation_tools"] = _inv_stub
+
+# Stub chatkit packages if not installed (most are installed in the venv —
+# we only create a stub when missing, so tests can run on a lean machine).
+for _n in ("chatkit", "chatkit.agents", "chatkit.types", "chatkit.widgets",
+           "chatkit.server", "agents"):
+    _stub_module(_n)
+
 agents_mod = sys.modules["agents"]
+_AGENTS_ORIG_FN_TOOL = getattr(agents_mod, "function_tool", None)
+# Override function_tool so @function_tool returns the raw callable — tests
+# below call tools as plain async functions.
+agents_mod.function_tool = lambda f: f  # type: ignore[attr-defined]
 if not hasattr(agents_mod, "RunContextWrapper"):
     agents_mod.RunContextWrapper = MagicMock  # type: ignore[attr-defined]
-if not hasattr(agents_mod, "function_tool"):
-    agents_mod.function_tool = lambda f: f  # type: ignore[attr-defined]
 if not hasattr(agents_mod, "Agent"):
     agents_mod.Agent = MagicMock  # type: ignore[attr-defined]
 
-# chatkit.agents stub
 chatkit_agents = sys.modules["chatkit.agents"]
 if not hasattr(chatkit_agents, "AgentContext"):
     chatkit_agents.AgentContext = MagicMock  # type: ignore[attr-defined]
 
-# chatkit.types stub — add ALL names used by investigation_tools.py
 chatkit_types = sys.modules["chatkit.types"]
-for name in ["ProgressUpdateEvent", "AttachmentCreateParams", "ThreadMetadata",
-             "ThreadStreamEvent", "UserMessageItem", "UserMessageTagContent", "Attachment"]:
-    if not hasattr(chatkit_types, name):
-        setattr(chatkit_types, name, MagicMock)  # type: ignore[attr-defined]
+for _name in ("ProgressUpdateEvent", "AttachmentCreateParams", "ThreadMetadata",
+              "ThreadStreamEvent", "UserMessageItem", "UserMessageTagContent", "Attachment"):
+    if not hasattr(chatkit_types, _name):
+        setattr(chatkit_types, _name, MagicMock)  # type: ignore[attr-defined]
 
-# chatkit.widgets stub
 chatkit_widgets = sys.modules["chatkit.widgets"]
 if not hasattr(chatkit_widgets, "Card"):
     chatkit_widgets.Card = MagicMock  # type: ignore[attr-defined]
 
-# chatkit.server stub
 chatkit_server = sys.modules["chatkit.server"]
 if not hasattr(chatkit_server, "ChatKitServer"):
     chatkit_server.ChatKitServer = MagicMock  # type: ignore[attr-defined]
 if not hasattr(chatkit_server, "StreamingResult"):
     chatkit_server.StreamingResult = MagicMock  # type: ignore[attr-defined]
 
-# httpx stub (for fetch_url — real package usually installed)
-if "httpx" not in sys.modules:
-    httpx_mod = types.ModuleType("httpx")
-    sys.modules["httpx"] = httpx_mod
+_stub_module("httpx")
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+# Drop any previously-cached version of shell_tools / shell_session so the
+# upcoming import picks up our stubbed agents.function_tool.
+for _m in ("app.tools.shell_tools", "app.investigation.shell_session"):
+    sys.modules.pop(_m, None)
 
 from app.investigation.shell_session import (  # noqa: E402
     PersistentShell,
@@ -80,6 +105,47 @@ from app.investigation.shell_session import (  # noqa: E402
     get_session,
     _registry,
 )
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _restore_real_modules():
+    """Put the real modules back after this test module finishes so
+    later test files see the production investigation_tools / agents /
+    chatkit, not our stubs.
+
+    Three layers of cleanup are needed:
+      1. undo the in-place `agents.function_tool` monkeypatch (we
+         mutated an already-loaded module),
+      2. drop any module we created from scratch,
+      3. drop the `app.*` cache so re-imports resolve the real modules
+         instead of walking stale attributes on parent packages.
+    """
+    yield
+    # 1. Undo the function_tool monkeypatch on `agents` (no-op if agents
+    #    was freshly stubbed by us — the module will be popped below).
+    agents_live = sys.modules.get("agents")
+    if agents_live is not None:
+        if _AGENTS_ORIG_FN_TOOL is None:
+            # There was no function_tool before us; remove our stub.
+            if hasattr(agents_live, "function_tool"):
+                try:
+                    delattr(agents_live, "function_tool")
+                except AttributeError:
+                    pass
+        else:
+            # Restore the previously-present function_tool.
+            agents_live.function_tool = _AGENTS_ORIG_FN_TOOL  # type: ignore[attr-defined]
+    # 2. Restore originals we had snapshotted
+    for name, mod in _ORIGINAL_MODULES.items():
+        sys.modules[name] = mod  # type: ignore[assignment]
+    # Drop anything we created that wasn't there originally
+    for name in list(_STUBBED_MODULE_NAMES):
+        if name not in _ORIGINAL_MODULES:
+            sys.modules.pop(name, None)
+    # 3. Drop the `app.*` cache so a re-import resolves the real modules,
+    # not the stubbed attribute on the parent package.
+    for name in [n for n in list(sys.modules) if n == "app" or n.startswith("app.")]:
+        sys.modules.pop(name, None)
 
 
 # ── Helpers ──
