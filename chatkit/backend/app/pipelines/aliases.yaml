@@ -1,0 +1,94 @@
+# Canonical-name aliases for the pipeline lineage graph.
+#
+# Each key is the canonical (short, lowercase, hyphenated) name; the value
+# is the list of alternate spellings we might encounter in docs, code,
+# CFN stacks, Lambda names, or humans' typing. When the canonicalizer
+# sees any alternate, it maps it to the canonical key.
+#
+# Edit this file when you notice a new nickname that a human uses for
+# something the graph already knows.
+
+# ── PriceEye analytics pipeline ────────────────────────────────────────
+common-output:
+  - cco
+  - common_output
+  - "Common Output"
+  - common-output-format
+  - common_output_format
+
+derived-common-output:
+  - dco
+  - derived_common_output
+  - "Derived Common Output"
+  - dco-v2
+  - derived-common-output-v2
+
+competitive-position:
+  - comp-pos
+  - competitive_position
+  - "Competitive Position"
+  - "Competitive Position v2"
+
+market-level-analysis:
+  - mla
+  - market_level_analysis
+  - "Market Level Analysis"
+
+segment-level-analysis:
+  - sla
+  - segment_level_analysis
+  - "Segment Level Analysis"
+
+market-level-generator:
+  - mlg
+  - market_level_generator
+  - "Market Level Generator"
+
+segment-level-generator:
+  - slg
+  - segment_level_generator
+  - "Segment Level Generator"
+
+oag-score:
+  - oag_score
+  - "OAG Score"
+
+brands-equivalence:
+  - brands_equivalence
+  - "Brands Equivalence"
+
+pax-midt:
+  - pax_midt
+  - "Pax MIDT"
+
+revenue-score:
+  - revenue_score
+  - "Revenue Score"
+
+daily-itins:
+  - daily_itins
+  - "Daily Itins"
+  - daily-itineraries
+
+ins-dco:
+  - ins_dco
+  - "INS DCO"
+
+alerts:
+  - ds-priceeye-analytics-alerts
+
+# ── Datasources ────────────────────────────────────────────────────────
+redshift-analytics:
+  - analytics-3vdev
+  - redshift_analytics
+  - "Analytics Redshift"
+
+redshift-core:
+  - monitoringgrp
+  - redshift_core
+  - "Core Redshift"
+
+mysql-priceeye:
+  - priceeye
+  - priceeye_mysql
+  - "PriceEye MySQL"
