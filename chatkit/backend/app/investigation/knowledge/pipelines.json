@@ -1,0 +1,1226 @@
+{
+  "_format_version": 1,
+  "_stats": {
+    "nodes": 59,
+    "edges": 64,
+    "by_kind": {
+      "app": 12,
+      "glue_table": 2,
+      "pipeline": 1,
+      "redshift_table": 5,
+      "repo": 1,
+      "s3_prefix": 26,
+      "stage": 12
+    }
+  },
+  "nodes": {
+    "app": [
+      {
+        "id": "app:alerts",
+        "kind": "app",
+        "name": "alerts",
+        "aliases": [
+          "alerts",
+          "ds-priceeye-analytics-alerts"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/alerts.properties"
+      },
+      {
+        "id": "app:brands-equivalence",
+        "kind": "app",
+        "name": "brands-equivalence",
+        "aliases": [
+          "brands equivalence",
+          "brands-equivalence",
+          "brands_equivalence"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/brands-equivalence.properties"
+      },
+      {
+        "id": "app:competitive-position",
+        "kind": "app",
+        "name": "competitive-position",
+        "aliases": [
+          "comp-pos",
+          "competitive position",
+          "competitive position v2",
+          "competitive-position",
+          "competitive_position"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/competitive-position.properties"
+      },
+      {
+        "id": "app:daily-itins",
+        "kind": "app",
+        "name": "daily-itins",
+        "aliases": [
+          "daily itins",
+          "daily-itineraries",
+          "daily-itins",
+          "daily_itins"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/daily-itins.properties"
+      },
+      {
+        "id": "app:ins-dco",
+        "kind": "app",
+        "name": "ins-dco",
+        "aliases": [
+          "ins dco",
+          "ins-dco",
+          "ins_dco"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/ins-dco.properties"
+      },
+      {
+        "id": "app:market-level-analysis",
+        "kind": "app",
+        "name": "market-level-analysis",
+        "aliases": [
+          "market level analysis",
+          "market-level-analysis",
+          "market_level_analysis",
+          "mla"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/market-level-analysis.properties"
+      },
+      {
+        "id": "app:market-level-generator",
+        "kind": "app",
+        "name": "market-level-generator",
+        "aliases": [
+          "market level generator",
+          "market-level-generator",
+          "market_level_generator",
+          "mlg"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/market-level-generator.properties"
+      },
+      {
+        "id": "app:oag-score",
+        "kind": "app",
+        "name": "oag-score",
+        "aliases": [
+          "oag score",
+          "oag-score",
+          "oag_score"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/oag-score.properties"
+      },
+      {
+        "id": "app:pax-midt",
+        "kind": "app",
+        "name": "pax-midt",
+        "aliases": [
+          "pax midt",
+          "pax-midt",
+          "pax_midt"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/pax-midt.properties"
+      },
+      {
+        "id": "app:revenue-score",
+        "kind": "app",
+        "name": "revenue-score",
+        "aliases": [
+          "revenue score",
+          "revenue-score",
+          "revenue_score"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/revenue-score.properties"
+      },
+      {
+        "id": "app:segment-level-analysis",
+        "kind": "app",
+        "name": "segment-level-analysis",
+        "aliases": [
+          "segment level analysis",
+          "segment-level-analysis",
+          "segment_level_analysis",
+          "sla"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-analysis.properties"
+      },
+      {
+        "id": "app:segment-level-generator",
+        "kind": "app",
+        "name": "segment-level-generator",
+        "aliases": [
+          "segment level generator",
+          "segment-level-generator",
+          "segment_level_generator",
+          "slg"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-generator.properties"
+      }
+    ],
+    "glue_table": [
+      {
+        "id": "glue_table:glue-atp-3victors3vdev-use1-analytics_db.market_level_anomalies_v4",
+        "kind": "glue_table",
+        "name": "glue-atp-3victors3vdev-use1-analytics_db.market_level_anomalies_v4",
+        "aliases": [],
+        "metadata": {
+          "database": "glue-atp-3victors3vdev-use1-analytics_db",
+          "table": "market_level_anomalies_v4"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/market-level-generator.properties:6"
+      },
+      {
+        "id": "glue_table:glue-atp-3victors3vprod-use1-analytics_db.market_level_anomalies_v4",
+        "kind": "glue_table",
+        "name": "glue-atp-3victors3vprod-use1-analytics_db.market_level_anomalies_v4",
+        "aliases": [],
+        "metadata": {
+          "database": "glue-atp-3victors3vprod-use1-analytics_db",
+          "table": "market_level_anomalies_v4"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/market-level-generator.properties:6"
+      }
+    ],
+    "pipeline": [
+      {
+        "id": "pipeline:priceeye-analytics",
+        "kind": "pipeline",
+        "name": "priceeye-analytics",
+        "aliases": [],
+        "metadata": {},
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/alerts.properties, config:ds-priceeye-analytics/docs/config_gold_prod/brands-equivalence.properties, config:ds-priceeye-analytics/docs/config_gold_prod/competitive-position.properties, config:ds-priceeye-analytics/docs/config_gold_prod/daily-itins.properties, config:ds-priceeye-analytics/docs/config_gold_prod/ins-dco.properties, config:ds-priceeye-analytics/docs/config_gold_prod/market-level-analysis.properties, config:ds-priceeye-analytics/docs/config_gold_prod/market-level-generator.properties, config:ds-priceeye-analytics/docs/config_gold_prod/oag-score.properties, config:ds-priceeye-analytics/docs/config_gold_prod/pax-midt.properties, config:ds-priceeye-analytics/docs/config_gold_prod/revenue-score.properties, config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-analysis.properties, config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-generator.properties"
+      }
+    ],
+    "redshift_table": [
+      {
+        "id": "redshift_table:analytics.derived_common_output",
+        "kind": "redshift_table",
+        "name": "analytics.derived_common_output",
+        "aliases": [],
+        "metadata": {
+          "logical_role": "derived_common_output"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/competitive-position.properties:5, config:ds-priceeye-analytics/docs/config_gold_prod/daily-itins.properties:4, config:ds-priceeye-analytics/docs/config_gold_prod/oag-score.properties:3, config:ds-priceeye-analytics/docs/config_gold_prod/pax-midt.properties:3"
+      },
+      {
+        "id": "redshift_table:data_lakes.daily_representative_itinerary_v4",
+        "kind": "redshift_table",
+        "name": "data_lakes.daily_representative_itinerary_v4",
+        "aliases": [],
+        "metadata": {
+          "logical_role": "daily_representative_itinerary_v4"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/daily-itins.properties:3"
+      },
+      {
+        "id": "redshift_table:federated_metadata",
+        "kind": "redshift_table",
+        "name": "federated_metadata",
+        "aliases": [],
+        "metadata": {
+          "logical_role": "metadata"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/oag-score.properties:5"
+      },
+      {
+        "id": "redshift_table:midt_external.midt_daily_booking_summary",
+        "kind": "redshift_table",
+        "name": "midt_external.midt_daily_booking_summary",
+        "aliases": [],
+        "metadata": {
+          "logical_role": "midt_daily_booking_summary"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/pax-midt.properties:4"
+      },
+      {
+        "id": "redshift_table:prod.flight_summary.flight_summary_applicability_v2",
+        "kind": "redshift_table",
+        "name": "prod.flight_summary.flight_summary_applicability_v2",
+        "aliases": [],
+        "metadata": {
+          "logical_role": "flight_summary"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/oag-score.properties:4"
+      }
+    ],
+    "repo": [
+      {
+        "id": "repo:ds-priceeye-analytics",
+        "kind": "repo",
+        "name": "ds-priceeye-analytics",
+        "aliases": [],
+        "metadata": {
+          "local_path": "/Users/weichengzeng/git/ds-priceeye-analytics"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/alerts.properties, config:ds-priceeye-analytics/docs/config_gold_prod/brands-equivalence.properties, config:ds-priceeye-analytics/docs/config_gold_prod/competitive-position.properties, config:ds-priceeye-analytics/docs/config_gold_prod/daily-itins.properties, config:ds-priceeye-analytics/docs/config_gold_prod/ins-dco.properties, config:ds-priceeye-analytics/docs/config_gold_prod/market-level-analysis.properties, config:ds-priceeye-analytics/docs/config_gold_prod/market-level-generator.properties, config:ds-priceeye-analytics/docs/config_gold_prod/oag-score.properties, config:ds-priceeye-analytics/docs/config_gold_prod/pax-midt.properties, config:ds-priceeye-analytics/docs/config_gold_prod/revenue-score.properties, config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-analysis.properties, config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-generator.properties"
+      }
+    ],
+    "s3_prefix": [
+      {
+        "id": "s3_prefix:s3-atp-3victors3vdev-use1-anomaly-datasets/daily_itins_prices/v2",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vdev-use1-anomaly-datasets/daily_itins_prices/v2",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vdev-use1-anomaly-datasets",
+          "prefix": "daily_itins_prices/v2"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/daily-itins.properties:1"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vdev-use1-anomaly-datasets/market-analysis/v2",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vdev-use1-anomaly-datasets/market-analysis/v2",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vdev-use1-anomaly-datasets",
+          "prefix": "market-analysis/v2"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/market-level-analysis.properties:3"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vdev-use1-anomaly-datasets/market-level/v4",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vdev-use1-anomaly-datasets/market-level/v4",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vdev-use1-anomaly-datasets",
+          "prefix": "market-level/v4"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/market-level-generator.properties:1"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vdev-use1-anomaly-datasets/oag_score/v2",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vdev-use1-anomaly-datasets/oag_score/v2",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vdev-use1-anomaly-datasets",
+          "prefix": "oag_score/v2"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/oag-score.properties:1"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vdev-use1-anomaly-datasets/pax_midt/v1",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vdev-use1-anomaly-datasets/pax_midt/v1",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vdev-use1-anomaly-datasets",
+          "prefix": "pax_midt/v1"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/pax-midt.properties:1"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vdev-use1-anomaly-datasets/revenue_score/v1",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vdev-use1-anomaly-datasets/revenue_score/v1",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vdev-use1-anomaly-datasets",
+          "prefix": "revenue_score/v1"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/revenue-score.properties:1"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vdev-use1-anomaly-datasets/segment-analysis/v2",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vdev-use1-anomaly-datasets/segment-analysis/v2",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vdev-use1-anomaly-datasets",
+          "prefix": "segment-analysis/v2"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-analysis.properties:3"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vdev-use1-anomaly-datasets/segment-level/v4",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vdev-use1-anomaly-datasets/segment-level/v4",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vdev-use1-anomaly-datasets",
+          "prefix": "segment-level/v4"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-generator.properties:1"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vdev-use1-competitive-position/v2",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vdev-use1-competitive-position/v2",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vdev-use1-competitive-position",
+          "prefix": "v2",
+          "version": "v2"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/competitive-position.properties:1, config:ds-priceeye-analytics/docs/config_gold_prod/market-level-analysis.properties:1, config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-analysis.properties:1"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vdev-use1-derived-common-output/v1",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vdev-use1-derived-common-output/v1",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vdev-use1-derived-common-output",
+          "prefix": "v1",
+          "version": "v1"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/competitive-position.properties:3"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vdev-use1-derived-common-output/v1/b6",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vdev-use1-derived-common-output/v1/B6",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vdev-use1-derived-common-output",
+          "prefix": "v1/B6",
+          "carrier": "B6"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/ins-dco.properties:1"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vdev-use1-derived-common-output/v1/ins",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vdev-use1-derived-common-output/v1/INS",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vdev-use1-derived-common-output",
+          "prefix": "v1/INS",
+          "customer": "INS"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/ins-dco.properties:4"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vdev-use1-ds-standard-brands/brand_equivalence/v1",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vdev-use1-ds-standard-brands/brand_equivalence/v1",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vdev-use1-ds-standard-brands",
+          "prefix": "brand_equivalence/v1"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/brands-equivalence.properties:1"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vprod-use1-anomaly-datasets/daily_itins_prices/v2",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vprod-use1-anomaly-datasets/daily_itins_prices/v2",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vprod-use1-anomaly-datasets",
+          "prefix": "daily_itins_prices/v2"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/daily-itins.properties:1"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vprod-use1-anomaly-datasets/market-analysis/v2",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vprod-use1-anomaly-datasets/market-analysis/v2",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vprod-use1-anomaly-datasets",
+          "prefix": "market-analysis/v2"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/market-level-analysis.properties:3"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vprod-use1-anomaly-datasets/market-level/v4",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vprod-use1-anomaly-datasets/market-level/v4",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vprod-use1-anomaly-datasets",
+          "prefix": "market-level/v4"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/market-level-generator.properties:1"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vprod-use1-anomaly-datasets/oag_score/v2",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vprod-use1-anomaly-datasets/oag_score/v2",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vprod-use1-anomaly-datasets",
+          "prefix": "oag_score/v2"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/oag-score.properties:1"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vprod-use1-anomaly-datasets/pax_midt/v1",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vprod-use1-anomaly-datasets/pax_midt/v1",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vprod-use1-anomaly-datasets",
+          "prefix": "pax_midt/v1"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/pax-midt.properties:1"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vprod-use1-anomaly-datasets/revenue_score/v1",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vprod-use1-anomaly-datasets/revenue_score/v1",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vprod-use1-anomaly-datasets",
+          "prefix": "revenue_score/v1"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/revenue-score.properties:1"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vprod-use1-anomaly-datasets/segment-analysis/v2",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vprod-use1-anomaly-datasets/segment-analysis/v2",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vprod-use1-anomaly-datasets",
+          "prefix": "segment-analysis/v2"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-analysis.properties:3"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vprod-use1-anomaly-datasets/segment-level/v4",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vprod-use1-anomaly-datasets/segment-level/v4",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vprod-use1-anomaly-datasets",
+          "prefix": "segment-level/v4"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-generator.properties:1"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vprod-use1-competitive-position/v2",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vprod-use1-competitive-position/v2",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vprod-use1-competitive-position",
+          "prefix": "v2",
+          "version": "v2"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/competitive-position.properties:1, config:ds-priceeye-analytics/docs/config_gold_prod/market-level-analysis.properties:1, config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-analysis.properties:1"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vprod-use1-derived-common-output/v1",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vprod-use1-derived-common-output/v1",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vprod-use1-derived-common-output",
+          "prefix": "v1",
+          "version": "v1"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/competitive-position.properties:3"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vprod-use1-derived-common-output/v1/b6",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vprod-use1-derived-common-output/v1/B6",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vprod-use1-derived-common-output",
+          "prefix": "v1/B6",
+          "carrier": "B6"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/ins-dco.properties:1"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vprod-use1-derived-common-output/v1/ins",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vprod-use1-derived-common-output/v1/INS",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vprod-use1-derived-common-output",
+          "prefix": "v1/INS",
+          "customer": "INS"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/ins-dco.properties:4"
+      },
+      {
+        "id": "s3_prefix:s3-atp-3victors3vprod-use1-ds-standard-brands/brand_equivalence/v1",
+        "kind": "s3_prefix",
+        "name": "s3-atp-3victors3vprod-use1-ds-standard-brands/brand_equivalence/v1",
+        "aliases": [],
+        "metadata": {
+          "bucket": "s3-atp-3victors3vprod-use1-ds-standard-brands",
+          "prefix": "brand_equivalence/v1"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/brands-equivalence.properties:1"
+      }
+    ],
+    "stage": [
+      {
+        "id": "stage:alerts",
+        "kind": "stage",
+        "name": "alerts",
+        "aliases": [
+          "alerts",
+          "ds-priceeye-analytics-alerts"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics",
+          "config_file": "docs/config_gold_prod/alerts.properties"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/alerts.properties"
+      },
+      {
+        "id": "stage:brands-equivalence",
+        "kind": "stage",
+        "name": "brands-equivalence",
+        "aliases": [
+          "brands equivalence",
+          "brands-equivalence",
+          "brands_equivalence"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics",
+          "config_file": "docs/config_gold_prod/brands-equivalence.properties"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/brands-equivalence.properties"
+      },
+      {
+        "id": "stage:competitive-position",
+        "kind": "stage",
+        "name": "competitive-position",
+        "aliases": [
+          "comp-pos",
+          "competitive position",
+          "competitive position v2",
+          "competitive-position",
+          "competitive_position"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics",
+          "config_file": "docs/config_gold_prod/competitive-position.properties"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/competitive-position.properties"
+      },
+      {
+        "id": "stage:daily-itins",
+        "kind": "stage",
+        "name": "daily-itins",
+        "aliases": [
+          "daily itins",
+          "daily-itineraries",
+          "daily-itins",
+          "daily_itins"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics",
+          "config_file": "docs/config_gold_prod/daily-itins.properties"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/daily-itins.properties"
+      },
+      {
+        "id": "stage:ins-dco",
+        "kind": "stage",
+        "name": "ins-dco",
+        "aliases": [
+          "ins dco",
+          "ins-dco",
+          "ins_dco"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics",
+          "config_file": "docs/config_gold_prod/ins-dco.properties"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/ins-dco.properties"
+      },
+      {
+        "id": "stage:market-level-analysis",
+        "kind": "stage",
+        "name": "market-level-analysis",
+        "aliases": [
+          "market level analysis",
+          "market-level-analysis",
+          "market_level_analysis",
+          "mla"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics",
+          "config_file": "docs/config_gold_prod/market-level-analysis.properties"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/market-level-analysis.properties"
+      },
+      {
+        "id": "stage:market-level-generator",
+        "kind": "stage",
+        "name": "market-level-generator",
+        "aliases": [
+          "market level generator",
+          "market-level-generator",
+          "market_level_generator",
+          "mlg"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics",
+          "config_file": "docs/config_gold_prod/market-level-generator.properties"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/market-level-generator.properties"
+      },
+      {
+        "id": "stage:oag-score",
+        "kind": "stage",
+        "name": "oag-score",
+        "aliases": [
+          "oag score",
+          "oag-score",
+          "oag_score"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics",
+          "config_file": "docs/config_gold_prod/oag-score.properties"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/oag-score.properties"
+      },
+      {
+        "id": "stage:pax-midt",
+        "kind": "stage",
+        "name": "pax-midt",
+        "aliases": [
+          "pax midt",
+          "pax-midt",
+          "pax_midt"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics",
+          "config_file": "docs/config_gold_prod/pax-midt.properties"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/pax-midt.properties"
+      },
+      {
+        "id": "stage:revenue-score",
+        "kind": "stage",
+        "name": "revenue-score",
+        "aliases": [
+          "revenue score",
+          "revenue-score",
+          "revenue_score"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics",
+          "config_file": "docs/config_gold_prod/revenue-score.properties"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/revenue-score.properties"
+      },
+      {
+        "id": "stage:segment-level-analysis",
+        "kind": "stage",
+        "name": "segment-level-analysis",
+        "aliases": [
+          "segment level analysis",
+          "segment-level-analysis",
+          "segment_level_analysis",
+          "sla"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics",
+          "config_file": "docs/config_gold_prod/segment-level-analysis.properties"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-analysis.properties"
+      },
+      {
+        "id": "stage:segment-level-generator",
+        "kind": "stage",
+        "name": "segment-level-generator",
+        "aliases": [
+          "segment level generator",
+          "segment-level-generator",
+          "segment_level_generator",
+          "slg"
+        ],
+        "metadata": {
+          "repo": "ds-priceeye-analytics",
+          "config_file": "docs/config_gold_prod/segment-level-generator.properties"
+        },
+        "source": "config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-generator.properties"
+      }
+    ]
+  },
+  "edges": [
+    {
+      "source": "app:alerts",
+      "target": "repo:ds-priceeye-analytics",
+      "rel": "repo",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/alerts.properties"
+    },
+    {
+      "source": "app:brands-equivalence",
+      "target": "repo:ds-priceeye-analytics",
+      "rel": "repo",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/brands-equivalence.properties"
+    },
+    {
+      "source": "app:competitive-position",
+      "target": "repo:ds-priceeye-analytics",
+      "rel": "repo",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/competitive-position.properties"
+    },
+    {
+      "source": "app:daily-itins",
+      "target": "repo:ds-priceeye-analytics",
+      "rel": "repo",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/daily-itins.properties"
+    },
+    {
+      "source": "app:ins-dco",
+      "target": "repo:ds-priceeye-analytics",
+      "rel": "repo",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/ins-dco.properties"
+    },
+    {
+      "source": "app:market-level-analysis",
+      "target": "repo:ds-priceeye-analytics",
+      "rel": "repo",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/market-level-analysis.properties"
+    },
+    {
+      "source": "app:market-level-generator",
+      "target": "repo:ds-priceeye-analytics",
+      "rel": "repo",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/market-level-generator.properties"
+    },
+    {
+      "source": "app:oag-score",
+      "target": "repo:ds-priceeye-analytics",
+      "rel": "repo",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/oag-score.properties"
+    },
+    {
+      "source": "app:pax-midt",
+      "target": "repo:ds-priceeye-analytics",
+      "rel": "repo",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/pax-midt.properties"
+    },
+    {
+      "source": "app:revenue-score",
+      "target": "repo:ds-priceeye-analytics",
+      "rel": "repo",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/revenue-score.properties"
+    },
+    {
+      "source": "app:segment-level-analysis",
+      "target": "repo:ds-priceeye-analytics",
+      "rel": "repo",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-analysis.properties"
+    },
+    {
+      "source": "app:segment-level-generator",
+      "target": "repo:ds-priceeye-analytics",
+      "rel": "repo",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-generator.properties"
+    },
+    {
+      "source": "stage:alerts",
+      "target": "pipeline:priceeye-analytics",
+      "rel": "part_of",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/alerts.properties"
+    },
+    {
+      "source": "stage:brands-equivalence",
+      "target": "pipeline:priceeye-analytics",
+      "rel": "part_of",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/brands-equivalence.properties"
+    },
+    {
+      "source": "stage:brands-equivalence",
+      "target": "s3_prefix:s3-atp-3victors3vdev-use1-ds-standard-brands/brand_equivalence/v1",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/brands-equivalence.properties:1"
+    },
+    {
+      "source": "stage:brands-equivalence",
+      "target": "s3_prefix:s3-atp-3victors3vprod-use1-ds-standard-brands/brand_equivalence/v1",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/brands-equivalence.properties:1"
+    },
+    {
+      "source": "stage:competitive-position",
+      "target": "pipeline:priceeye-analytics",
+      "rel": "part_of",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/competitive-position.properties"
+    },
+    {
+      "source": "stage:competitive-position",
+      "target": "redshift_table:analytics.derived_common_output",
+      "rel": "reads",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/competitive-position.properties:5"
+    },
+    {
+      "source": "stage:competitive-position",
+      "target": "s3_prefix:s3-atp-3victors3vdev-use1-competitive-position/v2",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/competitive-position.properties:1"
+    },
+    {
+      "source": "stage:competitive-position",
+      "target": "s3_prefix:s3-atp-3victors3vdev-use1-derived-common-output/v1",
+      "rel": "reads",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/competitive-position.properties:3"
+    },
+    {
+      "source": "stage:competitive-position",
+      "target": "s3_prefix:s3-atp-3victors3vprod-use1-competitive-position/v2",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/competitive-position.properties:1"
+    },
+    {
+      "source": "stage:competitive-position",
+      "target": "s3_prefix:s3-atp-3victors3vprod-use1-derived-common-output/v1",
+      "rel": "reads",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/competitive-position.properties:3"
+    },
+    {
+      "source": "stage:daily-itins",
+      "target": "pipeline:priceeye-analytics",
+      "rel": "part_of",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/daily-itins.properties"
+    },
+    {
+      "source": "stage:daily-itins",
+      "target": "redshift_table:analytics.derived_common_output",
+      "rel": "reads",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/daily-itins.properties:4"
+    },
+    {
+      "source": "stage:daily-itins",
+      "target": "redshift_table:data_lakes.daily_representative_itinerary_v4",
+      "rel": "reads",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/daily-itins.properties:3"
+    },
+    {
+      "source": "stage:daily-itins",
+      "target": "s3_prefix:s3-atp-3victors3vdev-use1-anomaly-datasets/daily_itins_prices/v2",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/daily-itins.properties:1"
+    },
+    {
+      "source": "stage:daily-itins",
+      "target": "s3_prefix:s3-atp-3victors3vprod-use1-anomaly-datasets/daily_itins_prices/v2",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/daily-itins.properties:1"
+    },
+    {
+      "source": "stage:ins-dco",
+      "target": "pipeline:priceeye-analytics",
+      "rel": "part_of",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/ins-dco.properties"
+    },
+    {
+      "source": "stage:ins-dco",
+      "target": "s3_prefix:s3-atp-3victors3vdev-use1-derived-common-output/v1/b6",
+      "rel": "reads",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/ins-dco.properties:1"
+    },
+    {
+      "source": "stage:ins-dco",
+      "target": "s3_prefix:s3-atp-3victors3vdev-use1-derived-common-output/v1/ins",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/ins-dco.properties:4"
+    },
+    {
+      "source": "stage:ins-dco",
+      "target": "s3_prefix:s3-atp-3victors3vprod-use1-derived-common-output/v1/b6",
+      "rel": "reads",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/ins-dco.properties:1"
+    },
+    {
+      "source": "stage:ins-dco",
+      "target": "s3_prefix:s3-atp-3victors3vprod-use1-derived-common-output/v1/ins",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/ins-dco.properties:4"
+    },
+    {
+      "source": "stage:market-level-analysis",
+      "target": "pipeline:priceeye-analytics",
+      "rel": "part_of",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/market-level-analysis.properties"
+    },
+    {
+      "source": "stage:market-level-analysis",
+      "target": "s3_prefix:s3-atp-3victors3vdev-use1-anomaly-datasets/market-analysis/v2",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/market-level-analysis.properties:3"
+    },
+    {
+      "source": "stage:market-level-analysis",
+      "target": "s3_prefix:s3-atp-3victors3vdev-use1-competitive-position/v2",
+      "rel": "reads",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/market-level-analysis.properties:1"
+    },
+    {
+      "source": "stage:market-level-analysis",
+      "target": "s3_prefix:s3-atp-3victors3vprod-use1-anomaly-datasets/market-analysis/v2",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/market-level-analysis.properties:3"
+    },
+    {
+      "source": "stage:market-level-analysis",
+      "target": "s3_prefix:s3-atp-3victors3vprod-use1-competitive-position/v2",
+      "rel": "reads",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/market-level-analysis.properties:1"
+    },
+    {
+      "source": "stage:market-level-generator",
+      "target": "glue_table:glue-atp-3victors3vdev-use1-analytics_db.market_level_anomalies_v4",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/market-level-generator.properties:6"
+    },
+    {
+      "source": "stage:market-level-generator",
+      "target": "glue_table:glue-atp-3victors3vprod-use1-analytics_db.market_level_anomalies_v4",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/market-level-generator.properties:6"
+    },
+    {
+      "source": "stage:market-level-generator",
+      "target": "pipeline:priceeye-analytics",
+      "rel": "part_of",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/market-level-generator.properties"
+    },
+    {
+      "source": "stage:market-level-generator",
+      "target": "s3_prefix:s3-atp-3victors3vdev-use1-anomaly-datasets/market-level/v4",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/market-level-generator.properties:1"
+    },
+    {
+      "source": "stage:market-level-generator",
+      "target": "s3_prefix:s3-atp-3victors3vprod-use1-anomaly-datasets/market-level/v4",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/market-level-generator.properties:1"
+    },
+    {
+      "source": "stage:oag-score",
+      "target": "pipeline:priceeye-analytics",
+      "rel": "part_of",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/oag-score.properties"
+    },
+    {
+      "source": "stage:oag-score",
+      "target": "redshift_table:analytics.derived_common_output",
+      "rel": "reads",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/oag-score.properties:3"
+    },
+    {
+      "source": "stage:oag-score",
+      "target": "redshift_table:federated_metadata",
+      "rel": "reads",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/oag-score.properties:5"
+    },
+    {
+      "source": "stage:oag-score",
+      "target": "redshift_table:prod.flight_summary.flight_summary_applicability_v2",
+      "rel": "reads",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/oag-score.properties:4"
+    },
+    {
+      "source": "stage:oag-score",
+      "target": "s3_prefix:s3-atp-3victors3vdev-use1-anomaly-datasets/oag_score/v2",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/oag-score.properties:1"
+    },
+    {
+      "source": "stage:oag-score",
+      "target": "s3_prefix:s3-atp-3victors3vprod-use1-anomaly-datasets/oag_score/v2",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/oag-score.properties:1"
+    },
+    {
+      "source": "stage:pax-midt",
+      "target": "pipeline:priceeye-analytics",
+      "rel": "part_of",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/pax-midt.properties"
+    },
+    {
+      "source": "stage:pax-midt",
+      "target": "redshift_table:analytics.derived_common_output",
+      "rel": "reads",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/pax-midt.properties:3"
+    },
+    {
+      "source": "stage:pax-midt",
+      "target": "redshift_table:midt_external.midt_daily_booking_summary",
+      "rel": "reads",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/pax-midt.properties:4"
+    },
+    {
+      "source": "stage:pax-midt",
+      "target": "s3_prefix:s3-atp-3victors3vdev-use1-anomaly-datasets/pax_midt/v1",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/pax-midt.properties:1"
+    },
+    {
+      "source": "stage:pax-midt",
+      "target": "s3_prefix:s3-atp-3victors3vprod-use1-anomaly-datasets/pax_midt/v1",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/pax-midt.properties:1"
+    },
+    {
+      "source": "stage:revenue-score",
+      "target": "pipeline:priceeye-analytics",
+      "rel": "part_of",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/revenue-score.properties"
+    },
+    {
+      "source": "stage:revenue-score",
+      "target": "s3_prefix:s3-atp-3victors3vdev-use1-anomaly-datasets/revenue_score/v1",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/revenue-score.properties:1"
+    },
+    {
+      "source": "stage:revenue-score",
+      "target": "s3_prefix:s3-atp-3victors3vprod-use1-anomaly-datasets/revenue_score/v1",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/revenue-score.properties:1"
+    },
+    {
+      "source": "stage:segment-level-analysis",
+      "target": "pipeline:priceeye-analytics",
+      "rel": "part_of",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-analysis.properties"
+    },
+    {
+      "source": "stage:segment-level-analysis",
+      "target": "s3_prefix:s3-atp-3victors3vdev-use1-anomaly-datasets/segment-analysis/v2",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-analysis.properties:3"
+    },
+    {
+      "source": "stage:segment-level-analysis",
+      "target": "s3_prefix:s3-atp-3victors3vdev-use1-competitive-position/v2",
+      "rel": "reads",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-analysis.properties:1"
+    },
+    {
+      "source": "stage:segment-level-analysis",
+      "target": "s3_prefix:s3-atp-3victors3vprod-use1-anomaly-datasets/segment-analysis/v2",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-analysis.properties:3"
+    },
+    {
+      "source": "stage:segment-level-analysis",
+      "target": "s3_prefix:s3-atp-3victors3vprod-use1-competitive-position/v2",
+      "rel": "reads",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-analysis.properties:1"
+    },
+    {
+      "source": "stage:segment-level-generator",
+      "target": "pipeline:priceeye-analytics",
+      "rel": "part_of",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-generator.properties"
+    },
+    {
+      "source": "stage:segment-level-generator",
+      "target": "s3_prefix:s3-atp-3victors3vdev-use1-anomaly-datasets/segment-level/v4",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-generator.properties:1"
+    },
+    {
+      "source": "stage:segment-level-generator",
+      "target": "s3_prefix:s3-atp-3victors3vprod-use1-anomaly-datasets/segment-level/v4",
+      "rel": "writes",
+      "weight": 1.0,
+      "provenance": "config:ds-priceeye-analytics/docs/config_gold_prod/segment-level-generator.properties:1"
+    }
+  ]
+}
