@@ -17,6 +17,7 @@ from openai import AsyncOpenAI
 from ..skills import SkillRegistry, render_skills
 from ..tools.catalog_tools import catalog_tools
 from ..tools.investigation_tools import investigation_tools_core
+from ..tools.lineage_tools import lineage_tools
 from ..tools.memory_tools import memory_tools
 from ..tools.ops_tools import ops_tools
 from ..tools.shell_tools import shell_tools
@@ -139,6 +140,7 @@ _TOOL_GUIDE = """## Tool Decision Guide
 | Show an existing BI dashboard | `quicksight_list_dashboards`, `quicksight_get_embed_url` |
 | Remember a user preference across threads | `remember(key, value, scope="user")` |
 | Recall what the user told you previously | `recall(key)` / `list_memories()` |
+| Walk the cross-repo data-flow graph (who writes / who reads this table, bucket, or app) | `trace_pipeline(entity, direction, depth)` |
 
 **`edit_file` contract (read-before-edit enforced):**
 1. Call `read_file` on the target file to get exact content with line numbers.
@@ -206,6 +208,7 @@ def build_agent(model: str) -> Agent[Any]:
             *streams_tools(),    # kinesis_tail
             *catalog_tools(),    # glue_get_table / glue_get_partitions / quicksight_*
             *memory_tools(),     # remember / recall / list_memories / forget
+            *lineage_tools(),    # trace_pipeline
         ],
     )
 
