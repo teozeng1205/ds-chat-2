@@ -42,6 +42,7 @@ from app.pipelines.canonicalize import (  # noqa: E402
     merge_edges,
     merge_nodes,
 )
+from app.pipelines.discover_aws import discover as discover_aws  # noqa: E402
 from app.pipelines.discover_code import discover as discover_code  # noqa: E402
 from app.pipelines.discover_configs import discover as discover_configs  # noqa: E402
 from app.pipelines.discover_docs import discover as discover_docs  # noqa: E402
@@ -114,6 +115,7 @@ def build(
     dry_run: bool,
     json_out: Path,
     skip_code: bool = False,
+    skip_aws: bool = True,
 ) -> dict:
     aliases = AliasTable.load()
 
@@ -137,6 +139,22 @@ def build(
         per_pass["code"] = {"files_scanned": pass3.files_scanned,
                             "files_with_signal": pass3.files_with_signal,
                             "nodes": len(pass3.nodes), "edges": len(pass3.edges)}
+
+    # Pass 2 — live AWS trawl. Opt-in because it needs credentials and
+    # takes longer than the local passes.
+    if not skip_aws:
+        try:
+            pass2 = discover_aws(repos=repos, aliases=aliases)
+            all_nodes.extend(pass2.nodes)
+            all_edges.extend(pass2.edges)
+            passes_run.append("aws")
+            per_pass["aws"] = {
+                "resources_scanned": pass2.resources_scanned,
+                "resources_with_signal": pass2.resources_with_signal,
+                "nodes": len(pass2.nodes), "edges": len(pass2.edges),
+            }
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Pass 2 (AWS trawl) failed — continuing without it: %s", exc)
 
     # Pass 5 — ASCII DAG / prose mining from human-authored docs
     pass5 = discover_docs(repos=repos, aliases=aliases)
@@ -188,6 +206,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="override output path (default: app/investigation/knowledge/pipelines.json)")
     parser.add_argument("--skip-code", action="store_true",
                         help="skip the slow Pass 3 (code pattern scan)")
+    parser.add_argument("--with-aws", action="store_true",
+                        help="run Pass 2 (live AWS trawl; needs credentials)")
     args = parser.parse_args(argv)
 
     repos = load_repos()
@@ -204,7 +224,7 @@ def main(argv: list[str] | None = None) -> int:
 
     summary = build(
         repos, clear=args.clear, dry_run=args.dry_run, json_out=json_out,
-        skip_code=args.skip_code,
+        skip_code=args.skip_code, skip_aws=not args.with_aws,
     )
     print(json.dumps({k: (dict(v) if isinstance(v, Counter) else v) for k, v in summary.items()},
                      indent=2, default=str))
