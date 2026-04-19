@@ -192,26 +192,44 @@ def _build_instructions() -> str:
     return "\n\n".join(parts)
 
 
+def _model_supports_apply_patch(model: str) -> bool:
+    """The hosted `apply_patch` tool is only accepted by full-size GPT-5
+    class models on the Responses API. Mini variants return 400 at
+    Runner.run() time, so we gate registration on the model name.
+    Anything that's clearly a mini/nano tier is skipped — the agent
+    still has `edit_file` (str_replace + insert) and `write_file` for
+    edits, just without the one-shot multi-hunk diff path.
+    """
+    m = (model or "").lower()
+    if "mini" in m or "nano" in m or "haiku" in m:
+        return False
+    return True
+
+
 def build_agent(model: str) -> Agent[Any]:
     """Build the DS Chat coding + data science agent."""
+    tools = [
+        WebSearchTool(search_context_size="medium"),
+        _planner_as_tool(build_planner_agent()),     # real sub-agent w/ read-only tools
+        _reviewer_as_tool(build_reviewer_agent()),   # grounded-verdict JSON reviewer
+    ]
+    if _model_supports_apply_patch(model):
+        tools.extend(apply_patch_tool())             # hosted multi-hunk diff editor
+    tools.extend([
+        *shell_tools(),
+        *investigation_tools_core(),
+        *ops_tools(),        # SFN / Lambda logs / Logs Insights / ECS / alarms / EventBridge
+        *streams_tools(),    # kinesis_tail
+        *catalog_tools(),    # glue_get_table / glue_get_partitions / quicksight_*
+        *memory_tools(),     # remember / recall / list_memories / forget
+        *lineage_tools(),    # trace_pipeline
+    ])
     return Agent(
         model=OpenAIResponsesModel(model=model, openai_client=AsyncOpenAI()),
         model_settings=ModelSettings(retry=ModelRetrySettings(max_retries=2)),
         name="DS Chat Agent",
         instructions=_build_instructions(),
-        tools=[
-            WebSearchTool(search_context_size="medium"),
-            _planner_as_tool(build_planner_agent()),     # real sub-agent w/ read-only tools
-            _reviewer_as_tool(build_reviewer_agent()),   # grounded-verdict JSON reviewer
-            *apply_patch_tool(),  # hosted multi-hunk diff editor (OpenAI Agents SDK)
-            *shell_tools(),
-            *investigation_tools_core(),
-            *ops_tools(),        # SFN / Lambda logs / Logs Insights / ECS / alarms / EventBridge
-            *streams_tools(),    # kinesis_tail
-            *catalog_tools(),    # glue_get_table / glue_get_partitions / quicksight_*
-            *memory_tools(),     # remember / recall / list_memories / forget
-            *lineage_tools(),    # trace_pipeline
-        ],
+        tools=tools,
     )
 
 

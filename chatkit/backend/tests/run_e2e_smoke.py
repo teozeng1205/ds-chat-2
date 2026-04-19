@@ -101,6 +101,7 @@ _HOSTED_TYPE_NAMES: dict[str, str] = {
     "computer_call": "computer_use",
     "code_interpreter_call": "code_interpreter",
     "image_generation_call": "image_generation",
+    "apply_patch_call": "apply_patch",
 }
 
 
