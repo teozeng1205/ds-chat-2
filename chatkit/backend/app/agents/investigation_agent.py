@@ -332,15 +332,20 @@ Use `search_kb` to retrieve full process details. Key table → process mappings
         # ── S3 data reference ──
         """## S3 Data Reference
 
-All buckets follow the pattern `s3-atp-3victors-{env}-use1-{purpose}`. Production env = `3vdev` (or `3vprod` for some older paths).
+All buckets follow the pattern `s3-atp-3victors-{env}-use1-{purpose}`
+where `{env}` is `3vprod` for production (the default) or `3vdev` for
+development. The process runs on 3VDEV AWS credentials but has
+cross-account read access to 3VPROD. **Default to `3vprod`.** Only
+substitute `3vdev` when the user explicitly asks for dev data.
 
-Known S3 buckets and key patterns (use fetch_s3 with these):
-- `s3-atp-3victors-3vdev-use1-collection-anomalies`
+Known S3 bucket / key patterns (use fetch_s3 with these; swap `3vprod`
+for `3vdev` if the user asks for dev):
+- `s3-atp-3victors-3vprod-use1-collection-anomalies`
   - `collection-customer/v1/YYYY/MM/DD/` -- Customer collection anomaly CSVs by date
-- `s3-atp-3victors-3vdev-use1-derived-common-output`
+- `s3-atp-3victors-3vprod-use1-derived-common-output`
   - `v1/{customer}/{YYYY}/{MM}/{DD}/{HH}/` -- DCO Parquet (normalized price observations per customer)
   - `v1/customer={code}/sales_date={YYYYMMDD}/` -- Alternative partition path
-- `s3-atp-3victors-3vdev-use1-anomaly-datasets`
+- `s3-atp-3victors-3vprod-use1-anomaly-datasets`
   - `market-level/v4/{customer}/{YYYY}/{MM}/{DD}/` -- Market-level anomaly Parquet (v4 is latest)
   - `market-level/v3/customer={code}/sales_date={YYYYMMDD}/` -- Legacy v3 path
   - `segment-level/v4/{customer}/{YYYY}/{MM}/{DD}/` -- Segment-level anomaly Parquet
@@ -348,7 +353,7 @@ Known S3 buckets and key patterns (use fetch_s3 with these):
   - `oag_score/v2/{customer}/{YYYY}/{MM}/{DD}/` -- OAG seat supply metrics
   - `revenue_score/v1/{customer}/{YYYY}/{MM}/{DD}/revenue_estimates.csv` -- Revenue estimates (CSV)
   - `pax_midt/v1/{customer}/{YYYY}/{MM}/{DD}/` -- PAX/MIDT booking data (CSV)
-- `s3-atp-3victors-3vdev-use1-competitive-position`
+- `s3-atp-3victors-3vprod-use1-competitive-position`
   - `v2/{customer}/{YYYY}/{MM}/{DD}/data.parquet` -- Competitive position Parquet
 - `s3-atp-3victors-3vprod-use1-pe-common-output`
   - `{customer}/{YYYY}/{MM}/{DD}/{HH}/` -- Raw common output before DCO normalization

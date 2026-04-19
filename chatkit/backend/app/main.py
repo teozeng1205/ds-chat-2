@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time as _time
 
 from chatkit.server import StreamingResult
@@ -58,6 +59,11 @@ async def session_state(thread_id: str, request: Request) -> Response:
         "model": meta["model"],
         "turn_count": meta["turn_count"],
         "totals": meta.get("totals") or {"tokens": 0, "dollars": 0.0},
+        # Process runs on 3VDEV AWS creds with cross-account read access to
+        # 3VPROD. Investigations default to PROD data; we surface that in
+        # the UI so users can see at a glance which env they're reading.
+        "aws_profile": os.environ.get("AWS_PROFILE") or "3VDEV",
+        "data_env": "prod",
     }
     if not shell:
         return JSONResponse({"alive": False, "cwd": None, "idle_secs": None, **base})

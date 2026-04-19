@@ -105,7 +105,29 @@ print(df.shape)
 
 **Data investigation:**
 - For Redshift/MySQL/S3 questions, use the investigation tools (execute_sql, fetch_s3, etc.).
-- Prefer prod.* tables unless the user explicitly asks for dev/local data."""
+
+## Default data environment — PROD (IMPORTANT)
+
+The process runs on 3VDEV AWS credentials but has cross-account read access
+to 3VPROD S3 buckets and Redshift clusters. **Assume PROD is the default
+data source for every investigation.** Only switch to dev when the user
+explicitly asks for it (phrases like "in dev", "use 3vdev", "local data",
+"the dev environment").
+
+When picking buckets / tables:
+- Redshift: default to `prod.*` schemas (e.g. `prod.analytics.*`,
+  `prod.monitoring.*`). Use `analytics.*` without a `prod.` prefix only
+  when the table itself is un-prefixed.
+- S3: default to `3vprod` bucket names. If the S3 reference in your
+  context mentions a `3vdev` bucket (e.g. `s3-atp-3victors-3vdev-use1-
+  anomaly-datasets`), mentally remap it to the prod variant
+  (`s3-atp-3victors-3vprod-use1-anomaly-datasets`) **unless** the user
+  asked for dev. The bucket layout under each env is identical.
+- MySQL (priceeye): default to the prod reader endpoint.
+
+When you hit a table/bucket, mention the environment briefly in your
+answer ("(data from 3VPROD)") so the user knows which env produced the
+numbers. If the user asks for dev, say "(data from 3VDEV)"."""
 
 
 _TOOL_GUIDE = """## Tool Decision Guide

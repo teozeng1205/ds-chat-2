@@ -7,6 +7,8 @@ interface SessionState {
   model: string | null;
   turn_count: number;
   totals?: { tokens: number; dollars: number };
+  aws_profile?: string | null;
+  data_env?: "prod" | "dev" | "gold" | null;
 }
 
 function formatDollars(d: number): string {
@@ -71,6 +73,23 @@ export function SessionStateBar({ threadId, onOpenDetails }: SessionStateBarProp
           />
           <span className="text-slate-400">shell</span>
           <span className="text-slate-600 dark:text-slate-300 truncate">{shortCwd ?? "—"}</span>
+          {state.data_env && (
+            <span
+              className={[
+                "ml-2 px-1.5 py-[1px] rounded text-[10px] font-bold uppercase tracking-wide",
+                state.data_env === "prod"
+                  ? "bg-amber-200 text-amber-900 dark:bg-amber-500/30 dark:text-amber-200"
+                  : "bg-sky-200 text-sky-900 dark:bg-sky-500/30 dark:text-sky-200",
+              ].join(" ")}
+              title={
+                state.data_env === "prod"
+                  ? `Data default: PROD (reading 3VPROD via cross-account from ${state.aws_profile ?? "3VDEV"} creds). Say "use dev" in chat to switch.`
+                  : `Data default: ${state.data_env.toUpperCase()}`
+              }
+            >
+              {state.data_env === "prod" ? "PROD data" : `${state.data_env.toUpperCase()} data`}
+            </span>
+          )}
         </>
       )}
       <div className="ml-auto flex items-center gap-3">
