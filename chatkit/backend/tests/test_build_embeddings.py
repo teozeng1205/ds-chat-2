@@ -77,6 +77,57 @@ def test_run_build_respects_kinds_filter(tmp_path: Path, monkeypatch) -> None:
     assert set(summary["chunks_by_kind"]) == {"tables"}
 
 
+def test_chunk_pipelines_emits_app_and_stage(tmp_path: Path, monkeypatch) -> None:
+    (tmp_path / "pipelines.json").write_text(json.dumps({
+        "_format_version": 1,
+        "nodes": {
+            "app": [{
+                "id": "app:competitive-position", "kind": "app",
+                "name": "competitive-position",
+                "aliases": ["comp-pos"], "metadata": {"repo": "ds-priceeye-analytics"},
+                "source": "config:foo",
+            }],
+            "stage": [{
+                "id": "stage:competitive-position", "kind": "stage",
+                "name": "competitive-position",
+                "aliases": [], "metadata": {"repo": "ds-priceeye-analytics"},
+                "source": "config:foo",
+            }],
+            "redshift_table": [{
+                "id": "redshift_table:analytics.derived_common_output",
+                "kind": "redshift_table",
+                "name": "analytics.derived_common_output",
+                "aliases": [], "metadata": {}, "source": "config:foo",
+            }],
+        },
+        "edges": [
+            {"source": "stage:competitive-position",
+             "target": "redshift_table:analytics.derived_common_output",
+             "rel": "reads", "weight": 1.0, "provenance": "config:foo"},
+            {"source": "stage:competitive-position",
+             "target": "s3_prefix:bucket/v2",
+             "rel": "writes", "weight": 1.0, "provenance": "config:foo"},
+        ],
+    }), encoding="utf-8")
+    monkeypatch.setattr(be, "KNOWLEDGE_DIR", tmp_path)
+    chunks = be._chunk_pipelines()
+    # One chunk per (app + stage) — both have edges from/to
+    ids = {c.id for c in chunks}
+    assert "pipeline:stage:competitive-position" in ids
+    # The app node has no edges of its own so it's dropped
+    stage_chunk = next(c for c in chunks if c.id == "pipeline:stage:competitive-position")
+    assert "competitive-position" in stage_chunk.text
+    assert "analytics.derived_common_output" in stage_chunk.text
+    assert "bucket/v2" in stage_chunk.text
+    assert stage_chunk.kind == "pipeline"
+    assert stage_chunk.metadata["node_id"] == "stage:competitive-position"
+
+
+def test_chunk_pipelines_safe_when_missing(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(be, "KNOWLEDGE_DIR", tmp_path)  # no pipelines.json
+    assert be._chunk_pipelines() == []
+
+
 def test_main_cli_dry_run(capsys, tmp_path: Path, monkeypatch) -> None:
     (tmp_path / "docs").mkdir()
     (tmp_path / "docs" / "d1.md").write_text("# D1\nhello\n", encoding="utf-8")

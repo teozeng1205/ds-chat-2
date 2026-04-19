@@ -417,6 +417,105 @@ async def inspect_table(
 
 # ── Tool 5: search_kb ──
 
+def _pipeline_context(
+    *,
+    candidate_tables: list[str] | None = None,
+    semantic_hits: list[dict[str, Any]] | None = None,
+    max_entries: int = 6,
+) -> dict[str, Any]:
+    """Attach 1-hop lineage to KB hits that resolve to graph nodes.
+
+    Best-effort — returns {} when the graph DB hasn't been built or
+    when no KB hit maps to a known node. Each entry in the returned
+    dict is keyed by graph node id and has at most ~2 upstream /
+    ~2 downstream neighbors plus the stage that produces the entity.
+    """
+    try:
+        from pathlib import Path
+        from ..pipelines.graph_store import GraphStore, default_graph_db_path
+
+        db_path = default_graph_db_path()
+        if not Path(db_path).exists():
+            return {}
+
+        store = GraphStore(db_path)
+        try:
+            if store.stats()["total_nodes"] == 0:
+                return {}
+
+            seeds: list[str] = []
+            for t in candidate_tables or []:
+                if isinstance(t, str) and t:
+                    seeds.append(t)
+            for hit in semantic_hits or []:
+                sid = hit.get("id") if isinstance(hit, dict) else None
+                if isinstance(sid, str) and sid:
+                    seeds.append(sid)
+                meta = (hit or {}).get("metadata") if isinstance(hit, dict) else None
+                if isinstance(meta, dict):
+                    for k in ("table_name", "code", "source"):
+                        v = meta.get(k)
+                        if isinstance(v, str) and v:
+                            seeds.append(v)
+
+            out: dict[str, Any] = {}
+            seen: set[str] = set()
+            for seed in seeds:
+                if len(out) >= max_entries:
+                    break
+                resolved = store.resolve(seed)
+                if resolved is None or resolved in seen:
+                    continue
+                seen.add(resolved)
+                node = store.get_node(resolved)
+                if node is None:
+                    continue
+                edges = store.get_edges(resolved, direction="both")
+                entry: dict[str, Any] = {"kind": node.kind, "name": node.name}
+
+                # Bucket edges by their semantic role relative to `resolved`:
+                # - produced_by: some source writes INTO us
+                # - consumed_by: some source reads FROM us
+                # - reads_from:  we (as source) read a thing
+                # - writes_to:   we (as source) write a thing
+                produced_by: list[str] = []
+                consumed_by: list[str] = []
+                reads_from: list[str] = []
+                writes_to: list[str] = []
+                triggers: list[str] = []
+                for e in edges:
+                    if e.rel == "writes" and e.target_id == resolved:
+                        produced_by.append(e.source_id)
+                    elif e.rel == "reads" and e.target_id == resolved:
+                        consumed_by.append(e.source_id)
+                    elif e.rel == "reads" and e.source_id == resolved:
+                        reads_from.append(e.target_id)
+                    elif e.rel == "writes" and e.source_id == resolved:
+                        writes_to.append(e.target_id)
+                    elif e.rel == "triggers":
+                        triggers.append(
+                            e.source_id if e.target_id == resolved else e.target_id
+                        )
+
+                if produced_by:
+                    entry["produced_by"] = produced_by[:3]
+                if consumed_by:
+                    entry["consumed_by"] = consumed_by[:3]
+                if reads_from:
+                    entry["reads_from"] = reads_from[:6]
+                if writes_to:
+                    entry["writes_to"] = writes_to[:6]
+                if triggers:
+                    entry["triggers"] = triggers[:3]
+                out[resolved] = entry
+            return out
+        finally:
+            store.close()
+    except Exception as exc:  # noqa: BLE001 — graph lookup is best-effort
+        log.debug("pipeline_context lookup skipped: %s", exc)
+        return {}
+
+
 def _semantic_hits(query: str, *, top_k: int = 5) -> list[dict[str, Any]]:
     """Best-effort semantic search over the pre-built embedding index.
 
@@ -489,10 +588,22 @@ async def search_kb(
         if sem:
             result["semantic_hits"] = sem
 
+        # Best-effort pipeline-lineage overlay. When a candidate_table or
+        # semantic_hit resolves to a graph node, attach its 1-hop
+        # neighborhood so the agent sees upstream producers / downstream
+        # consumers without needing a separate trace_pipeline call.
+        pipe_ctx = _pipeline_context(
+            candidate_tables=result.get("candidate_tables") or [],
+            semantic_hits=sem,
+        )
+        if pipe_ctx:
+            result["pipeline_context"] = pipe_ctx
+
         await _stream_progress(
             ctx, "check-circle",
             f"KB search complete: {len(result.get('candidate_tables', []))} tables"
             + (f", {len(sem)} semantic hits" if sem else "")
+            + (f", {len(pipe_ctx)} lineage nodes" if pipe_ctx else "")
             + ".",
         )
         return result

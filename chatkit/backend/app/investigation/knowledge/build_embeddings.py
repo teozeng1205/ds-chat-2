@@ -153,11 +153,95 @@ def _chunk_common_codes() -> list[Chunk]:
     return out
 
 
+def _chunk_pipelines() -> list[Chunk]:
+    """Emit one chunk per app/stage from `pipelines.json` with its
+    1-hop neighborhood rendered as a short paragraph.
+
+    When the agent embeds a question like "how does market-level get
+    generated?", the semantic hit is a pre-rendered chain summary —
+    graph precision + semantic recall. Safe no-op when the graph
+    hasn't been built yet.
+    """
+    path = KNOWLEDGE_DIR / "pipelines.json"
+    if not path.exists():
+        return []
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+    nodes_by_kind: dict[str, list[dict[str, Any]]] = payload.get("nodes", {}) or {}
+    edges: list[dict[str, Any]] = payload.get("edges", []) or []
+
+    by_id: dict[str, dict[str, Any]] = {}
+    for kind, items in nodes_by_kind.items():
+        for n in items:
+            by_id[n["id"]] = n
+
+    reads_by_src: dict[str, list[str]] = {}
+    writes_by_src: dict[str, list[str]] = {}
+    for e in edges:
+        src, tgt, rel = e.get("source"), e.get("target"), e.get("rel")
+        if not src or not tgt:
+            continue
+        if rel == "reads":
+            reads_by_src.setdefault(src, []).append(tgt)
+        elif rel == "writes":
+            writes_by_src.setdefault(src, []).append(tgt)
+
+    def _pretty(nid: str) -> str:
+        n = by_id.get(nid)
+        return n["name"] if n else nid
+
+    out: list[Chunk] = []
+    for kind in ("app", "stage"):
+        for node in nodes_by_kind.get(kind, []):
+            nid = node["id"]
+            name = node["name"]
+            meta = node.get("metadata") or {}
+            reads = [_pretty(x) for x in reads_by_src.get(nid, [])][:6]
+            writes = [_pretty(x) for x in writes_by_src.get(nid, [])][:6]
+            aliases = [a for a in (node.get("aliases") or []) if a != name]
+
+            parts: list[str] = [f"`{name}` — pipeline {kind}."]
+            repo = meta.get("repo")
+            if repo:
+                parts.append(f"Repo: `{repo}`.")
+            if aliases:
+                parts.append("Aliases: " + ", ".join(aliases[:6]) + ".")
+            if reads:
+                parts.append("Reads from: " + ", ".join(reads) + ".")
+            if writes:
+                parts.append("Writes to: " + ", ".join(writes) + ".")
+            if not reads and not writes:
+                continue  # isolated node: no embedding signal worth adding
+
+            text = " ".join(parts)
+            out.append(
+                Chunk(
+                    id=f"pipeline:{nid}",
+                    text=text[:MAX_CHUNK_CHARS],
+                    kind="pipeline",
+                    metadata={
+                        "node_id": nid,
+                        "node_kind": kind,
+                        "name": name,
+                        "repo": repo,
+                        "aliases": aliases,
+                        "reads": reads,
+                        "writes": writes,
+                    },
+                )
+            )
+    return out
+
+
 ALL_BUILDERS = {
     "tables": _chunk_tables_md,
     "docs": _chunk_docs,
     "sql_best_practices": _chunk_sql_best_practices,
     "codes": _chunk_common_codes,
+    "pipelines": _chunk_pipelines,
 }
 
 
