@@ -42,6 +42,7 @@ from app.pipelines.canonicalize import (  # noqa: E402
     merge_edges,
     merge_nodes,
 )
+from app.pipelines.discover_code import discover as discover_code  # noqa: E402
 from app.pipelines.discover_configs import discover as discover_configs  # noqa: E402
 from app.pipelines.graph_store import GraphStore  # noqa: E402
 
@@ -111,18 +112,37 @@ def build(
     clear: bool,
     dry_run: bool,
     json_out: Path,
+    skip_code: bool = False,
 ) -> dict:
     aliases = AliasTable.load()
 
     # Pass 1 — configs
     pass1 = discover_configs(repos, aliases=aliases)
-    nodes = _dedupe_nodes(pass1.nodes)
-    edges = merge_edges(pass1.edges)
+    all_nodes = list(pass1.nodes)
+    all_edges = list(pass1.edges)
+    passes_run = ["configs"]
+    per_pass = {
+        "configs": {"files_scanned": pass1.files_scanned,
+                    "files_with_signal": pass1.files_with_signal,
+                    "nodes": len(pass1.nodes), "edges": len(pass1.edges)},
+    }
+
+    # Pass 3 — code patterns
+    if not skip_code:
+        pass3 = discover_code(repos, aliases=aliases)
+        all_nodes.extend(pass3.nodes)
+        all_edges.extend(pass3.edges)
+        passes_run.append("code")
+        per_pass["code"] = {"files_scanned": pass3.files_scanned,
+                            "files_with_signal": pass3.files_with_signal,
+                            "nodes": len(pass3.nodes), "edges": len(pass3.edges)}
+
+    nodes = _dedupe_nodes(all_nodes)
+    edges = merge_edges(all_edges)
 
     summary = {
-        "passes_run": ["configs"],
-        "files_scanned": pass1.files_scanned,
-        "files_with_signal": pass1.files_with_signal,
+        "passes_run": passes_run,
+        "per_pass": per_pass,
         "nodes": len(nodes),
         "edges": len(edges),
         "by_kind": Counter(n.kind for n in nodes),
@@ -156,6 +176,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="scan only the named repo(s) from repos.yaml")
     parser.add_argument("--json-out", type=Path, default=None,
                         help="override output path (default: app/investigation/knowledge/pipelines.json)")
+    parser.add_argument("--skip-code", action="store_true",
+                        help="skip the slow Pass 3 (code pattern scan)")
     args = parser.parse_args(argv)
 
     repos = load_repos()
@@ -172,6 +194,7 @@ def main(argv: list[str] | None = None) -> int:
 
     summary = build(
         repos, clear=args.clear, dry_run=args.dry_run, json_out=json_out,
+        skip_code=args.skip_code,
     )
     print(json.dumps({k: (dict(v) if isinstance(v, Counter) else v) for k, v in summary.items()},
                      indent=2, default=str))
