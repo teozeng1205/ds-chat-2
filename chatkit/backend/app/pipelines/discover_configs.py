@@ -1,8 +1,7 @@
 """Pass 1 — structured-config parser (high confidence, deterministic).
 
 Scans every repo's declared `config_roots` for machine-readable manifests
-and emits graph nodes + edges. The common shape we extract (regardless
-of format) is:
+and emits graph nodes + edges. The common shape we extract is:
 
     stage <name>
         reads  s3://<bucket>/<prefix>  (version prefix if present)
@@ -13,12 +12,10 @@ of format) is:
         part_of <pipeline>
         repo   <repo_name>
 
-Formats handled today:
-  - Java `.properties`  (the priceeye-analytics / data-collection
-    pattern — 12 stages already in `ds-priceeye-analytics/docs/
-    config_gold_prod`)
-  - AWS SAM / CloudFormation `template.yaml` is stubbed; a future
-    commit will add a proper Resources-tree walker.
+Currently handles Java `.properties` manifests (the priceeye-analytics /
+data-collection pattern — 12 stages live in `ds-priceeye-analytics/
+docs/config_gold_prod`). CloudFormation / SAM template walking is
+handled by Pass 2 (discover_aws) via live resource trawls.
 
 Each emitted Edge carries `source = "config:<relative_path>:<line>"`
 so we can trace any fact back to its origin file.
@@ -89,11 +86,6 @@ def discover(
                 )
                 if got_signal:
                     files_with_signal += 1
-            # SAM templates (future — stub)
-            for path in sorted(list(root.rglob("template.yaml")) + list(root.rglob("template.yml"))):
-                files_scanned += 1
-                # TODO(lineage/sam): walk Resources tree; for now skip.
-                _ = path
 
     return DiscoveryResult(
         nodes=nodes,

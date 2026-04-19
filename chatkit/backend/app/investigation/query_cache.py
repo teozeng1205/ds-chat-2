@@ -5,10 +5,9 @@ Keyed by a stable hash of (sql, workgroup, extra tags). TTL-expires at
 small result dicts (the shape execute_sql already returns) fit
 comfortably.
 
-This module is additive: the executor wiring will land in a follow-up
-so we can land the WIP commit that's already touching
-investigation_tools.py first. Use directly if you want caching right
-now.
+Wired into `execute_sql` in app/tools/investigation_tools.py — a cache
+hit returns the cached preview with `cached: True` and no dataset_id
+(datasets are per-thread-ephemeral).
 """
 
 from __future__ import annotations

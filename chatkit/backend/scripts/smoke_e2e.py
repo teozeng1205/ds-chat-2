@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Unified E2E smoke test for the DS Chat agentic investigation pipeline.
 
-Replaces the legacy run_investigation_e2e.py and smoke_investigation_pipeline.py.
 Runs test cases through the actual agentic loop using Runner.run().
 
 Usage:
