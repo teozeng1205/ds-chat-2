@@ -47,6 +47,7 @@ from app.pipelines.discover_code import discover as discover_code  # noqa: E402
 from app.pipelines.discover_configs import discover as discover_configs  # noqa: E402
 from app.pipelines.discover_docs import discover as discover_docs  # noqa: E402
 from app.pipelines.discover_llm import discover as discover_llm  # noqa: E402
+from app.pipelines.discover_modules import discover as discover_modules  # noqa: E402
 from app.pipelines.graph_store import GraphStore  # noqa: E402
 
 log = logging.getLogger(__name__)
@@ -121,7 +122,7 @@ def build(
 ) -> dict:
     aliases = AliasTable.load()
 
-    # Pass 1 — configs
+    # Pass 1 — configs (.properties + CFN templates)
     pass1 = discover_configs(repos, aliases=aliases)
     all_nodes = list(pass1.nodes)
     all_edges = list(pass1.edges)
@@ -132,9 +133,29 @@ def build(
                     "nodes": len(pass1.nodes), "edges": len(pass1.edges)},
     }
 
+    # Pass 1b — sub-module auto-discovery (for Maven / multi-package
+    # repos like priceeye-v2 whose source/<module>/ layout holds dozens
+    # of stages without any .properties manifest).
+    pass1b = discover_modules(repos, aliases=aliases)
+    all_nodes.extend(pass1b.nodes)
+    passes_run.append("modules")
+    per_pass["modules"] = {
+        "modules_scanned": pass1b.modules_scanned,
+        "modules_with_marker": pass1b.modules_with_marker,
+        "nodes": len(pass1b.nodes),
+    }
+
+    # Collect every stage name seen so far so Pass 3 can attribute code
+    # files to the right module-scoped stage.
+    stage_names_seen = {
+        n.name for n in (pass1.nodes + pass1b.nodes) if n.kind == "stage"
+    }
+
     # Pass 3 — code patterns
     if not skip_code:
-        pass3 = discover_code(repos, aliases=aliases)
+        pass3 = discover_code(
+            repos, aliases=aliases, extra_known_stages=stage_names_seen,
+        )
         all_nodes.extend(pass3.nodes)
         all_edges.extend(pass3.edges)
         passes_run.append("code")

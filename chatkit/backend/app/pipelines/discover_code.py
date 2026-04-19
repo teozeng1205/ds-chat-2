@@ -83,8 +83,20 @@ def discover(
     *,
     aliases: AliasTable | None = None,
     max_file_bytes: int = 256 * 1024,
+    extra_known_stages: set[str] | None = None,
 ) -> DiscoveryResult:
+    """Scan code for lineage signals.
+
+    Args:
+        extra_known_stages: Additional canonical stage names Pass 3
+            should treat as "known" when attributing files. Orchestrator
+            passes the union of Pass 1 + module-discovery stages so a
+            file like `priceeye-v2/source/common-output-generator/.../X.java`
+            gets attributed to `stage:common-output-generator` instead
+            of falling through to the repo.
+    """
     aliases = aliases or AliasTable.load()
+    extra_known_stages = extra_known_stages or set()
     nodes: list[Node] = []
     edges: list[Edge] = []
     scanned = 0
@@ -93,7 +105,7 @@ def discover(
     for repo in repos:
         if not repo.local_path.exists():
             continue
-        known_stages = set(aliases.by_canonical.keys())
+        known_stages = set(aliases.by_canonical.keys()) | extra_known_stages
         for path in _iter_code_files(repo.local_path, max_file_bytes, repo_root=repo.local_path):
             scanned += 1
             text = _safe_read(path)
