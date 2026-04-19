@@ -64,3 +64,16 @@ Do NOT use `aws cloudwatch` / `stepfunctions` / `lambda` / `logs` — those see 
 - Data freshness → `aws s3 ls s3://s3-atp-3victors-3vprod-use1-anomaly-datasets/market-level/v4/…` or `execute_sql` checking latest `sales_date` in `prod.analytics.*`.
 - Collection issues → `execute_sql` on `prod.monitoring.provider_combined_audit`.
 - 3VDEV infra (dev Athena / SFN / Lambda) → regular AWS CLI, but be explicit in your answer that those are **dev resources, not production**.
+
+**When a cascading data investigation hits the prod-ops wall** (see
+`cascading_investigation.md` Step 5d), stop immediately and hand off. The canonical
+phrasing is:
+
+> I've traced the break to `<stage>` in PROD. I can't reach 3VPROD Lambda / SFN
+> logs from our 3VDEV session. Please run `assume 3VPROD` locally and then
+> `aws stepfunctions list-executions --state-machine-arn <ARN> --status-filter FAILED`
+> / `aws logs tail /aws/lambda/<NAME> --since 2h` and paste the output back —
+> I'll analyse it from there.
+
+**Never** call `aws sts assume-role` to try to cross into 3VPROD. The user has
+explicitly forbidden role assumption in this agent.

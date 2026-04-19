@@ -180,6 +180,30 @@ def test_datasource_for_table_routing():
     assert datasource_for_table("collection_optimizer.delta_swia_input_v1") == "redshift_core"
 
 
+def test_datasource_for_table_federated_schemas():
+    """Federated MySQL-via-Redshift queries must reach a Redshift cluster.
+
+    The cascading investigation skill tells the agent to fall through to
+    `federated_priceeye.*` for config-drop diagnostics when a prod table is
+    empty for a specific customer. Those queries MUST route to a Redshift
+    reader (which knows how to execute federated SQL), not to the MySQL
+    reader — the MySQL connector has no federation bridge.
+    """
+    # priceeye federated tables → redshift_analytics (default fall-through)
+    assert datasource_for_table("federated_priceeye.customer_defaults") == "redshift_analytics"
+    assert datasource_for_table("federated_priceeye.site_hierarchy") == "redshift_analytics"
+    # metadata federated tables → redshift_analytics
+    assert datasource_for_table("federated_metadata.airportlocation_extra") == "redshift_analytics"
+    # scheduling federated tables → redshift_core (only cluster that has them)
+    assert datasource_for_table("federated_scheduling.some_table") == "redshift_core"
+    # Full-query strings work too (runtime passes raw SQL into this fn)
+    assert datasource_for_table(
+        "SELECT * FROM federated_scheduling.foo WHERE a = 1"
+    ) == "redshift_analytics"  # startswith on raw SELECT falls through to default
+    # Case-insensitive + local.federated_* keeps dev isolated on core
+    assert datasource_for_table("local.federated_priceeye.customer_defaults") == "redshift_core"
+
+
 # ── Workspace Tests ──
 
 

@@ -93,6 +93,33 @@ Many Redshift tables have S3 mirrors written by the same pipelines. Consult `s3_
 for the full table → bucket/key mapping. Use `fetch_s3` with the matching path for the
 table's date + customer.
 
+### Step 3.5 — Consult the federated MySQL config tables
+
+When rows are missing **for a specific customer** (or only for some customers), the
+most common cause is a config drop — the customer isn't onboarded, the site isn't
+scheduled, or a lookup row got deleted. Redshift exposes the live MySQL config
+tables directly via federated schemas, so there's no need to hop through a
+separate `mysql_priceeye` connector:
+
+```sql
+-- Is DE configured / enabled?
+SELECT * FROM federated_priceeye.customer_defaults WHERE customer = 'DE';
+
+-- Which sites is DE scheduled against?
+SELECT * FROM federated_priceeye.site_hierarchy WHERE customer = 'DE';
+
+-- Global config (airport → city mappings, error messages, etc.)
+SELECT * FROM federated_metadata.airportlocation_extra WHERE IATA = 'JFK';
+```
+
+All `federated_*` schemas are routed to `redshift_analytics` automatically by the
+datasource router. See `federated_schemas.md` for the full catalog (priceeye,
+metadata, scheduling, analytics). These tables are **small config tables**, so no
+partition filter is required.
+
+If the federated lookup shows the customer is missing / disabled / misconfigured,
+that IS the answer — no deeper walk needed.
+
 ### Step 4 — Try `local.*` ONLY if the user requests dev data
 
 `local.*` schemas are DEV copies — never the default. Use only when the user specifically
