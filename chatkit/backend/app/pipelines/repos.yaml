@@ -17,90 +17,90 @@ repos:
 
   - name: ds-priceeye-data-collection
     local_path: ~/git/ds-priceeye-data-collection
-    config_roots: []
+    # config_roots: auto-discovered (repo root + docs / config / configs / resources)
     pipelines:
       - priceeye-data-collection
 
   - name: priceeye-scheduling
     local_path: ~/git/priceeye-scheduling
-    config_roots: []
+    # config_roots: auto-discovered (repo root + docs / config / configs / resources)
     pipelines:
       - priceeye-scheduling
 
   - name: ds-internal-monitoring
     local_path: ~/git/ds-internal-monitoring
-    config_roots: []
+    # config_roots: auto-discovered (repo root + docs / config / configs / resources)
     pipelines:
       - ds-internal-monitoring
 
   - name: ds-customer-monitoring
     local_path: ~/git/ds-customer-monitoring
-    config_roots: []
+    # config_roots: auto-discovered (repo root + docs / config / configs / resources)
     pipelines:
       - customer-monitoring
 
   - name: ds-priceeye-enrichment
     local_path: ~/git/ds-priceeye-enrichment
-    config_roots: []
+    # config_roots: auto-discovered (repo root + docs / config / configs / resources)
     pipelines:
       - priceeye-enrichment
 
   - name: ds-channel-comparison
     local_path: ~/git/ds-channel-comparison
-    config_roots: []
+    # config_roots: auto-discovered (repo root + docs / config / configs / resources)
     pipelines:
       - channel-comparison
 
   - name: priceeye-analytics
     local_path: ~/git/priceeye-analytics
-    config_roots: []
+    # config_roots: auto-discovered (repo root + docs / config / configs / resources)
     pipelines:
       - priceeye-analytics
 
   - name: priceeye-api
     local_path: ~/git/priceeye-api
-    config_roots: []
+    # config_roots: auto-discovered (repo root + docs / config / configs / resources)
     pipelines:
       - priceeye-api
 
   - name: priceeye-customer
     local_path: ~/git/priceeye-customer
-    config_roots: []
+    # config_roots: auto-discovered (repo root + docs / config / configs / resources)
     pipelines:
       - priceeye-customer
 
   - name: priceeye-providers
     local_path: ~/git/priceeye-providers
-    config_roots: []
+    # config_roots: auto-discovered (repo root + docs / config / configs / resources)
     pipelines:
       - priceeye-providers
 
   - name: priceeye-monitoring
     local_path: ~/git/priceeye-monitoring
-    config_roots: []
+    # config_roots: auto-discovered (repo root + docs / config / configs / resources)
     pipelines:
       - priceeye-monitoring
 
   - name: priceeye-vacations
     local_path: ~/git/priceeye-vacations
-    config_roots: []
+    # config_roots: auto-discovered (repo root + docs / config / configs / resources)
     pipelines:
       - priceeye-vacations
 
   - name: ingest
     local_path: ~/git/ingest
-    config_roots: []
+    # config_roots: auto-discovered (repo root + docs / config / configs / resources)
     pipelines:
       - ingest
 
   - name: ingest-cache
     local_path: ~/git/ingest-cache
-    config_roots: []
+    # config_roots: auto-discovered (repo root + docs / config / configs / resources)
     pipelines:
       - ingest
 
   - name: ingest-sources
     local_path: ~/git/ingest-sources
-    config_roots: []
+    # config_roots: auto-discovered (repo root + docs / config / configs / resources)
     pipelines:
       - ingest

@@ -93,30 +93,96 @@ class RepoEntry:
     pipelines: tuple[str, ...]
 
 
-def load_repos(path: Path | None = None) -> list[RepoEntry]:
-    """Read repos.yaml. Paths are expanded; missing ones are kept so
-    diagnostics can report them."""
+def load_repos(
+    path: Path | None = None,
+    *,
+    auto_discover: bool = True,
+    git_root: Path | None = None,
+) -> list[RepoEntry]:
+    """Read `repos.yaml` and (optionally) auto-discover every cloned
+    repo under `~/git/`.
+
+    Args:
+        path: override the repos.yaml path.
+        auto_discover: when True (default), any directory under
+            `~/git/*` with a top-level `.git` child that isn't already
+            listed in repos.yaml is added as a RepoEntry with no
+            config_roots and a pipeline tag matching its name.
+        git_root: override the `~/git/` directory (useful in tests).
+    """
     p = path or REPOS_PATH
-    if not p.exists():
-        return []
-    data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     out: list[RepoEntry] = []
-    for r in data.get("repos", []) or []:
-        if not isinstance(r, dict):
-            continue
-        name = str(r.get("name") or "").strip()
-        if not name:
-            continue
-        local_path = Path(str(r.get("local_path") or f"~/git/{name}")).expanduser().resolve()
-        roots_raw = r.get("config_roots") or []
-        roots = tuple(
-            (local_path / str(root)).resolve() if not str(root).startswith("/") else Path(str(root)).resolve()
-            for root in roots_raw
-            if isinstance(root, str)
-        )
-        pipelines = tuple(str(p) for p in (r.get("pipelines") or []) if isinstance(p, str))
-        out.append(RepoEntry(name=name, local_path=local_path, config_roots=roots, pipelines=pipelines))
+    seen: set[str] = set()
+
+    if p.exists():
+        data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+        for r in data.get("repos", []) or []:
+            if not isinstance(r, dict):
+                continue
+            name = str(r.get("name") or "").strip()
+            if not name:
+                continue
+            local_path = Path(str(r.get("local_path") or f"~/git/{name}")).expanduser().resolve()
+            roots_raw = r.get("config_roots")  # None / [] = auto-discover
+            if roots_raw:
+                roots = tuple(
+                    (local_path / str(root)).resolve() if not str(root).startswith("/") else Path(str(root)).resolve()
+                    for root in roots_raw
+                    if isinstance(root, str)
+                )
+            else:
+                roots = tuple(_auto_config_roots(local_path))
+            pipelines = tuple(str(p) for p in (r.get("pipelines") or []) if isinstance(p, str))
+            out.append(RepoEntry(name=name, local_path=local_path, config_roots=roots, pipelines=pipelines))
+            seen.add(name)
+
+    if auto_discover:
+        root = (git_root or Path("~/git")).expanduser().resolve()
+        if root.exists() and root.is_dir():
+            for entry in sorted(root.iterdir()):
+                if not entry.is_dir():
+                    continue
+                if entry.name in seen:
+                    continue
+                if not (entry / ".git").exists():
+                    continue
+                out.append(RepoEntry(
+                    name=entry.name,
+                    local_path=entry,
+                    config_roots=tuple(_auto_config_roots(entry)),
+                    pipelines=(entry.name,),
+                ))
+                seen.add(entry.name)
+
     return out
+
+
+def _auto_config_roots(repo_path: Path) -> list[Path]:
+    """Pick plausible directories to scan for config files in this repo.
+
+    Heuristic: the repo root itself (so top-level `*.properties` /
+    `template.yaml` are picked up), plus `docs/`, `config/`, `configs/`,
+    `resources/`, and any `config_*` subfolder commonly used in the
+    ATPCO stack (e.g. `docs/config_gold_prod/`).
+    """
+    roots: list[Path] = []
+    if not repo_path.exists() or not repo_path.is_dir():
+        return roots
+    roots.append(repo_path)
+    for sub in ("docs", "config", "configs", "resources"):
+        cand = repo_path / sub
+        if cand.exists() and cand.is_dir():
+            roots.append(cand)
+    # Common ATPCO pattern: docs/config_gold_prod, docs/config_3vdev, …
+    docs = repo_path / "docs"
+    if docs.exists() and docs.is_dir():
+        try:
+            for sub in docs.iterdir():
+                if sub.is_dir() and sub.name.startswith("config"):
+                    roots.append(sub)
+        except PermissionError:
+            pass
+    return roots
 
 
 # ── Canonical-name builders ────────────────────────────────────────────

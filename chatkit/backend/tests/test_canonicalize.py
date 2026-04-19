@@ -140,3 +140,57 @@ def test_load_repos_reads_shipped_yaml() -> None:
     # At least one repo declares a config_root so discover_configs has
     # somewhere to scan
     assert any(r.config_roots for r in repos)
+
+
+def test_load_repos_auto_discovers_cloned_repos(tmp_path: Path) -> None:
+    # Create a fake ~/git layout with 3 "cloned" repos
+    git_root = tmp_path / "git"
+    for name in ("foo-repo", "bar-repo", "priceeye-fake"):
+        d = git_root / name
+        (d / ".git").mkdir(parents=True)
+        (d / "docs").mkdir()
+    # One entry in repos.yaml pretending to be on-disk
+    yaml_file = tmp_path / "repos.yaml"
+    yaml_file.write_text(f"""
+repos:
+  - name: explicit-repo
+    local_path: {git_root / "foo-repo"}
+""", encoding="utf-8")
+
+    repos = load_repos(path=yaml_file, auto_discover=True, git_root=git_root)
+    names = {r.name for r in repos}
+    # Explicit yaml entry is kept
+    assert "explicit-repo" in names
+    # Auto-discovery adds the remaining two (foo-repo is claimed by yaml)
+    assert "bar-repo" in names
+    assert "priceeye-fake" in names
+    # Auto-discovered repos have repo root + docs/ as config roots
+    bar = next(r for r in repos if r.name == "bar-repo")
+    assert len(bar.config_roots) >= 2  # root + docs
+
+
+def test_auto_discover_can_be_disabled(tmp_path: Path) -> None:
+    git_root = tmp_path / "git"
+    (git_root / "some-repo" / ".git").mkdir(parents=True)
+    repos = load_repos(path=tmp_path / "missing.yaml", auto_discover=False, git_root=git_root)
+    assert repos == []
+
+
+def test_auto_fill_config_roots_for_yaml_entries_with_empty_roots(tmp_path: Path) -> None:
+    # Yaml entry that doesn't list config_roots explicitly — loader should
+    # auto-fill from the repo layout.
+    git_root = tmp_path / "git"
+    repo_dir = git_root / "my-repo"
+    (repo_dir / ".git").mkdir(parents=True)
+    (repo_dir / "docs" / "config_prod").mkdir(parents=True)
+    yaml_file = tmp_path / "repos.yaml"
+    yaml_file.write_text(f"""
+repos:
+  - name: my-repo
+    local_path: {repo_dir}
+""", encoding="utf-8")
+    [repo] = load_repos(path=yaml_file, auto_discover=False, git_root=git_root)
+    root_names = {r.name for r in repo.config_roots}
+    assert "my-repo" in root_names           # repo root
+    assert "docs" in root_names               # docs subdir
+    assert "config_prod" in root_names        # config_* subdir of docs
