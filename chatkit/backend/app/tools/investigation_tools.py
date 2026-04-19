@@ -19,6 +19,13 @@ from chatkit.widgets import Card
 
 from ..attachment_store import LocalDiskAttachmentStore, default_attachment_dir
 from ..investigation.runtime import cleanup_thread_workspace, get_runtime
+from ._common import (
+    TIMEOUT_DB_QUERY,
+    TIMEOUT_FAST,
+    TIMEOUT_S3_FETCH,
+    TIMEOUT_SHORT_NET,
+    tool_error,
+)
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
 log = logging.getLogger(__name__)
@@ -271,7 +278,7 @@ def _date_bucket() -> str:
     return _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
 
 
-@function_tool
+@function_tool(timeout=TIMEOUT_DB_QUERY, failure_error_function=tool_error)
 async def execute_sql(
     ctx: RunContextWrapper[AgentContext],
     query: str,
@@ -353,7 +360,7 @@ async def execute_sql(
 
 # ── Tool 2: fetch_s3 ──
 
-@function_tool
+@function_tool(timeout=TIMEOUT_S3_FETCH, failure_error_function=tool_error)
 async def fetch_s3(
     ctx: RunContextWrapper[AgentContext],
     bucket: str,
@@ -387,7 +394,7 @@ async def fetch_s3(
 
 # ── Tool 3: inspect_table ──
 
-@function_tool
+@function_tool(timeout=TIMEOUT_DB_QUERY, failure_error_function=tool_error)
 async def inspect_table(
     ctx: RunContextWrapper[AgentContext],
     table_name: str,
@@ -561,7 +568,7 @@ def _semantic_hits(query: str, *, top_k: int = 5) -> list[dict[str, Any]]:
         return []
 
 
-@function_tool
+@function_tool(timeout=TIMEOUT_SHORT_NET, failure_error_function=tool_error)
 async def search_kb(
     ctx: RunContextWrapper[AgentContext],
     query: str,
@@ -614,7 +621,7 @@ async def search_kb(
 
 # ── Tool 6: resolve_codes ──
 
-@function_tool
+@function_tool(timeout=TIMEOUT_FAST, failure_error_function=tool_error)
 async def resolve_codes(
     ctx: RunContextWrapper[AgentContext],
     text: str,
@@ -642,7 +649,7 @@ async def resolve_codes(
         return {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
 
 
-@function_tool
+@function_tool(timeout=TIMEOUT_FAST, failure_error_function=tool_error)
 async def publish_image(
     ctx: RunContextWrapper[AgentContext],
     path: str,

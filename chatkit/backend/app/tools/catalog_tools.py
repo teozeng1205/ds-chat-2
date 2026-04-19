@@ -20,6 +20,7 @@ from chatkit.types import ProgressUpdateEvent
 
 from ..investigation.glue_catalog import get_default_catalog
 from ..ops import quicksight_client as qs
+from ._common import TIMEOUT_AWS, tool_error
 
 log = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ def _err(exc: Exception) -> dict[str, Any]:
 # ── Glue tools ──
 
 
-@function_tool
+@function_tool(timeout=TIMEOUT_AWS, failure_error_function=tool_error)
 async def glue_get_table(
     ctx: RunContextWrapper[AgentContext],
     database: str,
@@ -82,7 +83,7 @@ async def glue_get_table(
         return _err(exc)
 
 
-@function_tool
+@function_tool(timeout=TIMEOUT_AWS, failure_error_function=tool_error)
 async def glue_get_partitions(
     ctx: RunContextWrapper[AgentContext],
     database: str,
@@ -122,7 +123,7 @@ async def glue_get_partitions(
 # ── QuickSight tools ──
 
 
-@function_tool
+@function_tool(timeout=TIMEOUT_AWS, failure_error_function=tool_error)
 async def quicksight_list_dashboards(
     ctx: RunContextWrapper[AgentContext],
     name_substring: str | None = None,
@@ -141,7 +142,7 @@ async def quicksight_list_dashboards(
         return _err(exc)
 
 
-@function_tool
+@function_tool(timeout=TIMEOUT_AWS, failure_error_function=tool_error)
 async def quicksight_get_embed_url(
     ctx: RunContextWrapper[AgentContext],
     dashboard_id: str,

@@ -24,6 +24,7 @@ from chatkit.agents import AgentContext
 from chatkit.types import ProgressUpdateEvent
 
 from ..memory import DEFAULT_USER_ID, Scope, get_memory_store
+from ._common import TIMEOUT_FAST, tool_error
 
 log = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ def _validate(key: str, value: str | None = None) -> str | None:
     return None
 
 
-@function_tool
+@function_tool(timeout=TIMEOUT_FAST, failure_error_function=tool_error)
 async def remember(
     ctx: RunContextWrapper[AgentContext],
     key: str,
@@ -102,7 +103,7 @@ async def remember(
         return _err(exc)
 
 
-@function_tool
+@function_tool(timeout=TIMEOUT_FAST, failure_error_function=tool_error)
 async def recall(
     ctx: RunContextWrapper[AgentContext],
     key: str,
@@ -120,7 +121,7 @@ async def recall(
         return _err(exc)
 
 
-@function_tool
+@function_tool(timeout=TIMEOUT_FAST, failure_error_function=tool_error)
 async def list_memories(
     ctx: RunContextWrapper[AgentContext],
     scope: str = "user",
@@ -135,7 +136,7 @@ async def list_memories(
         return _err(exc)
 
 
-@function_tool
+@function_tool(timeout=TIMEOUT_FAST, failure_error_function=tool_error)
 async def forget(
     ctx: RunContextWrapper[AgentContext],
     key: str,

@@ -10,6 +10,7 @@ from chatkit.agents import AgentContext
 from chatkit.types import ProgressUpdateEvent
 
 from ..ops import streams_client as sc
+from ._common import TIMEOUT_AWS, tool_error
 
 log = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ async def _stream(ctx: RunContextWrapper[AgentContext], icon: str, text: str) ->
         pass
 
 
-@function_tool
+@function_tool(timeout=TIMEOUT_AWS, failure_error_function=tool_error)
 async def kinesis_tail(
     ctx: RunContextWrapper[AgentContext],
     stream_name: str,

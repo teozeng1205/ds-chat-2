@@ -18,6 +18,7 @@ from chatkit.agents import AgentContext
 from chatkit.types import ProgressUpdateEvent
 
 from ..ops import ops_client as oc
+from ._common import TIMEOUT_AWS, tool_error
 
 log = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ def _err(exc: Exception) -> dict[str, Any]:
 
 # ── SFN ──
 
-@function_tool
+@function_tool(timeout=TIMEOUT_AWS, failure_error_function=tool_error)
 async def sfn_list_executions(
     ctx: RunContextWrapper[AgentContext],
     state_machine_arn: str,
@@ -63,7 +64,7 @@ async def sfn_list_executions(
         return _err(exc)
 
 
-@function_tool
+@function_tool(timeout=TIMEOUT_AWS, failure_error_function=tool_error)
 async def sfn_describe_execution(
     ctx: RunContextWrapper[AgentContext],
     execution_arn: str,
@@ -83,7 +84,7 @@ async def sfn_describe_execution(
         return _err(exc)
 
 
-@function_tool
+@function_tool(timeout=TIMEOUT_AWS, failure_error_function=tool_error)
 async def sfn_get_execution_history(
     ctx: RunContextWrapper[AgentContext],
     execution_arn: str,
@@ -106,7 +107,7 @@ async def sfn_get_execution_history(
 
 # ── Lambda via Logs ──
 
-@function_tool
+@function_tool(timeout=TIMEOUT_AWS, failure_error_function=tool_error)
 async def lambda_get_last_errors(
     ctx: RunContextWrapper[AgentContext],
     function_name: str,
@@ -131,7 +132,7 @@ async def lambda_get_last_errors(
 
 # ── Logs Insights ──
 
-@function_tool
+@function_tool(timeout=TIMEOUT_AWS, failure_error_function=tool_error)
 async def logs_insights_query(
     ctx: RunContextWrapper[AgentContext],
     log_group: str,
@@ -162,7 +163,7 @@ async def logs_insights_query(
 
 # ── ECS ──
 
-@function_tool
+@function_tool(timeout=TIMEOUT_AWS, failure_error_function=tool_error)
 async def ecs_describe_tasks(
     ctx: RunContextWrapper[AgentContext],
     cluster: str,
@@ -181,7 +182,7 @@ async def ecs_describe_tasks(
         return _err(exc)
 
 
-@function_tool
+@function_tool(timeout=TIMEOUT_AWS, failure_error_function=tool_error)
 async def ecs_list_stopped_reasons(
     ctx: RunContextWrapper[AgentContext],
     cluster: str,
@@ -203,7 +204,7 @@ async def ecs_list_stopped_reasons(
 
 # ── CloudWatch alarms ──
 
-@function_tool
+@function_tool(timeout=TIMEOUT_AWS, failure_error_function=tool_error)
 async def cloudwatch_alarms(
     ctx: RunContextWrapper[AgentContext],
     state_value: str | None = None,
@@ -229,7 +230,7 @@ async def cloudwatch_alarms(
 
 # ── EventBridge ──
 
-@function_tool
+@function_tool(timeout=TIMEOUT_AWS, failure_error_function=tool_error)
 async def eventbridge_describe_rule(
     ctx: RunContextWrapper[AgentContext],
     name: str,

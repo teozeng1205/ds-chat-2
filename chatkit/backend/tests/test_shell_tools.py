@@ -399,6 +399,72 @@ class TestEditFile:
         assert "Error" in out
         assert "2" in out
 
+    def test_edit_file_insert_after_line(self, tmp_path):
+        """edit_file mode='insert' inserts text after the given line."""
+        edit_file = self._get_edit_file()
+        ctx = make_ctx()
+        p = tmp_path / "ins.txt"
+        p.write_text("one\ntwo\nthree\n")
+        async def run():
+            return await edit_file(
+                ctx, str(p), new_string="one-and-a-half",
+                mode="insert", insert_line=1,
+            )
+        out = asyncio.run(run())
+        assert "OK" in out
+        assert p.read_text() == "one\none-and-a-half\ntwo\nthree\n"
+
+    def test_edit_file_insert_at_top_when_line_zero(self, tmp_path):
+        edit_file = self._get_edit_file()
+        ctx = make_ctx()
+        p = tmp_path / "ins2.txt"
+        p.write_text("one\ntwo\n")
+        async def run():
+            return await edit_file(
+                ctx, str(p), new_string="zero",
+                mode="insert", insert_line=0,
+            )
+        out = asyncio.run(run())
+        assert "OK" in out
+        assert p.read_text() == "zero\none\ntwo\n"
+
+    def test_edit_file_insert_line_out_of_range(self, tmp_path):
+        edit_file = self._get_edit_file()
+        ctx = make_ctx()
+        p = tmp_path / "ins3.txt"
+        p.write_text("one\ntwo\n")
+        async def run():
+            return await edit_file(
+                ctx, str(p), new_string="x",
+                mode="insert", insert_line=99,
+            )
+        out = asyncio.run(run())
+        assert "Error" in out
+        assert "out of range" in out
+
+    def test_edit_file_unknown_mode(self, tmp_path):
+        edit_file = self._get_edit_file()
+        ctx = make_ctx()
+        p = tmp_path / "uk.txt"
+        p.write_text("x\n")
+        async def run():
+            return await edit_file(ctx, str(p), mode="delete_line")
+        out = asyncio.run(run())
+        assert "Error" in out
+        assert "mode" in out
+
+    def test_edit_file_returns_context_window(self, tmp_path):
+        """Successful edits include ±3 context lines around the edit."""
+        edit_file = self._get_edit_file()
+        ctx = make_ctx()
+        p = tmp_path / "ctx.txt"
+        p.write_text("a\nb\nTARGET\nd\ne\n")
+        async def run():
+            return await edit_file(ctx, str(p), "TARGET", "REPLACED")
+        out = asyncio.run(run())
+        assert "REPLACED" in out
+        assert "a" in out and "e" in out
+
 
 # ═══════════════════════════════════════════════════════════
 # git tool tests
@@ -429,44 +495,6 @@ class TestGitTool:
         out = asyncio.run(run())
         assert "Error" in out
         assert "blocked" in out.lower()
-
-
-# ═══════════════════════════════════════════════════════════
-# run_parallel tool tests
-# ═══════════════════════════════════════════════════════════
-
-class TestRunParallel:
-    def _get_run_parallel(self):
-        from app.tools.shell_tools import run_parallel
-        return run_parallel
-
-    def test_run_parallel_two_commands(self):
-        """run_parallel runs two commands and returns comparison table."""
-        from app.tools.shell_tools import Experiment
-        run_parallel = self._get_run_parallel()
-        ctx = make_ctx()
-        async def run():
-            return await run_parallel(ctx, [
-                Experiment(name="echo_a", command="echo aaa"),
-                Experiment(name="echo_b", command="echo bbb"),
-            ])
-        out = asyncio.run(run())
-        assert "echo_a" in out
-        assert "echo_b" in out
-        assert "|" in out  # table format
-
-    def test_run_parallel_too_many(self):
-        """run_parallel rejects more than 8 experiments."""
-        from app.tools.shell_tools import Experiment
-        run_parallel = self._get_run_parallel()
-        ctx = make_ctx()
-        async def run():
-            return await run_parallel(ctx, [
-                Experiment(name=f"e{i}", command="echo x") for i in range(9)
-            ])
-        out = asyncio.run(run())
-        assert "Error" in out
-        assert "8" in out
 
 
 # ═══════════════════════════════════════════════════════════

@@ -22,9 +22,14 @@ from agents import RunContextWrapper, function_tool
 from chatkit.agents import AgentContext
 from chatkit.types import ProgressUpdateEvent
 from chatkit.widgets import Card
-from pydantic import BaseModel
 
 from ..investigation.shell_session import get_session
+from ._common import (
+    TIMEOUT_FAST,
+    TIMEOUT_LONG_SHELL,
+    TIMEOUT_SHORT_NET,
+    tool_error,
+)
 
 log = logging.getLogger(__name__)
 
@@ -58,7 +63,7 @@ def _resolve_path(file_path: str) -> Path:
 
 # ── Tool 1: bash ──
 
-@function_tool
+@function_tool(timeout=TIMEOUT_LONG_SHELL, failure_error_function=tool_error)
 async def bash(
     ctx: RunContextWrapper[AgentContext],  # type: ignore[type-arg]
     command: str,
@@ -176,7 +181,7 @@ async def bash(
 
 # ── Tool 2: read_file ──
 
-@function_tool
+@function_tool(timeout=TIMEOUT_FAST, failure_error_function=tool_error)
 async def read_file(
     ctx: RunContextWrapper[AgentContext],  # type: ignore[type-arg]
     file_path: str,
@@ -218,7 +223,7 @@ async def read_file(
 
 # ── Tool 3: list_dir ──
 
-@function_tool
+@function_tool(timeout=TIMEOUT_FAST, failure_error_function=tool_error)
 async def list_dir(
     ctx: RunContextWrapper[AgentContext],  # type: ignore[type-arg]
     path: str,
@@ -266,29 +271,75 @@ async def list_dir(
 
 # ── Tool 4: edit_file ──
 
-@function_tool
+def _context_window(lines: list[str], hit_line: int, radius: int = 3) -> str:
+    """Return a ±radius line window around `hit_line` (1-indexed), with
+    line numbers, for inclusion in tool success output."""
+    total = len(lines)
+    start = max(0, hit_line - 1 - radius)
+    end = min(total, hit_line + radius)
+    out: list[str] = []
+    for idx in range(start, end):
+        out.append(f"{idx + 1:6d}\t{lines[idx].rstrip()}")
+    return "\n".join(out)
+
+
+async def _publish_diff_card(
+    ctx: RunContextWrapper[AgentContext],  # type: ignore[type-arg]
+    *,
+    path: Path,
+    old_content: str,
+    new_content: str,
+) -> None:
+    import difflib
+    try:
+        diff_lines = list(difflib.unified_diff(
+            old_content.splitlines(),
+            new_content.splitlines(),
+            fromfile=f"a/{path.name}",
+            tofile=f"b/{path.name}",
+            lineterm="",
+        ))
+        diff_text = "\n".join(diff_lines)
+        await ctx.context.stream_widget(
+            Card(
+                size="lg",
+                status={"type": "success", "title": f"Edited {path.name}", "text": ""},
+                children=[
+                    {"type": "Markdown", "value": f"```diff\n{diff_text}\n```"},
+                ],
+            )
+        )
+    except Exception:
+        pass  # widget publishing is best-effort
+
+
+@function_tool(timeout=TIMEOUT_FAST, failure_error_function=tool_error)
 async def edit_file(
     ctx: RunContextWrapper[AgentContext],  # type: ignore[type-arg]
     file_path: str,
-    old_string: str,
-    new_string: str,
+    old_string: str = "",
+    new_string: str = "",
+    mode: str = "str_replace",
+    insert_line: int = 0,
 ) -> str:
-    """Replace old_string with new_string in a file.
-
-    old_string must appear exactly once. This enforces read-before-edit:
-    0 matches → read the file first to get exact content;
-    2+ matches → include more surrounding context to make it unique.
-
-    A diff card is published on success.
+    """Edit a file in place. Matches the sub-command shape of Anthropic's
+    text_editor (`str_replace` / `insert`) and SWE-agent's ACI.
 
     Args:
         file_path: Path to file (absolute or ~/git/-relative).
-        old_string: Exact string to replace (must appear exactly once).
-        new_string: Replacement string.
+        old_string: For mode="str_replace" — exact text to replace
+            (must appear exactly once in the file).
+        new_string: For mode="str_replace" — replacement text. For
+            mode="insert" — text to insert (a trailing newline is
+            added if missing).
+        mode: Either "str_replace" (default) or "insert".
+        insert_line: For mode="insert" — 1-indexed line number to
+            insert AFTER (0 = insert at the top of the file).
+
+    Returns success text including ±3 context lines around the edit,
+    or a specific error string (file-not-found, 0 matches, N>1 matches).
     """
     try:
-        import difflib
-
         path = _resolve_path(file_path)
         if not path.exists():
             return f"Error: file not found: {path}. Read the file first with read_file."
@@ -296,44 +347,56 @@ async def edit_file(
             return f"Error: not a regular file: {path}"
 
         old_content = path.read_text(encoding="utf-8")
-        count = old_content.count(old_string)
-        if count == 0:
-            return (
-                f"Error: old_string not found in {file_path}. "
-                "Use read_file to view exact content before editing."
-            )
-        if count > 1:
-            return (
-                f"Error: old_string found {count} times in {file_path}. "
-                "Add more surrounding context to make it unique."
-            )
 
-        new_content = old_content.replace(old_string, new_string, 1)
-        path.write_text(new_content, encoding="utf-8")
-
-        # Publish a diff card
-        try:
-            diff_lines = list(difflib.unified_diff(
-                old_content.splitlines(),
-                new_content.splitlines(),
-                fromfile=f"a/{path.name}",
-                tofile=f"b/{path.name}",
-                lineterm="",
-            ))
-            diff_text = "\n".join(diff_lines)
-            await ctx.context.stream_widget(
-                Card(
-                    size="lg",
-                    status={"type": "success", "title": f"Edited {path.name}", "text": ""},
-                    children=[
-                        {"type": "Markdown", "value": f"```diff\n{diff_text}\n```"},
-                    ],
+        if mode == "str_replace":
+            if not old_string:
+                return "Error: mode='str_replace' requires old_string."
+            count = old_content.count(old_string)
+            if count == 0:
+                return (
+                    f"Error: old_string not found in {file_path}. "
+                    "Use read_file to view exact content before editing."
                 )
-            )
-        except Exception:
-            pass  # Widget publishing is best-effort
+            if count > 1:
+                return (
+                    f"Error: old_string found {count} times in {file_path}. "
+                    "Add more surrounding context to make it unique."
+                )
+            new_content = old_content.replace(old_string, new_string, 1)
 
-        return f"OK: edited {path} ({abs(len(new_content) - len(old_content)):+d} chars)"
+        elif mode == "insert":
+            text = new_string
+            if text and not text.endswith("\n"):
+                text = text + "\n"
+            lines = old_content.splitlines(keepends=True)
+            if insert_line < 0 or insert_line > len(lines):
+                return (
+                    f"Error: insert_line={insert_line} out of range "
+                    f"(file has {len(lines)} lines; 0 = top of file)."
+                )
+            new_content = "".join(lines[:insert_line]) + text + "".join(lines[insert_line:])
+
+        else:
+            return (
+                f"Error: unknown mode {mode!r}. "
+                "Expected 'str_replace' or 'insert'."
+            )
+
+        path.write_text(new_content, encoding="utf-8")
+        await _publish_diff_card(ctx, path=path, old_content=old_content, new_content=new_content)
+
+        # ±3 context lines around the edit — matches what Anthropic /
+        # SWE-agent return on successful edits so the model can verify
+        # without re-reading the file.
+        new_lines = new_content.splitlines()
+        if mode == "str_replace":
+            prefix = old_content.split(old_string, 1)[0]
+            hit_line = prefix.count("\n") + 1
+        else:
+            hit_line = insert_line + 1
+        context = _context_window(new_lines, hit_line, radius=3)
+        delta = len(new_content) - len(old_content)
+        return f"OK: edited {path} ({delta:+d} chars)\n---\n{context}"
     except Exception as exc:
         return f"Error editing {file_path}: {exc}"
 
@@ -357,7 +420,7 @@ def _is_inside(path: Path, root: Path) -> bool:
         return False
 
 
-@function_tool
+@function_tool(timeout=TIMEOUT_FAST, failure_error_function=tool_error)
 async def write_file(
     ctx: RunContextWrapper[AgentContext],  # type: ignore[type-arg]
     file_path: str,
@@ -407,7 +470,7 @@ async def write_file(
 
 # ── Tool 5: git ──
 
-@function_tool
+@function_tool(timeout=TIMEOUT_SHORT_NET, failure_error_function=tool_error)
 async def git(
     ctx: RunContextWrapper[AgentContext],  # type: ignore[type-arg]
     args: str,
@@ -450,23 +513,29 @@ async def git(
 
 # ── Tool 6: fetch_url ──
 
-@function_tool
+@function_tool(timeout=TIMEOUT_SHORT_NET, failure_error_function=tool_error)
 async def fetch_url(
     ctx: RunContextWrapper[AgentContext],  # type: ignore[type-arg]
     url: str,
-    max_chars: int = 8000,
+    max_chars: int = 64000,
+    offset: int = 0,
 ) -> str:
     """Fetch text content from a URL (docs, arxiv, Stack Overflow, GitHub).
 
-    Strips HTML tags. Returns up to max_chars (cap 32000).
+    Strips HTML tags. Returns a `[offset, offset+max_chars)` window of
+    the cleaned text so the agent can paginate through long pages by
+    bumping `offset`. Cap 200k chars per call.
 
     Args:
         url: URL to fetch.
-        max_chars: Max characters to return (default 8000, cap 32000).
+        max_chars: Max characters to return (default 64000, cap 200000).
+        offset: Start character offset into the cleaned text (default 0).
+            Use to paginate: second call with offset=max_chars resumes.
     """
     import re
 
-    max_chars = min(max_chars, 32000)
+    max_chars = max(1, min(max_chars, 200_000))
+    offset = max(0, offset)
     try:
         await _stream_progress(ctx, "globe", f"Fetching {url[:80]}")
         async with httpx.AsyncClient(follow_redirects=True, timeout=20) as client:
@@ -475,24 +544,33 @@ async def fetch_url(
             content_type = response.headers.get("content-type", "")
             text = response.text
 
-        # Strip HTML if applicable
         if "html" in content_type:
-            # Remove scripts, styles, and tags
             text = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", text, flags=re.DOTALL | re.IGNORECASE)
             text = re.sub(r"<[^>]+>", " ", text)
             text = re.sub(r"[ \t]+", " ", text)
             text = re.sub(r"\n{3,}", "\n\n", text)
 
-        if len(text) > max_chars:
-            text = text[:max_chars] + f"\n[...truncated at {max_chars} chars]"
-        return text.strip()
+        total = len(text)
+        window = text[offset : offset + max_chars]
+        end = offset + len(window)
+        trailer_parts: list[str] = []
+        if offset > 0 or end < total:
+            trailer_parts.append(
+                f"[chars {offset}..{end} of {total}]"
+            )
+        if end < total:
+            trailer_parts.append(
+                f"Call again with offset={end} to continue."
+            )
+        trailer = ("\n" + " ".join(trailer_parts)) if trailer_parts else ""
+        return window.strip() + trailer
     except Exception as exc:
         return f"Error fetching {url}: {exc}"
 
 
 # ── Tool 7: render_image ──
 
-@function_tool
+@function_tool(timeout=TIMEOUT_FAST, failure_error_function=tool_error)
 async def render_image(
     ctx: RunContextWrapper[AgentContext],  # type: ignore[type-arg]
     file_path: str,
@@ -555,7 +633,7 @@ async def render_image(
 
 # ── Tool 8: download_file ──
 
-@function_tool
+@function_tool(timeout=TIMEOUT_SHORT_NET, failure_error_function=tool_error)
 async def download_file(
     ctx: RunContextWrapper[AgentContext],  # type: ignore[type-arg]
     file_path: str,
@@ -644,84 +722,18 @@ async def download_file(
     return f"File available for download: {path.name}"
 
 
-# ── Tool 9: run_parallel ──
-
-class Experiment(BaseModel):
-    """A single experiment for run_parallel."""
-    name: str
-    command: str
-    timeout: int = 120
-
-
-async def _run_one_shot(command: str, timeout: int = 120) -> dict[str, Any]:
-    """Run a command in a throwaway subprocess (not PTY) for parallelism."""
-    start = time.monotonic()
-    try:
-        proc = await asyncio.create_subprocess_shell(
-            command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        elapsed_ms = int((time.monotonic() - start) * 1000)
-        output = (stdout + stderr).decode(errors="replace").strip()
-        return {
-            "exit": proc.returncode,
-            "elapsed_ms": elapsed_ms,
-            "output": output[:500],
-        }
-    except asyncio.TimeoutError:
-        elapsed_ms = int((time.monotonic() - start) * 1000)
-        return {"exit": -1, "elapsed_ms": elapsed_ms, "output": "[timeout]"}
-    except Exception as exc:
-        elapsed_ms = int((time.monotonic() - start) * 1000)
-        return {"exit": -1, "elapsed_ms": elapsed_ms, "output": f"[error: {exc}]"}
-
-
-@function_tool
-async def run_parallel(
-    ctx: RunContextWrapper[AgentContext],  # type: ignore[type-arg]
-    experiments: list[Experiment],
-) -> str:
-    """Run up to 8 bash commands concurrently and compare results.
-
-    Returns a comparison table: name | exit | elapsed_ms | stdout_preview.
-
-    Args:
-        experiments: List of experiments, each with name, command, and optional timeout (default 120s).
-    """
-    if not experiments:
-        return "Error: experiments list is empty"
-    if len(experiments) > 8:
-        return "Error: max 8 experiments"
-
-    await _stream_progress(ctx, "square-code", f"Running {len(experiments)} experiments in parallel")
-
-    tasks = [
-        _run_one_shot(e.command, e.timeout)
-        for e in experiments[:8]
-    ]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-
-    lines = ["| name | exit | elapsed_ms | stdout_preview |", "|------|------|------------|----------------|"]
-    for exp, result in zip(experiments[:8], results):
-        if isinstance(result, Exception):
-            lines.append(f"| {exp.name} | -1 | — | [error: {result}] |")
-        else:
-            r: dict[str, Any] = result  # type: ignore[assignment]
-            preview = r["output"].replace("\n", " ")[:80]
-            lines.append(f"| {exp.name} | {r['exit']} | {r['elapsed_ms']} | {preview} |")
-
-    return "\n".join(lines)
-
-
 # ── Factory ──
 
 def shell_tools() -> list[Any]:
-    """Return all shell/filesystem tools for the coding agent."""
+    """Return all shell/filesystem tools for the coding agent.
+
+    Parallelism is handled natively by the Agents SDK: when the model
+    emits multiple tool calls in one turn they are fanned out
+    concurrently. No dedicated `run_parallel` tool is needed.
+    """
     return [
         bash, read_file, list_dir, edit_file, write_file,
-        git, fetch_url, render_image, download_file, run_parallel,
+        git, fetch_url, render_image, download_file,
     ]
 
 
@@ -735,6 +747,5 @@ __all__ = [
     "fetch_url",
     "render_image",
     "download_file",
-    "run_parallel",
     "shell_tools",
 ]

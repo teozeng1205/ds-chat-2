@@ -15,6 +15,7 @@ from agents.models.openai_responses import OpenAIResponsesModel
 from openai import AsyncOpenAI
 
 from ..skills import SkillRegistry, render_skills
+from ..tools.apply_patch import apply_patch_tool
 from ..tools.catalog_tools import catalog_tools
 from ..tools.investigation_tools import investigation_tools_core
 from ..tools.lineage_tools import lineage_tools
@@ -202,6 +203,7 @@ def build_agent(model: str) -> Agent[Any]:
             WebSearchTool(search_context_size="medium"),
             _planner_as_tool(build_planner_agent()),     # real sub-agent w/ read-only tools
             _reviewer_as_tool(build_reviewer_agent()),   # grounded-verdict JSON reviewer
+            *apply_patch_tool(),  # hosted multi-hunk diff editor (OpenAI Agents SDK)
             *shell_tools(),
             *investigation_tools_core(),
             *ops_tools(),        # SFN / Lambda logs / Logs Insights / ECS / alarms / EventBridge

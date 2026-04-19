@@ -28,6 +28,7 @@ from chatkit.agents import AgentContext
 from chatkit.types import ProgressUpdateEvent
 
 from ..pipelines.graph_store import Direction, GraphStore
+from ._common import TIMEOUT_FAST, tool_error
 
 log = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ async def _stream(ctx: RunContextWrapper[AgentContext], icon: str, text: str) ->
         pass
 
 
-@function_tool
+@function_tool(timeout=TIMEOUT_FAST, failure_error_function=tool_error)
 async def trace_pipeline(
     ctx: RunContextWrapper[AgentContext],
     entity: str,
