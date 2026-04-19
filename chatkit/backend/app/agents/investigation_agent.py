@@ -188,103 +188,31 @@ Use `resolve_codes` to resolve natural language names (e.g. "JetBlue" -> B6, "Am
 3. `bash("ls ~/git/{repo}/")` → `read_file` or `bash grep` — actual source code, class/method names
 4. `execute_sql` — live table data tied to the component""",
 
-        # ── Investigation patterns ──
+        # ── Investigation patterns (indexed in KB, not inlined here) ──
         """## Investigation Patterns
 
-| Pattern | Table (datasource) | Partition(s) | Key Columns |
-|---|---|---|---|
-| Site issues | `prod.monitoring.provider_combined_audit` (redshift_core) | sales_date | issue_sources, issue_reasons, providercode, sitecode, filterreason |
-| Audit lifecycle / request trace | `prod.monitoring.combined_audit` (redshift_core) | sales_date | id, customer, providercode, sitecode, issue_source, issue_reason, filterreason, response_status, delivery_status, delivery_type, response_itinerarycount |
-| Market anomalies | `prod.analytics.market_level_anomalies_v3` (redshift_analytics) | sales_date + customer | any_anomaly=1, impact_score, mkt, seg, top_offenders, cp, dow |
-| Segment anomalies | `prod.analytics.segment_level_anomalies_v3` (redshift_analytics) | sales_date + customer | any_anomaly=1, impact_score, mkt, seg, airline_code, cabin, anomaly_type |
-| Competitive position | `prod.analytics.market_level_anomalies` or `segment_level_anomalies_v3` (redshift_analytics) | sales_date + customer | competitive_position, comparison_type, cp_score, top_offenders |
-| Common output / DCO | `prod.common_output.common_output_format` (redshift_analytics) | sales_date | customer, origin, destination, carrier, channel, price_inc, price_exc, tax, cabin, trip_type |
-| Provider retry rates | `prod.site_metrics.retry_metrics_v1` (redshift_core) | sales_date | providercode, retry_rate_pct, total_requests |
-| Provider cache hit rates | `prod.site_metrics.cache_metrics_v1` (redshift_core) | sales_date | providercode, sitecode, cache_hit_rate, cache_miss_rate |
-| Provider TPS capacity | `prod.site_metrics.capacity_final` (redshift_core) | sales_date | providercode, capacity_tph (IQR-filtered; QL2 ≥180, SS ≥3600 floor patches) |
-| Billing / request counts | `billing_db.customer_daily_requests_v3` (redshift_core Spectrum) | sales_date | customer, total_reqs, billable_requests, GDS_scheduled, OTA_scheduled, MSE_scheduled, true_site_issues |
-| PAX/MIDT bookings | `prod.analytics.pax_midt` (redshift_analytics) | sales_date + customer | origin, destination, carrier, cabin, ap_band, pax_count |
-| OAG seat supply | `prod.analytics.oag_score_v2` (redshift_analytics) | sales_date + customer | origin, destination, carrier, cabin, seat_count, market_share_pct |
-| Revenue score | `prod.analytics.revenue_score_v1` (redshift_analytics) | sales_date + customer | origin, destination, carrier, cabin, avg_price, pax_count, estimated_revenue |
-| Tax regression coefficients | `prod.tax_reg.tax_reg_output_v1` (redshift_analytics) | sales_date | pos, od, carrier, m, b, r2, correlation |
-| Tax regression MySQL | `taxregression.tax_regression_v1` (mysql_priceeye) | — | overwritten every Tuesday |
-| Collection anomalies | S3 `s3-atp-3victors-3vdev-use1-collection-anomalies` | date in path | `collection-customer/v1/YYYY/MM/DD/` |
-| Customer collection health | `billing_db.customer_daily_requests_v2` (redshift_core) | sales_date | customer, total_reqs, success, site_failed |
-| Table health / row counts | `metadata.table_row_counts` (redshift_analytics) | checked_date | table_name, row_count, last_updated |
+The catalog of "which table answers which question" (every concept → table
+/ partition / key-columns mapping, plus the full 5-step fallback strategy)
+is indexed in the KB as `investigation_patterns.md`. **Call `search_kb`
+BEFORE naming a table from memory** — the KB is the source of truth; your
+training data is not. Examples:
 
-**Key distinctions:**
-- `combined_audit` uses singular `issue_source`/`issue_reason`; `provider_combined_audit` uses plural `issue_sources`/`issue_reasons` — do NOT mix them up.
-- `billing_db` is a Glue external schema — use `billing_db` as the schema in Redshift Spectrum queries.
-- Billing metric definitions: GDS_scheduled=sitecode `1G`; OTA_scheduled=sitecode IN `EXP/DES/BKG/OBZ/PLN/TCY/EDR`; MSE_scheduled=sitecode IN `SKYS/GGL/KYK`; billable_requests=requested_by_customers−true_site_issues.
+    search_kb("site issues table")
+    search_kb("market anomalies partition columns")
+    search_kb("billing request counts table")
 
-### Table Fallback Strategy
+If `search_kb` returns no relevant doc and you truly need a table you
+don't know, run a `SELECT DISTINCT table_schema, table_name FROM
+svv_columns WHERE table_name LIKE '%...%'` discovery query rather than
+guessing.
 
-If a query returns 0 rows, follow this chain in order:
-
-**Step 0 — Discover tables if you're uncertain which one to use.**
-When you don't know the exact table name, version, or what's available in a schema, run a
-catalog discovery query via `extract_sql_to_dataset` on the appropriate datasource:
-
-```sql
--- Redshift: list tables in a schema (use redshift_analytics or redshift_core)
-SELECT DISTINCT table_schema, table_name
-FROM svv_columns
-WHERE table_schema = 'analytics'
-ORDER BY table_name
-```
-
-Or to search by keyword:
-```sql
-SELECT DISTINCT table_schema, table_name
-FROM svv_columns
-WHERE table_name LIKE '%anomal%'
-ORDER BY table_schema, table_name
-```
-
-For MySQL (datasource=mysql_priceeye):
-```sql
-SELECT table_schema, table_name
-FROM information_schema.tables
-WHERE table_schema IN ('analytics', 'priceeye')
-ORDER BY table_schema, table_name
-```
-
-Use this discovery step proactively when the user refers to a concept (e.g. "anomaly table",
-"billing table") and you're unsure which table name or version is currently live.
-
-**Step 1 — Verify the partition exists.**
-Call `inspect_table_metadata(table_name)` to check what sales_date (and customer) partitions
-are actually loaded. A 0-row result often means the partition simply hasn't been written yet.
-Report the latest available partition to the user and offer to rerun on that date.
-
-**Step 2 — Try an alternate table version.**
-If the table is versioned (_v4, _v3, _v2), try the adjacent version:
-- anomalies: v4 → v3 → v2
-- analysis: v2 → v1
-- billing: v3 → v2 → v1
-
-**Step 3 — Check the S3 equivalent (applies to ALL tables).**
-Many Redshift tables have S3 mirrors written by the same pipelines.
-Consult the "S3 Data Reference" section for the matching bucket and key pattern.
-Use `fetch_s3` with the path for that table's date and customer. Key mappings:
-- `market_level_anomalies_v4` → `s3-atp-3victors-3vdev-use1-anomaly-datasets` / `market-level/v4/{customer}/{YYYY}/{MM}/{DD}/`
-- `market_level_anomalies_v3` → same bucket / `market-level/v3/customer={code}/sales_date={YYYYMMDD}/`
-- `segment_level_anomalies_v*` → same bucket / `segment-level/v4/{customer}/{YYYY}/{MM}/{DD}/`
-- `daily_itins_prices_v2` → same bucket / `daily_itins_prices/v2/{customer}/{YYYY}/{MM}/{DD}/`
-- `oag_score_v2` → same bucket / `oag_score/v2/{customer}/{YYYY}/{MM}/{DD}/`
-- `revenue_score_v1` → same bucket / `revenue_score/v1/{customer}/{YYYY}/{MM}/{DD}/revenue_estimates.csv`
-- `pax_midt` → same bucket / `pax_midt/v1/{customer}/{YYYY}/{MM}/{DD}/`
-- `prod.common_output.*` / DCO → `s3-atp-3victors-3vdev-use1-derived-common-output` / `v1/{customer}/{YYYY}/{MM}/{DD}/{HH}/`
-- `collection anomalies` → `s3-atp-3victors-3vdev-use1-collection-anomalies` / `collection-customer/v1/YYYY/MM/DD/`
-If no S3 path is listed for a given table, ask `search_kb` to see if one is documented.
-
-**Step 4 — Try local.* ONLY if user explicitly requests dev/local data.**
-`local.*` schemas are DEV copies — never the default. Only use if the user specifically
-asks for dev, local, or staging data.
-
-**Step 5 — Report and explain.**
-If all fallbacks are exhausted, clearly tell the user: which table you tried, what partitions
-are available, and that this table is dev/analytics-only or has no production-equivalent data.""",
+Fallback chain when a query returns 0 rows:
+  0. Discover tables with `svv_columns` / `information_schema.tables`.
+  1. Verify partitions with `inspect_table(name)`.
+  2. Try adjacent versions (_v4 → _v3 → _v2).
+  3. Check the S3 mirror (call `search_kb("s3 <concept>")`).
+  4. Only fall back to `local.*` if the user explicitly asked for dev.
+  5. If nothing works, report clearly what was tried and why.""",
 
         # ── Python patterns ──
         """## Python / run_python Patterns
@@ -329,35 +257,27 @@ Use `search_kb` to retrieve full process details. Key table → process mappings
 
 {system_scenarios}""" if system_scenarios else "",
 
-        # ── S3 data reference ──
+        # ── S3 data reference (indexed in KB, not inlined here) ──
         """## S3 Data Reference
 
-All buckets follow the pattern `s3-atp-3victors-{env}-use1-{purpose}`
-where `{env}` is `3vprod` for production (the default) or `3vdev` for
-development. The process runs on 3VDEV AWS credentials but has
-cross-account read access to 3VPROD. **Default to `3vprod`.** Only
-substitute `3vdev` when the user explicitly asks for dev data.
+The full S3 bucket + prefix catalog (one entry per known purpose:
+collection anomalies, DCO, anomaly datasets v4/v3, competitive
+position, pe-common-output, etc.) plus the Redshift → S3-mirror lookup
+are indexed in the KB as `s3_buckets.md`. **Call `search_kb` for bucket
+/ prefix questions** — do not list buckets from memory, you will
+hallucinate names that don't exist. Examples:
 
-Known S3 bucket / key patterns (use fetch_s3 with these; swap `3vprod`
-for `3vdev` if the user asks for dev):
-- `s3-atp-3victors-3vprod-use1-collection-anomalies`
-  - `collection-customer/v1/YYYY/MM/DD/` -- Customer collection anomaly CSVs by date
-- `s3-atp-3victors-3vprod-use1-derived-common-output`
-  - `v1/{customer}/{YYYY}/{MM}/{DD}/{HH}/` -- DCO Parquet (normalized price observations per customer)
-  - `v1/customer={code}/sales_date={YYYYMMDD}/` -- Alternative partition path
-- `s3-atp-3victors-3vprod-use1-anomaly-datasets`
-  - `market-level/v4/{customer}/{YYYY}/{MM}/{DD}/` -- Market-level anomaly Parquet (v4 is latest)
-  - `market-level/v3/customer={code}/sales_date={YYYYMMDD}/` -- Legacy v3 path
-  - `segment-level/v4/{customer}/{YYYY}/{MM}/{DD}/` -- Segment-level anomaly Parquet
-  - `daily_itins_prices/v2/{customer}/{YYYY}/{MM}/{DD}/` -- Daily itinerary prices by AP band
-  - `oag_score/v2/{customer}/{YYYY}/{MM}/{DD}/` -- OAG seat supply metrics
-  - `revenue_score/v1/{customer}/{YYYY}/{MM}/{DD}/revenue_estimates.csv` -- Revenue estimates (CSV)
-  - `pax_midt/v1/{customer}/{YYYY}/{MM}/{DD}/` -- PAX/MIDT booking data (CSV)
-- `s3-atp-3victors-3vprod-use1-competitive-position`
-  - `v2/{customer}/{YYYY}/{MM}/{DD}/data.parquet` -- Competitive position Parquet
-- `s3-atp-3victors-3vprod-use1-pe-common-output`
-  - `{customer}/{YYYY}/{MM}/{DD}/{HH}/` -- Raw common output before DCO normalization
-- Supports CSV, Parquet, and JSONL formats automatically""",
+    search_kb("what s3 buckets")
+    search_kb("market anomaly s3 bucket prefix")
+    search_kb("dco derived common output s3 path")
+    search_kb("competitive position s3")
+
+Bucket naming convention: `s3-atp-3victors-{env}-use1-{purpose}`.
+Default `{env}` = `3vprod` (process runs on 3VDEV creds with
+cross-account read into 3VPROD). Swap to `3vdev` only when the user
+explicitly asks for dev.
+
+`fetch_s3` reads CSV, Parquet, and JSONL automatically.""",
     ]
 
     return "\n\n".join(section for section in sections if section)

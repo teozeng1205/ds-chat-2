@@ -2,3 +2,7 @@
 **/.DS_Store
 normal_distribution.png
 chatkit/backend/app/investigation/knowledge/docs/*.md
+# Authored reference docs — keep these in version control
+!chatkit/backend/app/investigation/knowledge/docs/README.md
+!chatkit/backend/app/investigation/knowledge/docs/s3_buckets.md
+!chatkit/backend/app/investigation/knowledge/docs/investigation_patterns.md
