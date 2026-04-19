@@ -15,7 +15,7 @@ Deliberately NOT given:
   - execute_sql / fetch_s3      (side effects: workspace datasets)
   - bash / edit_file / git      (side effects on the machine)
   - publish_image / download    (UI side effects)
-  - run_parallel                (can be re-obtained via the main agent)
+  - apply_patch                 (mutates files; planner is read-only)
 
 Output contract: a JSON-ish structured plan the main agent can execute
 deterministically. Prompt is tight and discourages chain-of-thought

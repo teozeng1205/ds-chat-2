@@ -145,7 +145,8 @@ _TOOL_GUIDE = """## Tool Decision Guide
 | Fetch a specific URL | `fetch_url` |
 | Display a plot or image inline | `render_image` |
 | Make a file downloadable from the chat | `bash` to create → `download_file` |
-| Compare N approaches / benchmark | `run_parallel` |
+| Compare N approaches / benchmark | Emit multiple `bash` calls in one turn — the SDK fans them out concurrently. |
+| Edit several files / do a multi-hunk rewrite | `apply_patch` (one hosted call beats many `edit_file` round-trips) |
 | Complex multi-step task (5+ steps) | `plan_task` first, then execute |
 | Query Redshift/MySQL | `execute_sql` |
 | Fetch S3 data | `fetch_s3` |

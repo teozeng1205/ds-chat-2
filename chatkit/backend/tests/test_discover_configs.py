@@ -11,7 +11,7 @@ from app.pipelines.canonicalize import (
     merge_nodes,
     node_id,
 )
-from app.pipelines.discover_configs import discover
+from app.pipelines.discover_configs import discover, _parse_cfn_template
 
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "pipelines"
@@ -86,6 +86,50 @@ def test_discover_is_case_insensitive_on_key_names() -> None:
     # using the real lowercased form. Just confirm nodes/edges are well-formed.
     result = discover([_make_repo()])
     assert all(isinstance(n.name, str) and n.name == n.name.lower() for n in result.nodes)
+
+
+def test_discover_extracts_cfn_template_env_vars() -> None:
+    """The fixture includes a CFN template with an ECS TaskDefinition;
+    Pass 1's YAML extractor should pull the reads / writes / writes-table
+    edges out of the ContainerDefinitions[].Environment list."""
+    result = discover([_make_repo()])
+    widget_stage = node_id("stage", "widget-job")
+
+    reads = {(e.source_id, e.target_id) for e in result.edges if e.rel == "reads"}
+    writes = {(e.source_id, e.target_id) for e in result.edges if e.rel == "writes"}
+
+    # INPUT_BUCKET → reads s3 prefix (bucket literal with no slash → prefix empty)
+    assert (widget_stage,
+            node_id("s3_prefix", "s3-atp-3victors3vprod-use1-derived-common-output")) in reads
+
+    # OUTPUT_BUCKET contains s3:// URI → writes s3 prefix with /v1
+    assert (widget_stage,
+            node_id("s3_prefix",
+                    "s3-atp-3victors3vprod-use1-widget-output/v1")) in writes
+
+    # OUTPUT_TABLE → writes redshift table
+    assert (widget_stage,
+            node_id("redshift_table", "analytics.widget_rollup")) in writes
+
+    # The raw S3 URI outside env vars should also surface (low-confidence
+    # default-writes edge)
+    assert any(
+        "staging-bucket" in t for _, t in writes
+    ), "raw s3:// literal in CFN body wasn't extracted"
+
+
+def test_discover_ignores_yaml_without_cfn_marker(tmp_path: Path) -> None:
+    """Random YAML (no Resources / no AWSTemplateFormatVersion) must not
+    be mis-parsed as a CFN template."""
+    base = tmp_path / "repo-x"
+    (base / "deploy" / "commonfiles").mkdir(parents=True)
+    (base / "deploy" / "commonfiles" / "not-cfn.yaml").write_text(
+        "foo: bar\nbaz: [1, 2, 3]\n", encoding="utf-8",
+    )
+    repo = RepoEntry(name="repo-x", local_path=base, config_roots=(base,), pipelines=())
+    result = discover([repo])
+    # No CFN signal → no stage node for `not-cfn`
+    assert all(n.name != "not-cfn" for n in result.nodes)
 
 
 def test_discover_survives_missing_config_root(tmp_path: Path) -> None:

@@ -1,0 +1,35 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Widget processor — synthetic fixture for Pass 1 CFN tests.
+
+Parameters:
+  AppName:
+    Type: String
+    Default: widget-job
+  EnvironmentName:
+    Type: String
+    Default: 3vdev
+
+Resources:
+  WidgetTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref AppName
+      ContainerDefinitions:
+        - Name: !Ref AppName
+          Image: myrepo/widget:latest
+          Environment:
+            - Name: INPUT_BUCKET
+              Value: "s3-atp-3victors3vprod-use1-derived-common-output"
+            - Name: OUTPUT_BUCKET
+              Value: "s3://s3-atp-3victors3vprod-use1-widget-output/v1"
+            - Name: OUTPUT_TABLE
+              Value: "analytics.widget_rollup"
+            - Name: LOG_LEVEL
+              Value: INFO
+
+  RawLiteralRef:
+    # Literal S3 URIs outside env vars should also be picked up at low
+    # confidence.
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      StagingPrefix: "s3://s3-atp-3victors3vprod-use1-staging-bucket/widget/"
