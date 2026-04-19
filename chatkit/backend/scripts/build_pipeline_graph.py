@@ -44,6 +44,7 @@ from app.pipelines.canonicalize import (  # noqa: E402
 )
 from app.pipelines.discover_code import discover as discover_code  # noqa: E402
 from app.pipelines.discover_configs import discover as discover_configs  # noqa: E402
+from app.pipelines.discover_docs import discover as discover_docs  # noqa: E402
 from app.pipelines.graph_store import GraphStore  # noqa: E402
 
 log = logging.getLogger(__name__)
@@ -136,6 +137,15 @@ def build(
         per_pass["code"] = {"files_scanned": pass3.files_scanned,
                             "files_with_signal": pass3.files_with_signal,
                             "nodes": len(pass3.nodes), "edges": len(pass3.edges)}
+
+    # Pass 5 — ASCII DAG / prose mining from human-authored docs
+    pass5 = discover_docs(repos=repos, aliases=aliases)
+    all_nodes.extend(pass5.nodes)
+    all_edges.extend(pass5.edges)
+    passes_run.append("docs")
+    per_pass["docs"] = {"files_scanned": pass5.files_scanned,
+                        "files_with_signal": pass5.files_with_signal,
+                        "nodes": len(pass5.nodes), "edges": len(pass5.edges)}
 
     nodes = _dedupe_nodes(all_nodes)
     edges = merge_edges(all_edges)
