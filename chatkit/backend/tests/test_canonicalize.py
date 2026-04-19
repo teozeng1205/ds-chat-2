@@ -193,4 +193,8 @@ repos:
     root_names = {r.name for r in repo.config_roots}
     assert "my-repo" in root_names           # repo root
     assert "docs" in root_names               # docs subdir
-    assert "config_prod" in root_names        # config_* subdir of docs
+    # docs/config_*/ is NOT auto-added as a config root — those are
+    # per-env temp copies of the source-of-truth files directly under
+    # docs/. The env-copy skip filter in discover_configs.py ignores any
+    # .properties under such a subdir even if it's rglob'd from docs/.
+    assert "config_prod" not in root_names

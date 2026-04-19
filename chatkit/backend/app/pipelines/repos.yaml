@@ -10,8 +10,9 @@
 repos:
   - name: ds-priceeye-analytics
     local_path: ~/git/ds-priceeye-analytics
-    config_roots:
-      - docs/config_gold_prod
+    # config_roots: auto-discovered. The source-of-truth .properties
+    # files live directly under docs/ — do NOT point at
+    # docs/config_gold_prod/, that's a per-env temp copy.
     pipelines:
       - priceeye-analytics
 

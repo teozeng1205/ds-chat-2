@@ -22,7 +22,7 @@ def _make_repo() -> RepoEntry:
     return RepoEntry(
         name="repo-a",
         local_path=base,
-        config_roots=(base / "config_gold_prod",),
+        config_roots=(base / "docs",),  # source-of-truth; config_gold_prod/ is a temp copy
         pipelines=("priceeye-analytics",),
     )
 
@@ -116,6 +116,32 @@ def test_discover_extracts_cfn_template_env_vars() -> None:
     assert any(
         "staging-bucket" in t for _, t in writes
     ), "raw s3:// literal in CFN body wasn't extracted"
+
+
+def test_discover_skips_env_copy_properties(tmp_path: Path) -> None:
+    """Per-env temp copies under docs/config_gold_prod/ should NOT produce
+    duplicate stages — the authoritative file lives directly under docs/."""
+    base = tmp_path / "repo-z"
+    (base / "docs" / "config_gold_prod").mkdir(parents=True)
+    # Authoritative file:
+    (base / "docs" / "foo-stage.properties").write_text(
+        "output.bucket = s3-atp-3victors${environment}-use1-foo\n"
+        "output.prefix = v1\n",
+        encoding="utf-8",
+    )
+    # Per-env copy we must skip:
+    (base / "docs" / "config_gold_prod" / "foo-stage.properties").write_text(
+        "output.bucket = different-bucket-from-the-copy\n"
+        "output.prefix = v1\n",
+        encoding="utf-8",
+    )
+    repo = RepoEntry(name="repo-z", local_path=base,
+                     config_roots=(base / "docs",), pipelines=())
+    result = discover([repo])
+    # Only the real one should contribute a signal
+    assert result.files_scanned == 1
+    sources = {n.source for n in result.nodes}
+    assert all("config_gold_prod" not in s for s in sources), sources
 
 
 def test_discover_ignores_yaml_without_cfn_marker(tmp_path: Path) -> None:

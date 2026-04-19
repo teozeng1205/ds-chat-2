@@ -162,8 +162,13 @@ def _auto_config_roots(repo_path: Path) -> list[Path]:
 
     Heuristic: the repo root itself (so top-level `*.properties` /
     `template.yaml` are picked up), plus `docs/`, `config/`, `configs/`,
-    `resources/`, and any `config_*` subfolder commonly used in the
-    ATPCO stack (e.g. `docs/config_gold_prod/`).
+    and `resources/`.
+
+    We deliberately do NOT enumerate `docs/config_<env>/` subdirectories
+    (e.g. `config_gold_prod`, `config_3vdev`). Those are temp per-env
+    copies of the source-of-truth files that live directly in `docs/`.
+    The skip filter in `discover_configs.py` treats any `.properties`
+    under a `config_<env>/` dir as a duplicate.
     """
     roots: list[Path] = []
     if not repo_path.exists() or not repo_path.is_dir():
@@ -173,15 +178,6 @@ def _auto_config_roots(repo_path: Path) -> list[Path]:
         cand = repo_path / sub
         if cand.exists() and cand.is_dir():
             roots.append(cand)
-    # Common ATPCO pattern: docs/config_gold_prod, docs/config_3vdev, …
-    docs = repo_path / "docs"
-    if docs.exists() and docs.is_dir():
-        try:
-            for sub in docs.iterdir():
-                if sub.is_dir() and sub.name.startswith("config"):
-                    roots.append(sub)
-        except PermissionError:
-            pass
     return roots
 
 

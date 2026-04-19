@@ -81,6 +81,12 @@ def discover(
                 log.debug("config root missing: %s", root)
                 continue
             for path in sorted(root.rglob("*.properties")):
+                if _is_env_copy(path):
+                    # Skip docs/config_gold_prod/*.properties and siblings —
+                    # they're per-env copies of the source-of-truth files
+                    # that live one level up in docs/. Emitting both would
+                    # duplicate every stage.
+                    continue
                 files_scanned += 1
                 got_signal = _parse_properties_file(
                     path=path,
@@ -117,6 +123,29 @@ def discover(
 
 
 # ── .properties parser ─────────────────────────────────────────────────
+
+
+# ATPCO repos sometimes materialize a per-env copy of the source-of-truth
+# `.properties` files under a sibling directory, e.g.
+# `docs/config_gold_prod/*.properties`. These are generated artifacts —
+# scanning them would emit duplicate stage nodes. Treat any directory
+# segment that looks like a per-env copy as a skip.
+_ENV_COPY_DIR_NAMES = frozenset({
+    "config_gold_prod",
+    "config_gold",
+    "config_3vdev",
+    "config_3vprod",
+    "config_test",
+    "config_staging",
+    "config_qa",
+    "config_prod",
+    "config_dev",
+})
+
+
+def _is_env_copy(path: Path) -> bool:
+    """True when the path lives under a per-env copy directory."""
+    return any(part in _ENV_COPY_DIR_NAMES for part in path.parts)
 
 
 # Matches `key = value` with optional inline comments stripped later.
