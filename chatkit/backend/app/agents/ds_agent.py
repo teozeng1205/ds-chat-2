@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import Any
 
 from agents import Agent, ModelSettings, WebSearchTool
-from agents.model_settings import ModelRetrySettings
 from agents.models.openai_responses import OpenAIResponsesModel
 from openai import AsyncOpenAI
 
@@ -249,7 +248,7 @@ def build_agent(model: str) -> Agent[Any]:
     ])
     return Agent(
         model=OpenAIResponsesModel(model=model, openai_client=AsyncOpenAI()),
-        model_settings=ModelSettings(retry=ModelRetrySettings(max_retries=2)),
+        model_settings=ModelSettings(),
         name="DS Chat Agent",
         instructions=_build_instructions(),
         tools=tools,

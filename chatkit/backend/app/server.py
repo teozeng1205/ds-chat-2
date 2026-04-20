@@ -33,7 +33,7 @@ from .tracing import current_trace_id
 
 
 MAX_RECENT_ITEMS = 50
-MAX_AGENT_TURNS = 200
+MAX_AGENT_TURNS = 600
 DEFAULT_MODEL = "gpt-5.4"
 TITLE_MODEL = "gpt-5.4-mini"
 MAX_TITLE_CHARS = 80
