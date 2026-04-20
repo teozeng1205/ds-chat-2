@@ -1,19 +1,71 @@
 ---
 name: cascading_investigation
-description: Autonomous root-cause walk when a prod table / S3 output is empty or wrong — cascade through the S3 mirror, upstream pipeline stages, federated MySQL config, and the producer code.
-keywords: [empty, no data, 0 rows, missing, why is, missing data, investigate empty, missing rows, customer not found, stale, staleness, data lag, root cause, upstream, cascade, fallback, pipeline break, break point, break-point, anomalies missing, no anomalies, empty table]
+description: Two playbooks in one — (1) pipeline overview + daily health check ("tell me about the analytics pipeline, is everything ok today?") and (2) autonomous root-cause walk when a table/output is empty or wrong. Cascade through S3 mirror, upstream stages, federated MySQL config, and producer code.
+keywords: [empty, no data, 0 rows, missing, why is, missing data, investigate empty, missing rows, customer not found, stale, staleness, data lag, root cause, upstream, cascade, fallback, pipeline break, break point, break-point, anomalies missing, no anomalies, empty table, analytics pipeline, tell me about, how does, pipeline status, everything ok, looks good, pipeline healthy, is the pipeline, daily check, today status, all good, pipeline overview]
 tier: high
 ---
 
-## When to use this skill
+## Two modes — pick the right one
 
-Trigger this playbook whenever the user asks something that looks like:
+### Mode A — Pipeline overview + daily health check
 
-- "Why is `prod.analytics.market_level_anomalies_v4` empty for customer DE today?"
-- "Are there anomalies for B6 today?" → you query and get 0 rows
-- "Why is customer X missing from the anomalies pipeline?"
-- "Why does the dashboard show no data for DE?"
-- Any `execute_sql` or `fetch_s3` you ran came back empty and the user is asking why.
+**Triggers:** "tell me about the analytics pipeline", "how does the pipeline work?",
+"is everything ok today?", "does everything look good?", "pipeline status".
+
+**Goal:** describe the full chain from the lineage graph, then check whether each
+stage ran successfully today (freshest partition, non-zero rows). No root-cause dig
+unless a stage is unhealthy.
+
+**Playbook:**
+
+```
+1. trace_pipeline("<concept>", direction="both", depth=5)
+   → gives you the full chain: stages, their repos, edges, tables, S3 prefixes.
+
+2. Summarise the chain in plain English:
+   "Stage A (repo X) reads <inputs> → writes <outputs> → Stage B reads ..."
+
+3. For each stage in the chain, check today's freshness — pick the stage's
+   canonical Redshift output table (from the graph's `tables` list):
+
+   execute_sql(
+     "SELECT COUNT(*) AS n, MAX(sales_date) AS latest
+      FROM <stage_output_table>
+      WHERE sales_date >= {today-2d}",
+     datasource="redshift_analytics"
+   )
+
+   - n > 0 AND latest == today → ✅ HEALTHY
+   - latest < today → ⚠️ LAG — report how many days behind
+   - n == 0 → ❌ EMPTY — switch to Mode B below
+
+4. Also spot-check the stage's S3 output (from `s3_prefixes`):
+
+   bash("aws s3 ls s3://s3-atp-3victors-3vprod-use1-<purpose>/<stage>/{today_yyyy}/{today_mm}/{today_dd}/
+         | tail -5")
+
+   Presence of files = pipeline wrote; absence = prod not yet written or broken.
+
+5. Report a concise status table:
+   | Stage | Output table | Latest date | Rows today | Status |
+   |-------|-------------|------------|-----------|--------|
+   | ...   | ...         | ...        | ...       | ✅/⚠️/❌ |
+
+   If every stage is ✅ → "Pipeline looks healthy today."
+   Any ❌ or ⚠️ → switch to Mode B for that stage.
+```
+
+**Important:** If you can't reach Redshift / S3 (credentials error), say so clearly
+and give the SQL + S3 commands the user can run themselves.
+
+---
+
+### Mode B — Empty-table root-cause cascade
+
+**Triggers:** "Why is X empty?", "no data for customer DE", any `execute_sql`
+that returns 0 rows and the user asks why.
+
+**Goal:** find the break-point stage in the upstream chain and name the cause.
 
 **Do not** jump straight to speculating about producers. Walk the cascade — the tool
 chain is fast (~30-60s) and produces a grounded answer naming the break-point stage.
