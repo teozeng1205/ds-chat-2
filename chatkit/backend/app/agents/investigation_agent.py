@@ -167,7 +167,11 @@ Use `resolve_codes` to resolve natural language names (e.g. "JetBlue" -> B6, "Am
 **Route knowledge questions as follows:**
 
 - **"How does X work?" / "What does Y pipeline do?" / "Which table has Z?"** →
-  Call `search_kb` first for a fast indexed answer. For broad/general questions (e.g. "how does priceeye work?") the KB + system instructions are usually sufficient.
+  Use **both** the KB and the real codebase. Do not answer these from memory and do not stop at `search_kb`.
+  1. `search_kb("{topic}")` — get the doc snippet, `document_hints`, and related tables.
+  2. **Verify against the actual repo/doc checkout.** Use the `document_hints` source to identify the likely repo, run `bash("ls ~/git/{repo}/")` to confirm it exists, then `read_file` the key entry-point files and/or `read_file("~/git/documentations/{source}")` for the full doc.
+  3. In the final answer, clearly separate **KB/documentation guidance** from **code-verified facts**. Include at least one concrete implementation detail from the repo when a matching repo is available.
+  4. If no repo can be identified or the repo is missing locally, say so explicitly and fall back to the KB/doc answer rather than pretending the code was checked.
 
 - **When the user asks about a specific named component** — a specific pipeline, service, job, scheduler, or process (e.g. "auto-scheduler", "dedup pipeline", "anomaly detection job", "schedule-cutover", "preemptive polling") — a KB snippet alone is NOT enough. Do all three steps:
   1. `search_kb("{component name}")` — get the doc snippet and `document_hints`.
@@ -281,5 +285,4 @@ explicitly asks for dev.
     ]
 
     return "\n\n".join(section for section in sections if section)
-
 
