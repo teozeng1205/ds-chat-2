@@ -1,9 +1,4 @@
-"""Planner sub-agent.
-
-Upgrade path from the degenerate `_PLANNER = Agent(..., tools=[])` in
-ds_agent.py. This planner is a *real* sub-agent with read-only
-exploration tools so it can probe the workspace and KB before emitting
-a plan, not just imagine one from the prompt alone.
+"""Planner sub-agent with read-only exploration tools.
 
 Tools given:
   - read_file, list_dir        (filesystem probing)
@@ -21,9 +16,7 @@ Output contract: a JSON-ish structured plan the main agent can execute
 deterministically. Prompt is tight and discourages chain-of-thought
 leakage.
 
-This module is additive: it does not wire itself into the main agent.
-A follow-up commit will import build_planner_agent and call
-as_agent_tool to replace the inline planner in ds_agent.py.
+The main agent invokes this planner through ``as_agent_tool``.
 """
 
 from __future__ import annotations

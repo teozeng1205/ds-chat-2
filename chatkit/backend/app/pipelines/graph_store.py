@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Literal
 
-from .canonicalize import AliasTable, Edge, Node, node_id
+from .canonicalize import AliasTable, Edge, Node
 
 log = logging.getLogger(__name__)
 

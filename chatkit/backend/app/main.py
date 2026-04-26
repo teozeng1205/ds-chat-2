@@ -12,19 +12,8 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from .investigation.shell_session import _registry as _shell_registry
 from .server import StarterChatServer
-from .tracing import install_sqlite_tracing
 
 app = FastAPI(title="ChatKit Starter API")
-
-# Install SQLite tracing once at import time (idempotent). Every agent run
-# writes traces + spans to app/.data/ds-chat-traces.sqlite and token usage
-# into ds-chat-cost.sqlite. Swallow install errors so tracing never crashes
-# startup — the worst case is no trace visibility, not a dead server.
-try:
-    install_sqlite_tracing()
-except Exception as _exc:  # noqa: BLE001
-    import logging as _log
-    _log.getLogger(__name__).warning("tracing install failed: %s", _exc)
 
 app.add_middleware(
     CORSMiddleware,
@@ -52,13 +41,12 @@ async def chatkit_endpoint(request: Request) -> Response:
 
 @app.get("/chatkit/session/{thread_id}")
 async def session_state(thread_id: str, request: Request) -> Response:
-    """Return persistent shell session state for a thread (used by SessionStateBar)."""
+    """Return active shell session state for a thread."""
     shell = _shell_registry.get(thread_id)
     meta = await chatkit_server.get_session_meta(thread_id, {"request": request})
     base = {
         "model": meta["model"],
         "turn_count": meta["turn_count"],
-        "totals": meta.get("totals") or {"tokens": 0, "dollars": 0.0},
         # Process runs on 3VDEV AWS creds with cross-account read access to
         # 3VPROD. Investigations default to PROD data; we surface that in
         # the UI so users can see at a glance which env they're reading.
@@ -75,93 +63,8 @@ async def session_state(thread_id: str, request: Request) -> Response:
     })
 
 
-@app.get("/chatkit/memory")
-async def list_user_memory() -> Response:
-    """Return the user-scoped memory list.
-
-    Until auth lands we use the shared DEFAULT_USER_ID, so every client
-    sees the same preferences. When auth arrives, scope this by user id.
-    """
-    from .memory import DEFAULT_USER_ID, get_memory_store
-    items = get_memory_store().list(scope="user", scope_id=DEFAULT_USER_ID)
-    return JSONResponse({"scope": "user", "items": items})
-
-
-@app.put("/chatkit/memory")
-async def put_user_memory(request: Request) -> Response:
-    """Upsert a user-scoped memory entry. Body: {key, value}."""
-    try:
-        payload = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="body must be JSON")
-    if not isinstance(payload, dict):
-        raise HTTPException(status_code=400, detail="body must be a JSON object")
-    key = payload.get("key")
-    value = payload.get("value")
-    if not isinstance(key, str) or not key.strip():
-        raise HTTPException(status_code=400, detail="key is required")
-    if not isinstance(value, str):
-        raise HTTPException(status_code=400, detail="value is required")
-    if len(key) > 120 or len(value) > 4000:
-        raise HTTPException(status_code=400, detail="key <= 120 chars, value <= 4000 chars")
-    from .memory import DEFAULT_USER_ID, get_memory_store
-    get_memory_store().put(scope="user", scope_id=DEFAULT_USER_ID, key=key.strip(), value=value)
-    return JSONResponse({"ok": True})
-
-
-@app.delete("/chatkit/memory/{key}")
-async def delete_user_memory(key: str) -> Response:
-    """Delete a user-scoped memory entry by key."""
-    from .memory import DEFAULT_USER_ID, get_memory_store
-    deleted = get_memory_store().delete(scope="user", scope_id=DEFAULT_USER_ID, key=key)
-    return JSONResponse({"ok": True, "deleted": deleted})
-
-
-@app.get("/chatkit/feedback/summary/{thread_id}")
-async def feedback_summary(thread_id: str) -> Response:
-    """Return thumbs-up / thumbs-down totals for one thread."""
-    from .feedback import get_feedback_store
-    summary = get_feedback_store().summary_by_thread(thread_id)
-    return JSONResponse(summary)
-
-
-@app.post("/chatkit/feedback")
-async def post_feedback(request: Request) -> Response:
-    """Record a thumbs-up / thumbs-down on an assistant message.
-
-    Body JSON: {thread_id, verdict: 1|-1, message_id?, comment?, user_id?}
-    """
-    try:
-        payload = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="body must be JSON")
-
-    if not isinstance(payload, dict):
-        raise HTTPException(status_code=400, detail="body must be a JSON object")
-
-    thread_id = payload.get("thread_id")
-    verdict = payload.get("verdict")
-    if not thread_id or not isinstance(thread_id, str):
-        raise HTTPException(status_code=400, detail="thread_id is required")
-    if verdict not in (1, -1, "1", "-1"):
-        raise HTTPException(status_code=400, detail="verdict must be 1 or -1")
-
-    from .feedback import get_feedback_store
-    try:
-        entry_id = get_feedback_store().record(
-            thread_id=thread_id,
-            verdict=int(verdict),
-            message_id=payload.get("message_id"),
-            comment=payload.get("comment"),
-            user_id=payload.get("user_id"),
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return JSONResponse({"ok": True, "id": entry_id})
-
-
 @app.get("/chatkit/images/{filename}")
-async def serve_image(filename: str, request: Request) -> Response:
+async def serve_image(filename: str) -> Response:
     """Serve an image file from /tmp so the agent can display it inline."""
     import mimetypes
     import re
@@ -181,8 +84,6 @@ async def serve_image(filename: str, request: Request) -> Response:
         media_type=mime,
         headers={"Cache-Control": "private, max-age=300"},
     )
-
-
 
 @app.get("/chatkit")
 async def chatkit_endpoint_info() -> Response:

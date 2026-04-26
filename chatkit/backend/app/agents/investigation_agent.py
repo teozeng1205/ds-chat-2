@@ -5,7 +5,6 @@ from __future__ import annotations
 import datetime
 import json
 from pathlib import Path
-from typing import Any
 
 KNOWLEDGE_ROOT = Path(__file__).resolve().parents[1] / "investigation" / "knowledge"
 
@@ -63,7 +62,10 @@ def _load_system_overview() -> str:
     # to keep instructions focused and not bloated
     lines = text.splitlines()
     # Find the scenarios section
-    scenarios_start = next((i for i, l in enumerate(lines) if "## Common Investigation Scenarios" in l), None)
+    scenarios_start = next(
+        (i for i, line in enumerate(lines) if "## Common Investigation Scenarios" in line),
+        None,
+    )
     if scenarios_start is not None:
         return "\n".join(lines[scenarios_start:])
     return ""
@@ -285,4 +287,3 @@ explicitly asks for dev.
     ]
 
     return "\n\n".join(section for section in sections if section)
-

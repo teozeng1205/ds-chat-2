@@ -173,9 +173,9 @@ class PersistentShell:
                 if sentinel_idx is not None:
                     start = 1 if not first_line_consumed else 0
                     result_lines = [
-                        l for i, l in enumerate(lines)
+                        line for i, line in enumerate(lines)
                         if i >= start and i < sentinel_idx
-                        and not ("PROMPT_COMMAND" in l or l.strip().startswith(SENTINEL))
+                        and not ("PROMPT_COMMAND" in line or line.strip().startswith(SENTINEL))
                     ]
                     result = "".join(result_lines)
                     if result.strip():
@@ -189,7 +189,7 @@ class PersistentShell:
                     lines = lines[1:]
                     first_line_consumed = True
                     buf = b""
-                    partial = "".join(l for l in lines if not l.strip().startswith(SENTINEL))
+                    partial = "".join(line for line in lines if not line.strip().startswith(SENTINEL))
                     if partial.strip():
                         yield partial
                         buf = b""

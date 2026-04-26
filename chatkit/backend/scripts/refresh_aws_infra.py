@@ -310,7 +310,7 @@ def build_doc(account: str, account_id: str) -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     sections: list[str] = []
 
-    sections.append(f"# PriceEye AWS Infrastructure Reference")
+    sections.append("# PriceEye AWS Infrastructure Reference")
     sections.append(
         f"*Last refreshed: {now}*\n"
         f"*Account: {account} ({account_id})*\n"
@@ -318,24 +318,24 @@ def build_doc(account: str, account_id: str) -> str:
     )
 
     print(f"\n[{account}] Redshift Serverless")
-    sections.append(f"## Redshift Serverless Workgroups\n\n" + discover_redshift_serverless())
+    sections.append("## Redshift Serverless Workgroups\n\n" + discover_redshift_serverless())
 
     print(f"[{account}] RDS clusters")
-    sections.append(f"## Aurora MySQL Clusters\n\n" + discover_rds_clusters())
+    sections.append("## Aurora MySQL Clusters\n\n" + discover_rds_clusters())
 
     print(f"[{account}] Step Functions")
-    sections.append(f"## Step Functions\n\n" + discover_step_functions())
+    sections.append("## Step Functions\n\n" + discover_step_functions())
 
     print(f"[{account}] Lambda")
-    sections.append(f"## Lambda Functions\n\n" + discover_lambdas())
+    sections.append("## Lambda Functions\n\n" + discover_lambdas())
 
     print(f"[{account}] Lambda configs")
-    sections.append(f"## Key Lambda Configurations\n\n" + discover_lambda_configs(KEY_LAMBDAS))
+    sections.append("## Key Lambda Configurations\n\n" + discover_lambda_configs(KEY_LAMBDAS))
 
     print(f"[{account}] Glue databases")
-    sections.append(f"## Glue Databases\n\n" + discover_glue_databases())
+    sections.append("## Glue Databases\n\n" + discover_glue_databases())
 
-    glue_tables_section = f"## Glue Tables (Key Databases)\n"
+    glue_tables_section = "## Glue Tables (Key Databases)\n"
     for db in KEY_GLUE_DBS:
         glue_tables_section += f"\n### {db}\n\n" + discover_glue_tables(db)
     sections.append(glue_tables_section)
@@ -351,19 +351,19 @@ def build_doc(account: str, account_id: str) -> str:
     )
 
     print(f"[{account}] EventBridge")
-    sections.append(f"## EventBridge Rules\n\n" + discover_eventbridge_rules())
+    sections.append("## EventBridge Rules\n\n" + discover_eventbridge_rules())
 
     print(f"[{account}] CloudWatch alarms")
-    sections.append(f"## CloudWatch Alarms\n\n" + discover_cw_alarms())
+    sections.append("## CloudWatch Alarms\n\n" + discover_cw_alarms())
 
     print(f"[{account}] S3 buckets")
-    sections.append(f"## S3 Buckets\n\n" + discover_s3_buckets())
+    sections.append("## S3 Buckets\n\n" + discover_s3_buckets())
 
     print(f"[{account}] Secrets Manager")
-    sections.append(f"## Secrets Manager (Names Only)\n\n" + discover_secrets())
+    sections.append("## Secrets Manager (Names Only)\n\n" + discover_secrets())
 
     print(f"[{account}] SSM parameters")
-    sections.append(f"## SSM Parameter Store\n\n" + discover_ssm_params())
+    sections.append("## SSM Parameter Store\n\n" + discover_ssm_params())
 
     return "\n\n---\n\n".join(sections) + "\n"
 
