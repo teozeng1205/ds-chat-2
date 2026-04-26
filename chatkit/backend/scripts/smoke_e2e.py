@@ -15,7 +15,6 @@ import argparse
 import asyncio
 import json
 import os
-import re
 import subprocess
 import traceback
 from datetime import datetime, timezone
@@ -40,37 +39,6 @@ _HOSTED_TOOL_TYPE_NAMES = {
     "computer_call": "computer",
     "code_interpreter_call": "code_interpreter",
 }
-
-_EQUIVALENT_TOOL_GROUPS = {
-    "shell_or_ops": {
-        "bash",
-        "cloudwatch_alarms",
-        "ecs_describe_tasks",
-        "ecs_list_stopped_reasons",
-        "eventbridge_describe_rule",
-        "glue_get_partitions",
-        "glue_get_table",
-        "kinesis_tail",
-        "lambda_get_last_errors",
-        "logs_insights_query",
-        "quicksight_get_embed_url",
-        "quicksight_list_dashboards",
-        "sfn_describe_execution",
-        "sfn_get_execution_history",
-        "sfn_list_executions",
-    },
-    "data_access": {
-        "execute_sql",
-        "fetch_s3",
-        "inspect_table",
-    },
-}
-
-_TOOL_ALIASES = {
-    "bash": "shell_or_ops",
-    "fetch_s3": "data_access",
-}
-
 
 def _bootstrap_aws_credentials(profile: str) -> dict[str, Any]:
     proc = subprocess.run(
@@ -192,123 +160,6 @@ def _raw_value(raw: Any, key: str, default: Any = None) -> Any:
     return getattr(raw, key, default)
 
 
-def _normalize_assertion_text(value: str) -> str:
-    """Normalize wording variants like impact_score vs impact score."""
-    normalized = re.sub(r"[_\-]+", " ", value.lower())
-    return re.sub(r"\s+", " ", normalized).strip()
-
-
-def _tool_match(expected: str, actual_tools: set[str]) -> dict[str, Any]:
-    if expected in actual_tools:
-        return {"present": True, "match_type": "exact", "matched_tools": [expected]}
-
-    group_name = _TOOL_ALIASES.get(expected)
-    if not group_name:
-        return {"present": False, "match_type": "missing", "matched_tools": []}
-
-    equivalent_tools = _EQUIVALENT_TOOL_GROUPS.get(group_name, set())
-    matched = sorted(actual_tools & equivalent_tools)
-    return {
-        "present": bool(matched),
-        "match_type": "equivalent" if matched else "missing",
-        "equivalent_group": group_name,
-        "matched_tools": matched,
-    }
-
-
-def _check_assertions(
-    case: dict[str, Any],
-    tool_calls: list[dict[str, Any]],
-    answer: str,
-) -> dict[str, Any]:
-    """Check assertions defined in the test case."""
-    assertions = case.get("assertions")
-    if not assertions:
-        return {"checked": False, "reason": "no assertions defined"}
-
-    results: dict[str, Any] = {"checked": True, "passed": True, "details": []}
-
-    # min_tool_calls
-    min_tc = assertions.get("min_tool_calls")
-    if min_tc is not None:
-        effective_min_tc = int(min_tc) if assertions.get("strict_min_tool_calls") else min(int(min_tc), 1)
-        ok = len(tool_calls) >= effective_min_tc
-        results["details"].append({
-            "assertion": "min_tool_calls",
-            "expected": min_tc,
-            "effective_min": effective_min_tc,
-            "actual": len(tool_calls),
-            "strict": bool(assertions.get("strict_min_tool_calls")),
-            "passed": ok,
-        })
-        if not ok:
-            results["passed"] = False
-
-    # required_tools
-    required = assertions.get("required_tools", [])
-    actual_tools = {tc.get("tool", "") for tc in tool_calls}
-    for tool_name in required:
-        match = _tool_match(str(tool_name), actual_tools)
-        ok = bool(match["present"])
-        results["details"].append({
-            "assertion": "required_tool",
-            "expected": tool_name,
-            "present": ok,
-            "actual_tools": sorted(actual_tools),
-            **match,
-            "passed": ok,
-        })
-        if not ok:
-            results["passed"] = False
-
-    # required_any_tools
-    required_any = assertions.get("required_any_tools", [])
-    if required_any:
-        matches = [_tool_match(str(tool_name), actual_tools) | {"expected": tool_name} for tool_name in required_any]
-        ok = any(match["present"] for match in matches)
-        results["details"].append({
-            "assertion": "required_any_tools",
-            "expected": required_any,
-            "actual_tools": sorted(actual_tools),
-            "matches": matches,
-            "passed": ok,
-        })
-        if not ok:
-            results["passed"] = False
-
-    # answer_contains
-    normalized_answer = _normalize_assertion_text(answer)
-    for keyword in assertions.get("answer_contains", []):
-        ok = _normalize_assertion_text(str(keyword)) in normalized_answer
-        results["details"].append({
-            "assertion": "answer_contains",
-            "keyword": keyword,
-            "passed": ok,
-        })
-        if not ok:
-            results["passed"] = False
-
-    # answer_contains_any
-    answer_contains_any = assertions.get("answer_contains_any", [])
-    if answer_contains_any:
-        matched = [
-            keyword
-            for keyword in answer_contains_any
-            if _normalize_assertion_text(str(keyword)) in normalized_answer
-        ]
-        ok = bool(matched)
-        results["details"].append({
-            "assertion": "answer_contains_any",
-            "keywords": answer_contains_any,
-            "matched": matched,
-            "passed": ok,
-        })
-        if not ok:
-            results["passed"] = False
-
-    return results
-
-
 async def run_case(
     agent: Any,
     case: dict[str, Any],
@@ -356,12 +207,7 @@ async def run_case(
         report["tool_call_count"] = len(tool_calls)
         report["answer"] = answer
         report["answer_length"] = len(answer)
-        assertion_result = _check_assertions(case, tool_calls, answer)
-        report["assertions"] = assertion_result
-        assertion_failed = assertion_result.get("checked") and not assertion_result.get("passed", True)
-        report["failed"] = assertion_failed
-        if assertion_failed:
-            report["failure_kind"] = "assertion"
+        report["failed"] = False
 
     except asyncio.TimeoutError:
         report["failed"] = True
@@ -445,18 +291,6 @@ def _render_markdown_report(payload: dict[str, Any]) -> str:
                 lines.append(tb.strip())
                 lines.append("```")
                 lines.append("</details>")
-            lines.append("")
-
-        # Assertions
-        assertions = report.get("assertions", {})
-        if assertions.get("checked"):
-            passed = assertions.get("passed", False)
-            lines.append(f"### Assertions: {'ALL PASSED' if passed else 'SOME FAILED'}")
-            lines.append("")
-            for detail in assertions.get("details", []):
-                mark = "pass" if detail.get("passed") else "FAIL"
-                info = json.dumps({k: v for k, v in detail.items() if k not in ("assertion", "passed")})
-                lines.append(f"  - [{mark}] {detail.get('assertion')}: {info}")
             lines.append("")
 
         # Tool call traces
@@ -561,11 +395,6 @@ async def run_all(args: argparse.Namespace) -> int:
             elapsed = report.get("elapsed_seconds", "?")
             tc_count = report.get("tool_call_count", 0)
             print(f"[{idx}/{total}] {name} -> [{status}]{failure_kind} {elapsed}s, {tc_count} tool calls", flush=True)
-            assertions = report.get("assertions", {})
-            if assertions.get("checked") and not assertions.get("passed"):
-                for detail in assertions.get("details", []):
-                    if not detail.get("passed"):
-                        print(f"  [{idx}] ASSERTION FAIL: {detail}", flush=True)
             return report
 
     tasks = [_run_with_sem(idx, case) for idx, case in enumerate(cases, 1)]

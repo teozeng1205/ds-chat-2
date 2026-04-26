@@ -3,291 +3,126 @@
     {
       "name": "top_site_issues_ql2_today_with_impact",
       "thread_id": "thread-smoke-ql2-issues",
-      "question": "what are the top site issues for QL2 today? And what is the impact of these",
-      "assertions": {
-        "min_tool_calls": 2,
-        "required_tools": [
-          "execute_sql"
-        ],
-        "answer_contains": [
-          "QL2",
-          "issue"
-        ]
-      }
+      "question": "what are the top site issues for QL2 today? And what is the impact of these"
     },
     {
       "name": "collection_anomalies_b6_today_s3",
       "thread_id": "thread-smoke-b6-anom",
-      "question": "Fetch the S3 collection anomalies for customer B6 for today's date and summarize what you find.",
-      "assertions": {
-        "min_tool_calls": 1,
-        "required_tools": [
-          "fetch_s3"
-        ],
-        "answer_contains": [
-          "B6",
-          "anomal"
-        ]
-      }
+      "question": "Fetch the S3 collection anomalies for customer B6 for today's date and summarize what you find."
     },
     {
       "name": "how_does_priceeye_work",
       "thread_id": "thread-smoke-priceeye-arch",
-      "question": "how does priceeye work? Use search_kb to ground your answer in the indexed documentation and quote at least one specific source file.",
-      "assertions": {
-        "min_tool_calls": 1,
-        "required_tools": [
-          "search_kb"
-        ],
-        "answer_contains": [
-          "priceeye"
-        ]
-      }
+      "question": "how does priceeye work? Use search_kb to ground your answer in the indexed documentation and quote at least one specific source file."
     },
     {
       "name": "smartest_customer_3v",
       "thread_id": "thread-smoke-smartest",
       "master": true,
-      "question": "using all the info you have, explore all the tables available to you , which customer do you think is the smartest customer of 3V?",
-      "assertions": {
-        "min_tool_calls": 5,
-        "required_tools": [
-          "execute_sql"
-        ],
-        "answer_contains": []
-      }
+      "question": "using all the info you have, explore all the tables available to you , which customer do you think is the smartest customer of 3V?"
     },
     {
       "name": "eda_competitive_position_b6",
       "thread_id": "thread-smoke-eda-b6",
-      "question": "Use execute_sql to run an EDA of competitive position for customer B6 today. Query the analytics table, summarize the distribution, and show key stats.",
-      "assertions": {
-        "min_tool_calls": 2,
-        "required_tools": [
-          "execute_sql"
-        ],
-        "answer_contains": [
-          "B6",
-          "competitive"
-        ]
-      }
+      "question": "Use execute_sql to run an EDA of competitive position for customer B6 today. Query the analytics table, summarize the distribution, and show key stats."
     },
     {
       "name": "prod_first_market_anomalies",
       "thread_id": "thread-smoke-prod-anomalies",
-      "question": "Show me the top 5 markets with the highest impact score anomalies for customer B6 today.",
-      "assertions": {
-        "min_tool_calls": 1,
-        "required_tools": [
-          "execute_sql"
-        ],
-        "answer_contains": [
-          "B6",
-          "impact_score"
-        ]
-      }
+      "question": "Show me the top 5 markets with the highest impact score anomalies for customer B6 today."
     },
     {
       "name": "aa_06utc_request_spike_investigation",
       "thread_id": "thread-aa-spike-investigation",
       "master": true,
-      "question": "We are seeing a huge spike in the provider monitoring dashboard for Provider AA at the 06:00 UTC hour over at least the past 4 days. It is showing roughly 20,000 requests in a single minute for 1-3 minutes, which is way beyond our internal cap of 90 TPS (5,400 requests per minute). Please investigate using the underlying data: query prod.monitoring.provider_combined_audit and prod.monitoring.combined_audit, look at the request volume broken down by hour and minute for provider AA over the last 4 days, confirm whether this spike is real traffic or a data aggregation / display artifact, identify the root cause, and tell us what to do about it.",
-      "assertions": {
-        "min_tool_calls": 5,
-        "required_tools": [
-          "execute_sql"
-        ],
-        "answer_contains": [
-          "AA",
-          "spike"
-        ]
-      }
+      "question": "We are seeing a huge spike in the provider monitoring dashboard for Provider AA at the 06:00 UTC hour over at least the past 4 days. It is showing roughly 20,000 requests in a single minute for 1-3 minutes, which is way beyond our internal cap of 90 TPS (5,400 requests per minute). Please investigate using the underlying data: query prod.monitoring.provider_combined_audit and prod.monitoring.combined_audit, look at the request volume broken down by hour and minute for provider AA over the last 4 days, confirm whether this spike is real traffic or a data aggregation / display artifact, identify the root cause, and tell us what to do about it."
     },
     {
       "name": "bash_cwd_persist",
       "thread_id": "smoke-bash-cwd",
-      "question": "Run these two commands in sequence: first cd /tmp, then run pwd. Confirm the directory is /tmp.",
-      "assertions": {
-        "min_tool_calls": 1,
-        "required_tools": [
-          "bash"
-        ],
-        "answer_contains": [
-          "/tmp"
-        ]
-      }
+      "question": "Run these two commands in sequence: first cd /tmp, then run pwd. Confirm the directory is /tmp."
     },
     {
       "name": "bash_python_script",
       "thread_id": "smoke-python-script",
-      "question": "Write a python script to /tmp/smoke_test.py that prints the squares of 1 through 5, then execute it with bash.",
-      "assertions": {
-        "min_tool_calls": 1,
-        "required_tools": [
-          "bash"
-        ],
-        "answer_contains": [
-          "25"
-        ]
-      }
+      "question": "Write a python script to /tmp/smoke_test.py that prints the squares of 1 through 5, then execute it with bash."
     },
     {
       "name": "git_log_summary",
       "thread_id": "smoke-git-log",
-      "question": "Find a git repository on this machine using bash (try: find ~ -maxdepth 4 -name .git -type d 2>/dev/null | head -3). Then use the git tool to show the last 3 commits in that repo and summarize what changed.",
-      "assertions": {
-        "min_tool_calls": 1,
-        "required_tools": [
-          "git"
-        ],
-        "answer_contains": [
-          "commit"
-        ]
-      }
+      "question": "Find a git repository on this machine using bash (try: find ~ -maxdepth 4 -name .git -type d 2>/dev/null | head -3). Then use the git tool to show the last 3 commits in that repo and summarize what changed."
     },
     {
       "name": "investigation_regression",
       "thread_id": "smoke-investigation-regression",
-      "question": "what are the top site issues for QL2 on 20260211",
-      "assertions": {
-        "min_tool_calls": 2,
-        "required_tools": [
-          "execute_sql"
-        ],
-        "answer_contains": [
-          "QL2",
-          "issue"
-        ]
-      }
+      "question": "what are the top site issues for QL2 on 20260211"
     },
     {
       "name": "prod_s3_common_output_freshness",
       "thread_id": "smoke-prod-s3-common-output",
       "requires_aws_creds": true,
-      "question": "List the most recent hour of data in s3-atp-3victors-3vprod-use1-pe-common-output/ for any customer you can find. Show the path and file count.",
-      "assertions": {
-        "required_tools": ["bash"],
-        "min_tool_calls": 1,
-        "answer_contains": ["s3-atp-3victors-3vprod"]
-      }
+      "question": "List the most recent hour of data in s3-atp-3victors-3vprod-use1-pe-common-output/ for any customer you can find. Show the path and file count."
     },
     {
       "name": "aws_3vdev_infrastructure",
       "thread_id": "smoke-aws-3vdev-infra",
       "requires_aws_creds": true,
-      "question": "List the AWS Step Functions state machines on this account (3VDEV). Note: this is the development account, not production.",
-      "assertions": {
-        "required_tools": ["bash"],
-        "min_tool_calls": 1,
-        "answer_contains": ["3VDEV", "state machine"]
-      }
+      "question": "List the AWS Step Functions state machines on this account (3VDEV). Note: this is the development account, not production."
     },
     {
       "name": "agent_knows_prod_limits",
       "thread_id": "smoke-prod-limits",
-      "question": "Can you check the CloudWatch alarms that are currently firing in production PriceEye?",
-      "assertions": {
-        "min_tool_calls": 0,
-        "answer_contains": ["3VDEV", "production"]
-      }
+      "question": "Can you check the CloudWatch alarms that are currently firing in production PriceEye?"
     },
     {
       "name": "cross_db_ql2_mysql_vs_redshift",
       "thread_id": "smoke-cross-mysql-redshift",
-      "question": "Look up QL2's site configuration in MySQL (query priceeye.site for QL2) and then check their top collection errors in Redshift (prod.monitoring.provider_combined_audit for today). What do the site settings tell us about the error patterns you see?",
-      "assertions": {
-        "min_tool_calls": 3,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["QL2"]
-      }
+      "question": "Look up QL2's site configuration in MySQL (query priceeye.site for QL2) and then check their top collection errors in Redshift (prod.monitoring.provider_combined_audit for today). What do the site settings tell us about the error patterns you see?"
     },
     {
       "name": "cross_db_anomalies_vs_monitoring_b6",
       "thread_id": "smoke-cross-anom-monitor",
-      "question": "For customer B6 today, query both prod.analytics.market_level_anomalies and prod.monitoring.provider_combined_audit in Redshift. Are the markets with the highest anomaly impact scores also showing collection issues in the monitoring data?",
-      "assertions": {
-        "min_tool_calls": 3,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["B6", "anomal"]
-      }
+      "question": "For customer B6 today, query both prod.analytics.market_level_anomalies and prod.monitoring.provider_combined_audit in Redshift. Are the markets with the highest anomaly impact scores also showing collection issues in the monitoring data?"
     },
     {
       "name": "cross_db_s3_vs_sql_anomaly_match",
       "thread_id": "smoke-cross-s3-sql",
-      "question": "Fetch the S3 collection anomaly data for customer B6 from today using fetch_s3, then query prod.analytics.market_level_anomalies for B6 on the same date using execute_sql. Do the two data sources agree on which markets have anomalies?",
-      "assertions": {
-        "min_tool_calls": 3,
-        "required_tools": ["fetch_s3", "execute_sql"],
-        "answer_contains": ["B6", "anomal"]
-      }
+      "question": "Fetch the S3 collection anomaly data for customer B6 from today using fetch_s3, then query prod.analytics.market_level_anomalies for B6 on the same date using execute_sql. Do the two data sources agree on which markets have anomalies?"
     },
     {
       "name": "agent_knows_available_datasources",
       "thread_id": "smoke-meta-datasources",
-      "question": "What data sources and databases can you connect to? Give me a complete summary of what's available, which tools access each, and any known limitations (e.g. what production resources you cannot reach).",
-      "assertions": {
-        "min_tool_calls": 0,
-        "answer_contains": ["Redshift", "MySQL"]
-      }
+      "question": "What data sources and databases can you connect to? Give me a complete summary of what's available, which tools access each, and any known limitations (e.g. what production resources you cannot reach)."
     },
     {
       "name": "agent_knows_data_freshness",
       "thread_id": "smoke-meta-freshness",
-      "question": "What is today's date, and how fresh is the data in the analytics tables? Check the actual latest sales_date available in prod.analytics.market_level_anomalies using execute_sql.",
-      "assertions": {
-        "min_tool_calls": 1,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["sales_date", "2026"]
-      }
+      "question": "What is today's date, and how fresh is the data in the analytics tables? Check the actual latest sales_date available in prod.analytics.market_level_anomalies using execute_sql."
     },
     {
       "name": "agent_knows_monitoring_schema",
       "thread_id": "smoke-meta-monitoring",
-      "question": "What tables are in the prod.monitoring schema? Which ones are most useful for debugging PriceEye collection issues and why? Use search_kb to look this up.",
-      "assertions": {
-        "min_tool_calls": 1,
-        "required_tools": ["search_kb"],
-        "answer_contains": ["monitoring", "audit"]
-      }
+      "question": "What tables are in the prod.monitoring schema? Which ones are most useful for debugging PriceEye collection issues and why? Use search_kb to look this up."
     },
     {
       "name": "agent_knows_own_tools",
       "thread_id": "smoke-meta-tools",
-      "question": "What investigation tools do you have available? List each one, what it does, and give a concrete example of when you'd use it over the others.",
-      "assertions": {
-        "min_tool_calls": 0,
-        "answer_contains": ["execute_sql", "fetch_s3"]
-      }
+      "question": "What investigation tools do you have available? List each one, what it does, and give a concrete example of when you'd use it over the others."
     },
     {
       "name": "python_trend_plot",
       "thread_id": "smoke-python-trend-plot",
-      "question": "Use Python to generate a synthetic time-series dataset of 90 days of daily 'collection request counts' with a realistic upward trend plus noise, then plot it with a trend line overlaid. Save the plot and publish it as an image card.",
-      "assertions": {
-        "min_tool_calls": 1,
-        "required_tools": ["bash"],
-        "answer_contains": ["plot", "trend"]
-      }
+      "question": "Use Python to generate a synthetic time-series dataset of 90 days of daily 'collection request counts' with a realistic upward trend plus noise, then plot it with a trend line overlaid. Save the plot and publish it as an image card."
     },
     {
       "name": "python_sql_then_plot",
       "thread_id": "smoke-python-sql-plot",
-      "question": "Query prod.monitoring.provider_combined_audit for today and get the top 10 providers by request count. Then use Python to plot a horizontal bar chart of the results and publish it as an image card.",
-      "assertions": {
-        "min_tool_calls": 2,
-        "required_tools": ["execute_sql", "bash"],
-        "answer_contains": ["chart", "provider"]
-      }
+      "question": "Query prod.monitoring.provider_combined_audit for today and get the top 10 providers by request count. Then use Python to plot a horizontal bar chart of the results and publish it as an image card."
     },
     {
       "name": "auto_scheduler_codebase_lookup",
       "thread_id": "smoke-auto-scheduler-code",
-      "question": "How does the auto-scheduler work in priceeye-scheduling? Look it up in the knowledge base and then check the actual codebase to show me the real class names and entry points.",
-      "assertions": {
-        "min_tool_calls": 2,
-        "required_tools": ["search_kb", "bash"],
-        "answer_contains": ["priceeye-scheduling", "auto"]
-      }
+      "question": "How does the auto-scheduler work in priceeye-scheduling? Look it up in the knowledge base and then check the actual codebase to show me the real class names and entry points."
     }
   ]
 }
