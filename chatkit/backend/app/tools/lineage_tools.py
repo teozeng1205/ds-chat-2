@@ -27,7 +27,7 @@ from agents import RunContextWrapper, function_tool
 from chatkit.agents import AgentContext
 from chatkit.types import ProgressUpdateEvent
 
-from ..pipelines.graph_store import Direction, GraphStore
+from ..pipelines.graph_store import GraphStore
 from ._common import TIMEOUT_FAST, tool_error
 
 log = logging.getLogger(__name__)

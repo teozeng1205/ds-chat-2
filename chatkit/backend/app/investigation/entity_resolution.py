@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from functools import lru_cache
 from typing import Any
 
 from .catalog import LocalCodeCatalog

@@ -5,13 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.pipelines.canonicalize import (
-    AliasTable,
     RepoEntry,
     merge_edges,
     merge_nodes,
     node_id,
 )
-from app.pipelines.discover_configs import discover, _parse_cfn_template
+from app.pipelines.discover_configs import discover
 
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "pipelines"

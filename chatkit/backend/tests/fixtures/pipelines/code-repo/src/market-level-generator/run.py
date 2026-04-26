@@ -2,6 +2,8 @@
 `market-level-generator/` folder so Pass 3 attributes to that stage."""
 
 import boto3
+import pandas as pd
+
 
 def main():
     s3 = boto3.client("s3")

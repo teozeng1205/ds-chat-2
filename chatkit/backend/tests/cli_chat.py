@@ -21,10 +21,10 @@ from typing import Any
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND_ROOT))
 
-from agents import Runner  # type: ignore[import]
+from agents import Runner  # noqa: E402  # type: ignore[import]
 
-from app.agents.ds_agent import build_agent
-from app.investigation.runtime import cleanup_thread_workspace
+from app.agents.ds_agent import build_agent  # noqa: E402
+from app.investigation.runtime import cleanup_thread_workspace  # noqa: E402
 
 
 def _new_thread_id() -> str:

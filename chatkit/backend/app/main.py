@@ -64,7 +64,7 @@ async def session_state(thread_id: str, request: Request) -> Response:
 
 
 @app.get("/chatkit/images/{filename}")
-async def serve_image(filename: str, request: Request) -> Response:
+async def serve_image(filename: str) -> Response:
     """Serve an image file from /tmp so the agent can display it inline."""
     import mimetypes
     import re
@@ -84,8 +84,6 @@ async def serve_image(filename: str, request: Request) -> Response:
         media_type=mime,
         headers={"Cache-Control": "private, max-age=300"},
     )
-
-
 
 @app.get("/chatkit")
 async def chatkit_endpoint_info() -> Response:

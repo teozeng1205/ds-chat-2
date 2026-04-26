@@ -7,11 +7,7 @@ lives in shell_session._registry keyed by thread_id.
 from __future__ import annotations
 
 import asyncio
-import fnmatch
-import glob as _glob
 import logging
-import os
-import subprocess
 import tempfile
 import time
 from pathlib import Path
@@ -628,7 +624,7 @@ async def render_image(
     except Exception as exc:
         return f"Image saved to {path}. Could not render widget: {exc}"
 
-    return f"Image displayed inline."
+    return "Image displayed inline."
 
 
 # ── Tool 8: download_file ──

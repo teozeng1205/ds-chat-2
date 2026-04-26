@@ -14,6 +14,20 @@ interface SessionStateBarProps {
   threadId: string | null;
 }
 
+function isSessionState(value: unknown): value is SessionState {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const item = value as Record<string, unknown>;
+  return (
+    typeof item.alive === "boolean" &&
+    (typeof item.cwd === "string" || item.cwd === null) &&
+    (typeof item.idle_secs === "number" || item.idle_secs === null) &&
+    (typeof item.model === "string" || item.model === null) &&
+    typeof item.turn_count === "number"
+  );
+}
+
 export function SessionStateBar({ threadId }: SessionStateBarProps) {
   const [state, setState] = useState<SessionState | null>(null);
   useEffect(() => {
@@ -26,14 +40,19 @@ export function SessionStateBar({ threadId }: SessionStateBarProps) {
     const poll = async () => {
       try {
         const r = await fetch(`/chatkit/session/${threadId}`);
-        if (mounted) setState(await r.json());
+        const payload: unknown = await r.json();
+        if (mounted && isSessionState(payload)) {
+          setState(payload);
+        }
       } catch {
         /* ignore network errors */
       }
     };
 
-    poll();
-    const id = setInterval(poll, 3000);
+    void poll();
+    const id = setInterval(() => {
+      void poll();
+    }, 3000);
     return () => {
       mounted = false;
       clearInterval(id);

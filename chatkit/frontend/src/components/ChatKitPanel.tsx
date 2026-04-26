@@ -4,6 +4,7 @@ import {
   type Widgets,
   useChatKit,
 } from "@openai/chatkit-react";
+import type { MutableRefObject } from "react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { CHATKIT_API_DOMAIN_KEY, CHATKIT_API_URL } from "../lib/config";
 import { SessionStateBar } from "./SessionStateBar";
@@ -25,7 +26,7 @@ function ChatKitCore({
   theme: Theme;
   onThreadChange: (args: { threadId: string | null }) => void;
   onWidgetAction: (action: WidgetAction, widgetItem: WidgetActionItem) => Promise<void>;
-  chatkitApiRef: React.MutableRefObject<Pick<
+  chatkitApiRef: MutableRefObject<Pick<
     UseChatKitReturn,
     "sendCustomAction" | "sendUserMessage" | "setComposerValue"
   > | null>;
@@ -56,7 +57,7 @@ function ChatKitCore({
       threadItemActions: { retry: true },
       header: {
         leftAction: {
-          icon: (theme === "dark" ? "light-mode" : "dark-mode") as "light-mode" | "dark-mode",
+          icon: theme === "dark" ? "light-mode" : "dark-mode",
           onClick: onToggleTheme,
         },
       },

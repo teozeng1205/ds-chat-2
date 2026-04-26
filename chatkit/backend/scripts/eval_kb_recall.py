@@ -31,7 +31,7 @@ from typing import Any
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND_ROOT))
 
-from openai import OpenAI
+from openai import OpenAI  # noqa: E402
 
 log = logging.getLogger(__name__)
 

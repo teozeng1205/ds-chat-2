@@ -40,7 +40,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
-from .canonicalize import AliasTable, Node, RepoEntry, node_id
+from .canonicalize import AliasTable, Node, RepoEntry
 
 log = logging.getLogger(__name__)
 

@@ -28,8 +28,8 @@ import sys
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND_ROOT))
 
-from app.investigation.datasources import DatasourceRegistry, datasource_for_table
-from app.investigation.runtime import KNOWLEDGE_ROOT, TABLES_DOC_PATH
+from app.investigation.datasources import DatasourceRegistry, datasource_for_table  # noqa: E402
+from app.investigation.runtime import KNOWLEDGE_ROOT, TABLES_DOC_PATH  # noqa: E402
 
 
 # ── Tables discovered from ds-* repos and priceeye-analytics DDL ──
@@ -64,6 +64,19 @@ def _tier_for_table(table_name: str) -> str:
 
 # MySQL databases to crawl (2-part names kept as-is)
 _ALLOWED_MYSQL_DBS: set[str] = {"priceeye", "analytics", "sales_poc", "taxregression"}
+FEDERATED_SCHEMAS_ANALYTICS = [
+    "federated_priceeye",
+    "federated_metadata",
+    "federated_analytics",
+    "federated_replication",
+    "federated_sales_poc",
+]
+FEDERATED_SCHEMAS_CORE = [
+    "federated_priceeye",
+    "federated_metadata",
+    "federated_sales_poc",
+    "federated_scheduling",
+]
 
 
 def _discover_all_schemas(registry: DatasourceRegistry, datasource: str) -> list[str]:

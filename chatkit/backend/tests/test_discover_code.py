@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.pipelines.canonicalize import (
-    AliasTable,
     RepoEntry,
     merge_edges,
     node_id,
