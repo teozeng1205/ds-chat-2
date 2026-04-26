@@ -377,7 +377,7 @@ def test_datasource_registry_runs_export_credentials_then_falls_back_to_assume(
             self.stdout = stdout
             self.stderr = b"" if isinstance(stdout, bytes) else ""
 
-    def _fake_run(cmd, capture_output=False, text=False, **_kw):
+    def _fake_run(cmd, _capture_output=False, text=False, **_kw):
         calls.append((cmd, bool(text)))
         # First call: export-credentials with text=True → return str, empty
         # stdout so the primary path "loads 0" and we fall through.

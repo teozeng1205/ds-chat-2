@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import re
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, AsyncIterator, Optional
@@ -21,7 +19,6 @@ from chatkit.types import (
     UserMessageItem,
     UserMessageTagContent,
 )
-from openai import AsyncOpenAI
 
 from .attachment_store import LocalDiskAttachmentStore, default_attachment_dir
 from .agents.ds_agent import build_agent
@@ -33,10 +30,6 @@ from .thread_store import InMemoryStore
 MAX_RECENT_ITEMS = 50
 MAX_AGENT_TURNS = 600
 DEFAULT_MODEL = "gpt-5.4"
-TITLE_MODEL = "gpt-5.4-mini"
-MAX_TITLE_CHARS = 80
-MAX_TITLE_USER_TEXTS = 4
-MAX_TITLE_SOURCE_CHARS = 1000
 MAX_ATTACHMENT_SNIPPET_CHARS = 8_000
 TEXT_ATTACHMENT_MIME_TYPES = {
     "application/json",
@@ -48,83 +41,6 @@ TEXT_ATTACHMENT_MIME_TYPES = {
 }
 
 log = logging.getLogger(__name__)
-
-
-def _sanitize_title(value: str) -> str:
-    text = re.sub(r"\s+", " ", value.strip())
-    text = text.strip(" \"'`")
-    text = re.sub(r"\s*[-:|]\s*$", "", text)
-    if len(text) > MAX_TITLE_CHARS:
-        text = text[:MAX_TITLE_CHARS].rstrip()
-    return text
-
-
-def _fallback_title(first_user_text: str | None) -> str | None:
-    if not first_user_text:
-        return None
-    title = _sanitize_title(first_user_text)
-    if len(title) > 55:
-        title = f"{title[:55].rstrip()}..."
-    return title or None
-
-
-def _extract_user_texts(items: list[Any]) -> list[str]:
-    texts: list[str] = []
-    for item in items:
-        if not isinstance(item, UserMessageItem):
-            continue
-        for segment in item.content:
-            if isinstance(segment, dict):
-                seg_type = segment.get("type")
-                seg_text = segment.get("text")
-            else:
-                seg_type = getattr(segment, "type", None)
-                seg_text = getattr(segment, "text", None)
-            if seg_type in {"text", "input_text", "tag"} and isinstance(seg_text, str):
-                cleaned = seg_text.strip()
-                if cleaned:
-                    texts.append(cleaned)
-    return texts
-
-
-async def _generate_thread_title(
-    client: AsyncOpenAI,
-    user_texts: list[str],
-) -> str | None:
-    if not user_texts:
-        return None
-
-    snippets: list[str] = []
-    chars = 0
-    for text in user_texts[:MAX_TITLE_USER_TEXTS]:
-        if chars >= MAX_TITLE_SOURCE_CHARS:
-            break
-        remaining = MAX_TITLE_SOURCE_CHARS - chars
-        clipped = text[:remaining]
-        snippets.append(clipped)
-        chars += len(clipped)
-
-    if not snippets:
-        return None
-
-    response = await client.responses.create(
-        model=TITLE_MODEL,
-        max_output_tokens=24,
-        input=[
-            {
-                "role": "system",
-                "content": (
-                    "Generate a concise thread title from user messages. "
-                    "Return plain text only, 3 to 7 words, no quotes."
-                ),
-            },
-            {
-                "role": "user",
-                "content": "\n".join(f"- {snippet}" for snippet in snippets),
-            },
-        ],
-    )
-    return _sanitize_title(getattr(response, "output_text", "") or "")
 
 
 def _is_text_attachment_mime(mime_type: str) -> bool:
@@ -218,13 +134,14 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
     """Server implementation for active in-process conversations."""
 
     def __init__(self) -> None:
-        self.store = InMemoryStore()
+        self.store = InMemoryStore(max_items_per_thread=MAX_RECENT_ITEMS)
         self.local_attachment_store = LocalDiskAttachmentStore(default_attachment_dir())
-        self._title_client = AsyncOpenAI()
         super().__init__(self.store, attachment_store=self.local_attachment_store)
 
     async def transcribe(self, audio_input: AudioInput, context: dict[str, Any]) -> TranscriptionResult:
         import io
+        from openai import AsyncOpenAI
+
         client = AsyncOpenAI()
         result = await client.audio.transcriptions.create(
             model="whisper-1",
@@ -237,46 +154,6 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
 
     async def read_attachment_payload(self, attachment_id: str) -> bytes:
         return await self.local_attachment_store.read_attachment_bytes(attachment_id)
-
-    @staticmethod
-    def _log_background_error(task: asyncio.Task[None]) -> None:
-        if task.cancelled():
-            return
-        error = task.exception()
-        if error:
-            log.warning("Background task failed: %s", error)
-
-    async def _maybe_set_thread_title(self, thread_id: str, context: dict[str, Any]) -> None:
-        thread = await self.store.load_thread(thread_id, context=context)
-        if thread.title:
-            return
-
-        items_page = await self.store.load_thread_items(
-            thread_id,
-            after=None,
-            limit=MAX_RECENT_ITEMS,
-            order="asc",
-            context=context,
-        )
-        items = items_page.data
-
-        user_texts = _extract_user_texts(items)
-        if not user_texts:
-            return
-
-        title = _fallback_title(user_texts[0])
-        try:
-            generated_title = await _generate_thread_title(self._title_client, user_texts)
-            if generated_title:
-                title = generated_title
-        except Exception as exc:  # noqa: BLE001
-            log.info("Falling back to heuristic thread title: %s", exc)
-
-        if not title:
-            return
-
-        thread.title = title
-        await self.store.save_thread(thread, context=context)
 
     async def get_session_meta(self, thread_id: str, context: dict[str, Any]) -> dict[str, Any]:
         """Return lightweight session metadata for the active thread."""
@@ -348,6 +225,3 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
             close_session(thread.id)
         except Exception as exc:  # noqa: BLE001
             log.warning("Post-session workspace cleanup failed for thread %s: %s", thread.id, exc)
-
-        title_task = asyncio.create_task(self._maybe_set_thread_title(thread.id, context))
-        title_task.add_done_callback(self._log_background_error)

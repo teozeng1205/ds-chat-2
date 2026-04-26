@@ -16,10 +16,11 @@ class InMemoryStore(Store[dict]):
     or SQLite state on disk.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, max_items_per_thread: int | None = None) -> None:
         self._threads: dict[str, ThreadMetadata] = {}
         self._items: dict[str, dict[str, ThreadItem]] = {}
         self._attachments: dict[str, Attachment] = {}
+        self._max_items_per_thread = max_items_per_thread
 
     async def load_thread(self, thread_id: str, context: dict) -> ThreadMetadata:
         try:
@@ -60,7 +61,9 @@ class InMemoryStore(Store[dict]):
     async def add_thread_item(self, thread_id: str, item: ThreadItem, context: dict) -> None:
         if thread_id not in self._threads:
             raise NotFoundError(f"Thread {thread_id} not found")
-        self._items.setdefault(thread_id, {})[item.id] = item
+        items = self._items.setdefault(thread_id, {})
+        items[item.id] = item
+        self._trim_thread_items(items)
 
     async def save_item(self, thread_id: str, item: ThreadItem, context: dict) -> None:
         await self.add_thread_item(thread_id, item, context)
@@ -89,6 +92,13 @@ class InMemoryStore(Store[dict]):
 
     async def delete_attachment(self, attachment_id: str, context: dict) -> None:
         self._attachments.pop(attachment_id, None)
+
+    def _trim_thread_items(self, items: dict[str, ThreadItem]) -> None:
+        if self._max_items_per_thread is None or len(items) <= self._max_items_per_thread:
+            return
+        sorted_items = sorted(items.values(), key=lambda item: item.created_at)
+        for item in sorted_items[: len(items) - self._max_items_per_thread]:
+            items.pop(item.id, None)
 
     def _paginate(
         self,

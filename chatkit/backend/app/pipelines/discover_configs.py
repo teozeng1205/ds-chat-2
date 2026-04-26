@@ -496,7 +496,7 @@ def _parse_cfn_template(
         class _LenientLoader(yaml.SafeLoader):  # type: ignore[misc]
             pass
 
-        def _ignore_tag(loader, tag_suffix, node):  # type: ignore[no-untyped-def]
+        def _ignore_tag(loader, _tag_suffix, node):  # type: ignore[no-untyped-def]
             if isinstance(node, yaml.ScalarNode):
                 return loader.construct_scalar(node)
             if isinstance(node, yaml.SequenceNode):

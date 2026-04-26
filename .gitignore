@@ -1,6 +1,27 @@
 .DS_Store
 **/.DS_Store
 normal_distribution.png
+
+# Dependency installs
+node_modules/
+.venv/
+
+# Build outputs
+dist/
+build/
+
+# Python/tool caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Local runtime records and generated indexes
+chatkit/backend/.runtime/
+chatkit/backend/.work/
+chatkit/backend/app/.data/
+
 chatkit/backend/app/investigation/knowledge/docs/*.md
 # Authored reference docs — keep these in version control
 !chatkit/backend/app/investigation/knowledge/docs/README.md
