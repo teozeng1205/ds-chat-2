@@ -18,7 +18,6 @@ from ..tools.apply_patch import apply_patch_tool
 from ..tools.catalog_tools import catalog_tools
 from ..tools.investigation_tools import investigation_tools_core
 from ..tools.lineage_tools import lineage_tools
-from ..tools.memory_tools import memory_tools
 from ..tools.ops_tools import ops_tools
 from ..tools.shell_tools import shell_tools
 from ..tools.streams_tools import streams_tools
@@ -161,8 +160,6 @@ _TOOL_GUIDE = """## Tool Decision Guide
 | What does an EventBridge rule do | `eventbridge_describe_rule` |
 | Tail a live ingest stream | `kinesis_tail` |
 | Show an existing BI dashboard | `quicksight_list_dashboards`, `quicksight_get_embed_url` |
-| Remember a user preference across threads | `remember(key, value, scope="user")` |
-| Recall what the user told you previously | `recall(key)` / `list_memories()` |
 | Walk the cross-repo data-flow graph (who writes / who reads this table, bucket, or app) | `trace_pipeline(entity, direction, depth)` |
 
 **`edit_file` contract (read-before-edit enforced):**
@@ -243,7 +240,6 @@ def build_agent(model: str) -> Agent[Any]:
         *ops_tools(),        # SFN / Lambda logs / Logs Insights / ECS / alarms / EventBridge
         *streams_tools(),    # kinesis_tail
         *catalog_tools(),    # glue_get_table / glue_get_partitions / quicksight_*
-        *memory_tools(),     # remember / recall / list_memories / forget
         *lineage_tools(),    # trace_pipeline
     ])
     return Agent(

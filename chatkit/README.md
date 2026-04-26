@@ -30,7 +30,8 @@ and set `VITE_CHATKIT_API_DOMAIN_KEY` when deploying.
 
 - Update UI and connection settings in `frontend/src/lib/config.ts`.
 - Adjust layout in `frontend/src/components/ChatKitPanel.tsx`.
-- Swap the in-memory store in `backend/app/server.py` for persistence.
+- `backend/app/server.py` uses a process-local in-memory store so old threads
+  and messages are not retained after restart.
 
 ## DS Chat Investigation Runtime
 
@@ -89,8 +90,8 @@ CLI notes:
 
 E2E smoke reports with full model output and debug steps are written under:
 
-- `backend/.runtime/smoke_reports/*.md`
-- `backend/.runtime/smoke_reports/*.json`
+- `backend/.runtime/e2e_reports/*.md`
+- `backend/.runtime/e2e_reports/*.json`
 
 ## Runtime Flags
 
@@ -119,7 +120,7 @@ E2E smoke reports with full model output and debug steps are written under:
                        ▼
  ┌──────────────────────────────────────────────────────────────────────────────────────────┐
  │  FastAPI :8000  ·  StarterChatServer  (server.py)                                         │
- │  · SQLiteStore → chatkit.sqlite  (threads + messages)                                    │
+ │  · InMemoryStore  (active threads only; no retained history records)                     │
  │  · load last 50 items → agent_input[]  ·  pick model from inference_options              │
  │                                    │ build_agent(model)   ds_agent.py                    │
  │                                    ▼                                                     │

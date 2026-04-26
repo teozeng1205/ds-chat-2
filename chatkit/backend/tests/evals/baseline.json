@@ -1,7 +1,0 @@
-{
-  "_comment": "Baseline scorecard. Update manually after a confirmed-good run. scorecard.py regresses when current < baseline - tolerance.",
-  "overall_pass_rate": 0.0,
-  "per_category_pass_rate": {},
-  "recorded_at": null,
-  "source_log": null
-}
