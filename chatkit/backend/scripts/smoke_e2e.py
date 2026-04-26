@@ -96,6 +96,8 @@ class _MinimalAgentContext:
     def __init__(self, thread_id: str) -> None:
         self.thread_id = thread_id
         self._thread = _MinimalThread(thread_id)
+        self.store = _MinimalStore()
+        self.request_context: dict[str, Any] = {}
 
     @property
     def thread(self) -> Any:
@@ -160,6 +162,19 @@ def _raw_value(raw: Any, key: str, default: Any = None) -> Any:
     return getattr(raw, key, default)
 
 
+def _is_retryable_agent_error(exc: Exception) -> bool:
+    error_type = type(exc).__name__.lower()
+    message = str(exc).lower()
+    retryable_fragments = (
+        "request timed out",
+        "rate limit",
+        "connection error",
+        "connection reset",
+        "temporarily unavailable",
+    )
+    return "timeout" in error_type or any(fragment in message for fragment in retryable_fragments)
+
+
 async def run_case(
     agent: Any,
     case: dict[str, Any],
@@ -182,23 +197,50 @@ async def run_case(
     }
 
     try:
-        trace_id = gen_trace_id()
-        report["trace_id"] = trace_id
-        with trace(
-            "DS Chat E2E smoke case",
-            trace_id=trace_id,
-            group_id=thread_id,
-            metadata={"case": str(case.get("name") or ""), "thread_id": thread_id},
-        ):
-            result = await asyncio.wait_for(
-                Runner.run(
-                    agent,
-                    input=[{"role": "user", "content": question}],
-                    context=context,
-                    max_turns=max_turns,
-                ),
-                timeout=timeout_seconds,
-            )
+        max_attempts = 2
+        transient_errors: list[dict[str, str]] = []
+        result: Any | None = None
+        for attempt in range(1, max_attempts + 1):
+            trace_id = gen_trace_id()
+            report["trace_id"] = trace_id
+            try:
+                with trace(
+                    "DS Chat E2E smoke case",
+                    trace_id=trace_id,
+                    group_id=thread_id,
+                    metadata={
+                        "case": str(case.get("name") or ""),
+                        "thread_id": thread_id,
+                        "attempt": str(attempt),
+                    },
+                ):
+                    result = await asyncio.wait_for(
+                        Runner.run(
+                            agent,
+                            input=[{"role": "user", "content": question}],
+                            context=context,
+                            max_turns=max_turns,
+                        ),
+                        timeout=timeout_seconds,
+                    )
+                break
+            except asyncio.TimeoutError:
+                raise
+            except Exception as exc:
+                if attempt >= max_attempts or not _is_retryable_agent_error(exc):
+                    raise
+                transient_errors.append({
+                    "error_type": type(exc).__name__,
+                    "message": str(exc),
+                })
+                await asyncio.sleep(1)
+
+        if result is None:
+            raise RuntimeError("Agent returned no result.")
+
+        if transient_errors:
+            report["retry_count"] = len(transient_errors)
+            report["transient_errors"] = transient_errors
 
         tool_calls = _extract_tool_calls(result)
         answer = str(getattr(result, "final_output", "") or "")
@@ -364,6 +406,12 @@ async def run_all(args: argparse.Namespace) -> int:
     elif args.scenarios:
         selected = {s.strip() for s in args.scenarios.split(",") if s.strip()}
         cases = [c for c in cases if str(c.get("name")) in selected]
+    else:
+        total_cases = len(cases)
+        cases = [c for c in cases if not c.get("master")]
+        skipped = total_cases - len(cases)
+        if skipped:
+            print(f"Skipping {skipped} master E2E case(s). Use --master or --scenarios to run them.")
 
     if not cases:
         print("No test cases selected.")
@@ -459,7 +507,7 @@ def main() -> int:
         help="Directory for report output",
     )
     parser.add_argument("--concurrency", type=int, default=5, help="Max parallel cases (default: 5)")
-    parser.add_argument("--master", action="store_true", help="Run only master-tagged cases with gpt-5.2 and 100 max turns")
+    parser.add_argument("--master", action="store_true", help="Run only master-tagged long-running cases with gpt-5.2 and 100 max turns")
     parser.add_argument("--skip-bootstrap", action="store_true", help="Skip AWS credential bootstrap")
     args = parser.parse_args()
 

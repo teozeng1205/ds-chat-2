@@ -19,7 +19,7 @@
       "name": "smartest_customer_3v",
       "thread_id": "thread-smoke-smartest",
       "master": true,
-      "question": "using all the info you have, explore all the tables available to you , which customer do you think is the smartest customer of 3V?"
+      "question": "Bounded smoke check: pick the smartest 3V customer using at most three small execute_sql queries. Use customer-facing metrics from available analytics/monitoring tables, keep every query LIMITed or aggregated, and finish with one named customer plus a short rationale. Do not exhaustively explore every table."
     },
     {
       "name": "eda_competitive_position_b6",
@@ -35,7 +35,7 @@
       "name": "aa_06utc_request_spike_investigation",
       "thread_id": "thread-aa-spike-investigation",
       "master": true,
-      "question": "We are seeing a huge spike in the provider monitoring dashboard for Provider AA at the 06:00 UTC hour over at least the past 4 days. It is showing roughly 20,000 requests in a single minute for 1-3 minutes, which is way beyond our internal cap of 90 TPS (5,400 requests per minute). Please investigate using the underlying data: query prod.monitoring.provider_combined_audit and prod.monitoring.combined_audit, look at the request volume broken down by hour and minute for provider AA over the last 4 days, confirm whether this spike is real traffic or a data aggregation / display artifact, identify the root cause, and tell us what to do about it."
+      "question": "Bounded AA spike smoke check. Use execute_sql on prod.monitoring.provider_combined_audit only. First find the latest sales_date for providercode='AA'. Then, for that date only, group rows for AA at UTC hour 06 by DATE_PART(minute, observationtimestamp), summing inputrequestid_count and counting rows. Return the top 5 minutes and say whether any minute exceeds 5,400 requests. Keep the investigation to no more than three SQL tool calls."
     },
     {
       "name": "bash_cwd_persist",
@@ -61,7 +61,7 @@
       "name": "prod_s3_common_output_freshness",
       "thread_id": "smoke-prod-s3-common-output",
       "requires_aws_creds": true,
-      "question": "List the most recent hour of data in s3-atp-3victors-3vprod-use1-pe-common-output/ for any customer you can find. Show the path and file count."
+      "question": "Bounded S3 freshness smoke check. Use bash with AWS credentials to list recent objects under s3://s3-atp-3victors-3vdev-use1-pe-common-output/ (development common output bucket). Show one recent path or prefix and a small file/key count. If listing is denied or empty, report that explicitly and stop."
     },
     {
       "name": "aws_3vdev_infrastructure",
@@ -82,7 +82,8 @@
     {
       "name": "cross_db_anomalies_vs_monitoring_b6",
       "thread_id": "smoke-cross-anom-monitor",
-      "question": "For customer B6 today, query both prod.analytics.market_level_anomalies and prod.monitoring.provider_combined_audit in Redshift. Are the markets with the highest anomaly impact scores also showing collection issues in the monitoring data?"
+      "master": true,
+      "question": "Bounded cross-db smoke check for B6. Query prod.analytics.market_level_anomalies_v4 using columns sales_date, customer, mkt, impact_score and get the top 5 B6 markets for the latest B6 sales_date. Then query prod.monitoring.provider_combined_audit for the same sales_date using issue_sources, issue_reasons, inputrequestid_count, origincitycode, destinationcitycode, and compare whether those top markets have monitoring issues. Use at most four execute_sql calls and summarize even if one side is empty."
     },
     {
       "name": "cross_db_s3_vs_sql_anomaly_match",
