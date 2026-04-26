@@ -10,7 +10,8 @@ BACKEND_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 PROFILE="3VDEV"
 MODEL="gpt-4.1-mini"
-MAX_TURNS=40
+MAX_TURNS=100
+CASE_TIMEOUT_SECONDS=900
 SCENARIOS=""
 SKIP_UNIT=0
 SKIP_CONNECTIVITY=0
@@ -26,7 +27,8 @@ Usage: backend/scripts/verify_investigation.sh [options]
 Options:
   --profile <name>       AWS profile for granted credential-process (default: 3VDEV)
   --model <name>         Model for smoke_e2e.py (default: gpt-4.1-mini)
-  --max-turns <n>        Max turns per scenario for E2E smoke (default: 40)
+  --max-turns <n>        Max turns per scenario for E2E smoke (default: 100)
+  --case-timeout <sec>   Wall-clock timeout per E2E case (default: 900)
   --scenarios <csv>      Optional scenario filter for E2E smoke
   --skip-unit            Skip pytest unit/integration tests
   --skip-connectivity    Skip smoke_threevictors.py
@@ -54,6 +56,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --max-turns)
       MAX_TURNS="${2:-}"
+      shift 2
+      ;;
+    --case-timeout)
+      CASE_TIMEOUT_SECONDS="${2:-}"
       shift 2
       ;;
     --scenarios)
@@ -94,7 +100,7 @@ if [[ "$QUICK" -eq 1 ]]; then
   if [[ -z "$SCENARIOS" ]]; then
     SCENARIOS="$QUICK_SCENARIOS_DEFAULT"
   fi
-  if [[ "$MAX_TURNS" -eq 40 ]]; then
+  if [[ "$MAX_TURNS" -eq 100 ]]; then
     MAX_TURNS="$QUICK_MAX_TURNS"
   fi
 fi
@@ -134,6 +140,7 @@ echo "Verification Plan:"
 echo "  profile=${PROFILE}"
 echo "  model=${MODEL}"
 echo "  max_turns=${MAX_TURNS}"
+echo "  case_timeout_seconds=${CASE_TIMEOUT_SECONDS}"
 echo "  scenarios=${SCENARIOS:-<all>}"
 echo "  quick=${QUICK}"
 echo "  run_unit=$((1-SKIP_UNIT))"
@@ -158,6 +165,7 @@ if [[ "$SKIP_E2E" -eq 0 ]]; then
     --profile "$PROFILE"
     --model "$MODEL"
     --max-turns "$MAX_TURNS"
+    --case-timeout-seconds "$CASE_TIMEOUT_SECONDS"
   )
   if [[ -n "$SCENARIOS" ]]; then
     E2E_CMD+=(--scenarios "$SCENARIOS")

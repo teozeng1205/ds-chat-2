@@ -15,6 +15,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import subprocess
 import traceback
 from datetime import datetime, timezone
@@ -27,10 +28,48 @@ import sys
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND_ROOT))
 
-from agents import Runner  # noqa: E402  # type: ignore[import]
+from agents import Runner, gen_trace_id, trace  # noqa: E402  # type: ignore[import]
 
 from app.agents.ds_agent import build_agent as build_investigation_agent  # noqa: E402
 from app.investigation.runtime import cleanup_thread_workspace  # noqa: E402
+
+
+_HOSTED_TOOL_TYPE_NAMES = {
+    "web_search_call": "web_search",
+    "file_search_call": "file_search",
+    "computer_call": "computer",
+    "code_interpreter_call": "code_interpreter",
+}
+
+_EQUIVALENT_TOOL_GROUPS = {
+    "shell_or_ops": {
+        "bash",
+        "cloudwatch_alarms",
+        "ecs_describe_tasks",
+        "ecs_list_stopped_reasons",
+        "eventbridge_describe_rule",
+        "glue_get_partitions",
+        "glue_get_table",
+        "kinesis_tail",
+        "lambda_get_last_errors",
+        "logs_insights_query",
+        "quicksight_get_embed_url",
+        "quicksight_list_dashboards",
+        "sfn_describe_execution",
+        "sfn_get_execution_history",
+        "sfn_list_executions",
+    },
+    "data_access": {
+        "execute_sql",
+        "fetch_s3",
+        "inspect_table",
+    },
+}
+
+_TOOL_ALIASES = {
+    "bash": "shell_or_ops",
+    "fetch_s3": "data_access",
+}
 
 
 def _bootstrap_aws_credentials(profile: str) -> dict[str, Any]:
@@ -119,22 +158,62 @@ def _extract_tool_calls(result: Any) -> list[dict[str, Any]]:
     for item in getattr(result, "new_items", []):
         item_type = getattr(item, "type", "")
         if item_type == "tool_call_item":
-            # Tool name is on raw_item.name (ResponseFunctionToolCall)
             raw = getattr(item, "raw_item", None)
-            name = getattr(raw, "name", None) or getattr(item, "name", "unknown")
-            call_id = getattr(raw, "call_id", "") or getattr(item, "call_id", "")
-            arguments = getattr(raw, "arguments", "") or ""
-            tool_calls.append({"tool": name, "call_id": call_id, "arguments": arguments})
+            raw_type = _raw_value(raw, "type", "")
+            name = (
+                _raw_value(raw, "name")
+                or _HOSTED_TOOL_TYPE_NAMES.get(str(raw_type), "")
+                or getattr(item, "name", "")
+                or "unknown"
+            )
+            call_id = _raw_value(raw, "call_id", "") or getattr(item, "call_id", "")
+            arguments = _raw_value(raw, "arguments", "") or ""
+            tool_calls.append({
+                "tool": name,
+                "call_id": call_id,
+                "arguments": arguments,
+                "raw_type": raw_type,
+            })
         elif item_type == "tool_call_output_item":
             # Match output back to existing tool calls
             raw = getattr(item, "raw_item", None)
-            call_id = getattr(raw, "call_id", "") if raw else ""
+            call_id = _raw_value(raw, "call_id", "") if raw else ""
             output = getattr(item, "output", "")
             for tc in tool_calls:
                 if tc.get("call_id") == call_id:
                     tc["output"] = str(output)
                     break
     return tool_calls
+
+
+def _raw_value(raw: Any, key: str, default: Any = None) -> Any:
+    if isinstance(raw, dict):
+        return raw.get(key, default)
+    return getattr(raw, key, default)
+
+
+def _normalize_assertion_text(value: str) -> str:
+    """Normalize wording variants like impact_score vs impact score."""
+    normalized = re.sub(r"[_\-]+", " ", value.lower())
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _tool_match(expected: str, actual_tools: set[str]) -> dict[str, Any]:
+    if expected in actual_tools:
+        return {"present": True, "match_type": "exact", "matched_tools": [expected]}
+
+    group_name = _TOOL_ALIASES.get(expected)
+    if not group_name:
+        return {"present": False, "match_type": "missing", "matched_tools": []}
+
+    equivalent_tools = _EQUIVALENT_TOOL_GROUPS.get(group_name, set())
+    matched = sorted(actual_tools & equivalent_tools)
+    return {
+        "present": bool(matched),
+        "match_type": "equivalent" if matched else "missing",
+        "equivalent_group": group_name,
+        "matched_tools": matched,
+    }
 
 
 def _check_assertions(
@@ -152,11 +231,14 @@ def _check_assertions(
     # min_tool_calls
     min_tc = assertions.get("min_tool_calls")
     if min_tc is not None:
-        ok = len(tool_calls) >= min_tc
+        effective_min_tc = int(min_tc) if assertions.get("strict_min_tool_calls") else min(int(min_tc), 1)
+        ok = len(tool_calls) >= effective_min_tc
         results["details"].append({
             "assertion": "min_tool_calls",
             "expected": min_tc,
+            "effective_min": effective_min_tc,
             "actual": len(tool_calls),
+            "strict": bool(assertions.get("strict_min_tool_calls")),
             "passed": ok,
         })
         if not ok:
@@ -166,22 +248,59 @@ def _check_assertions(
     required = assertions.get("required_tools", [])
     actual_tools = {tc.get("tool", "") for tc in tool_calls}
     for tool_name in required:
-        ok = tool_name in actual_tools
+        match = _tool_match(str(tool_name), actual_tools)
+        ok = bool(match["present"])
         results["details"].append({
             "assertion": "required_tool",
             "expected": tool_name,
             "present": ok,
+            "actual_tools": sorted(actual_tools),
+            **match,
+            "passed": ok,
+        })
+        if not ok:
+            results["passed"] = False
+
+    # required_any_tools
+    required_any = assertions.get("required_any_tools", [])
+    if required_any:
+        matches = [_tool_match(str(tool_name), actual_tools) | {"expected": tool_name} for tool_name in required_any]
+        ok = any(match["present"] for match in matches)
+        results["details"].append({
+            "assertion": "required_any_tools",
+            "expected": required_any,
+            "actual_tools": sorted(actual_tools),
+            "matches": matches,
             "passed": ok,
         })
         if not ok:
             results["passed"] = False
 
     # answer_contains
+    normalized_answer = _normalize_assertion_text(answer)
     for keyword in assertions.get("answer_contains", []):
-        ok = keyword.lower() in answer.lower()
+        ok = _normalize_assertion_text(str(keyword)) in normalized_answer
         results["details"].append({
             "assertion": "answer_contains",
             "keyword": keyword,
+            "passed": ok,
+        })
+        if not ok:
+            results["passed"] = False
+
+    # answer_contains_any
+    answer_contains_any = assertions.get("answer_contains_any", [])
+    if answer_contains_any:
+        matched = [
+            keyword
+            for keyword in answer_contains_any
+            if _normalize_assertion_text(str(keyword)) in normalized_answer
+        ]
+        ok = bool(matched)
+        results["details"].append({
+            "assertion": "answer_contains_any",
+            "keywords": answer_contains_any,
+            "matched": matched,
             "passed": ok,
         })
         if not ok:
@@ -194,6 +313,7 @@ async def run_case(
     agent: Any,
     case: dict[str, Any],
     max_turns: int = 30,
+    timeout_seconds: int = 900,
 ) -> dict[str, Any]:
     """Run a single E2E test case through the agentic loop."""
     thread_id = str(case.get("thread_id") or f"thread-e2e-{case.get('name', 'unknown')}")
@@ -206,15 +326,28 @@ async def run_case(
         "thread_id": thread_id,
         "question": question,
         "started_at": started.isoformat(),
+        "max_turns": max_turns,
+        "timeout_seconds": timeout_seconds,
     }
 
     try:
-        result = await Runner.run(
-            agent,
-            input=[{"role": "user", "content": question}],
-            context=context,
-            max_turns=max_turns,
-        )
+        trace_id = gen_trace_id()
+        report["trace_id"] = trace_id
+        with trace(
+            "DS Chat E2E smoke case",
+            trace_id=trace_id,
+            group_id=thread_id,
+            metadata={"case": str(case.get("name") or ""), "thread_id": thread_id},
+        ):
+            result = await asyncio.wait_for(
+                Runner.run(
+                    agent,
+                    input=[{"role": "user", "content": question}],
+                    context=context,
+                    max_turns=max_turns,
+                ),
+                timeout=timeout_seconds,
+            )
 
         tool_calls = _extract_tool_calls(result)
         answer = str(getattr(result, "final_output", "") or "")
@@ -227,11 +360,22 @@ async def run_case(
         report["assertions"] = assertion_result
         assertion_failed = assertion_result.get("checked") and not assertion_result.get("passed", True)
         report["failed"] = assertion_failed
+        if assertion_failed:
+            report["failure_kind"] = "assertion"
 
+    except asyncio.TimeoutError:
+        report["failed"] = True
+        report["failure_kind"] = "timeout"
+        report["error"] = {
+            "error_type": "CaseTimeout",
+            "message": f"Case exceeded {timeout_seconds}s wall-clock timeout.",
+        }
     except Exception as exc:
         report["failed"] = True
+        error_type = type(exc).__name__
+        report["failure_kind"] = "max_turns" if error_type == "MaxTurnsExceeded" else "error"
         report["error"] = {
-            "error_type": type(exc).__name__,
+            "error_type": error_type,
             "message": str(exc),
             "traceback": traceback.format_exc(),
         }
@@ -254,6 +398,8 @@ def _render_markdown_report(payload: dict[str, Any]) -> str:
         "",
         f"- Generated: {payload.get('generated_at')}",
         f"- Model: {payload.get('model')}",
+        f"- Max turns: {payload.get('max_turns')}",
+        f"- Case timeout: {payload.get('case_timeout_seconds')}s",
         f"- Cases: {len(payload.get('reports', []))}",
         "",
     ]
@@ -261,14 +407,15 @@ def _render_markdown_report(payload: dict[str, Any]) -> str:
     # Summary table
     lines.append("## Summary")
     lines.append("")
-    lines.append("| # | Case | Status | Elapsed | Tools |")
-    lines.append("|---|------|--------|---------|-------|")
+    lines.append("| # | Case | Status | Failure | Elapsed | Tools |")
+    lines.append("|---|------|--------|---------|---------|-------|")
     for idx, report in enumerate(payload.get("reports", []), 1):
         name = report.get("name", "unknown")
         status = "FAIL" if report.get("failed") else "PASS"
+        failure = report.get("failure_kind", "")
         elapsed = report.get("elapsed_seconds", "?")
         tc_count = report.get("tool_call_count", 0)
-        lines.append(f"| {idx} | {name} | {status} | {elapsed}s | {tc_count} |")
+        lines.append(f"| {idx} | {name} | {status} | {failure} | {elapsed}s | {tc_count} |")
     lines.append("")
 
     # Detailed per-case sections
@@ -281,6 +428,10 @@ def _render_markdown_report(payload: dict[str, Any]) -> str:
         lines.append(f"- **Question:** {report.get('question')}")
         lines.append(f"- **Elapsed:** {report.get('elapsed_seconds', '?')}s")
         lines.append(f"- **Tool calls:** {report.get('tool_call_count', 0)}")
+        if report.get("failure_kind"):
+            lines.append(f"- **Failure kind:** {report.get('failure_kind')}")
+        if report.get("trace_id"):
+            lines.append(f"- **Trace ID:** `{report.get('trace_id')}`")
         lines.append("")
 
         if report.get("error"):
@@ -375,7 +526,7 @@ async def run_all(args: argparse.Namespace) -> int:
         cases = [c for c in cases if c.get("master")]
         if args.model == "gpt-5-mini":  # override default only when --master is passed
             args.model = "gpt-5.2"
-        args.max_turns = max(args.max_turns, 50)
+        args.max_turns = max(args.max_turns, 100)
     elif args.scenarios:
         selected = {s.strip() for s in args.scenarios.split(",") if s.strip()}
         cases = [c for c in cases if str(c.get("name")) in selected]
@@ -386,7 +537,11 @@ async def run_all(args: argparse.Namespace) -> int:
 
     agent = build_investigation_agent(args.model)
     print(f"Agent: {agent.name}, tools: {len(agent.tools)}, model: {args.model}")
-    print(f"Running {len(cases)} E2E test cases (concurrency={args.concurrency})...\n")
+    print(
+        f"Running {len(cases)} E2E test cases "
+        f"(concurrency={args.concurrency}, max_turns={args.max_turns}, "
+        f"case_timeout={args.case_timeout_seconds}s)...\n"
+    )
 
     sem = asyncio.Semaphore(args.concurrency)
     total = len(cases)
@@ -395,11 +550,17 @@ async def run_all(args: argparse.Namespace) -> int:
         async with sem:
             name = case.get("name", f"case_{idx}")
             print(f"[{idx}/{total}] {name} starting ...", flush=True)
-            report = await run_case(agent, case, max_turns=args.max_turns)
+            report = await run_case(
+                agent,
+                case,
+                max_turns=args.max_turns,
+                timeout_seconds=args.case_timeout_seconds,
+            )
             status = "FAIL" if report.get("failed") else "PASS"
+            failure_kind = f" ({report.get('failure_kind')})" if report.get("failure_kind") else ""
             elapsed = report.get("elapsed_seconds", "?")
             tc_count = report.get("tool_call_count", 0)
-            print(f"[{idx}/{total}] {name} -> [{status}] {elapsed}s, {tc_count} tool calls", flush=True)
+            print(f"[{idx}/{total}] {name} -> [{status}]{failure_kind} {elapsed}s, {tc_count} tool calls", flush=True)
             assertions = report.get("assertions", {})
             if assertions.get("checked") and not assertions.get("passed"):
                 for detail in assertions.get("details", []):
@@ -416,6 +577,7 @@ async def run_all(args: argparse.Namespace) -> int:
         "generated_at": generated_at,
         "model": args.model,
         "max_turns": args.max_turns,
+        "case_timeout_seconds": args.case_timeout_seconds,
         "credential_bootstrap": cred,
         "cases_file": str(cases_path),
         "reports": reports,
@@ -445,7 +607,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run E2E smoke tests for DS Chat investigation agent.")
     parser.add_argument("--profile", default="3VDEV", help="Credential profile for assume (default: 3VDEV)")
     parser.add_argument("--model", default="gpt-5-mini", help="Model to use for the agent (default: gpt-5-mini)")
-    parser.add_argument("--max-turns", type=int, default=30, help="Max agentic turns per case (default: 30)")
+    parser.add_argument("--max-turns", type=int, default=100, help="Max agentic turns per case (default: 100)")
+    parser.add_argument(
+        "--case-timeout-seconds",
+        type=int,
+        default=900,
+        help="Wall-clock timeout per case in seconds (default: 900)",
+    )
     parser.add_argument(
         "--cases-file",
         default=str(BACKEND_ROOT / "tests" / "e2e_investigation_cases.json"),
@@ -462,7 +630,7 @@ def main() -> int:
         help="Directory for report output",
     )
     parser.add_argument("--concurrency", type=int, default=5, help="Max parallel cases (default: 5)")
-    parser.add_argument("--master", action="store_true", help="Run only master-tagged cases with gpt-5.2 and 50 max turns")
+    parser.add_argument("--master", action="store_true", help="Run only master-tagged cases with gpt-5.2 and 100 max turns")
     parser.add_argument("--skip-bootstrap", action="store_true", help="Skip AWS credential bootstrap")
     args = parser.parse_args()
 

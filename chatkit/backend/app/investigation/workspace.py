@@ -127,11 +127,19 @@ class WorkspaceManager:
                 local_path = csv_path
                 file_format = "csv"
 
+        column_type_counts: dict[str, int] = {}
+        column_types: dict[str, str] = {}
+        for idx, col in enumerate(df.columns):
+            column_name = str(col)
+            column_type_counts[column_name] = column_type_counts.get(column_name, 0) + 1
+            type_key = column_name if column_type_counts[column_name] == 1 else f"{column_name}#{column_type_counts[column_name]}"
+            column_types[type_key] = str(df.iloc[:, idx].dtype)
+
         record = {
             "dataset_id": dataset_id,
             "row_count": int(len(df)),
             "columns": [str(col) for col in df.columns],
-            "column_types": {str(col): str(df[col].dtype) for col in df.columns},
+            "column_types": column_types,
             "local_path": str(local_path),
             "format": file_format,
             "source_metadata": source_metadata,

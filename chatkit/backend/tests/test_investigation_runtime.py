@@ -225,6 +225,23 @@ def test_workspace_save_dataset_includes_column_types(tmp_path: Path):
     assert record["column_types"]["b"] == "object"
 
 
+def test_workspace_save_dataset_handles_duplicate_column_names(tmp_path: Path):
+    workspace = WorkspaceManager(root=tmp_path / "sessions")
+    thread_id = "thread-duplicate-types"
+    run_id = workspace.start_run(thread_id)
+
+    frame = pd.DataFrame([[1, "x"], [2, "y"]], columns=["a", "a"])
+    record = workspace.save_dataset(
+        thread_id=thread_id,
+        run_id=run_id,
+        df=frame,
+        source_metadata={"type": "test"},
+    )
+
+    assert record["columns"] == ["a", "a"]
+    assert record["column_types"] == {"a": "int64", "a#2": "object"}
+
+
 def test_workspace_cleanup_retains_manifest(tmp_path: Path):
     workspace = WorkspaceManager(root=tmp_path / "sessions")
     thread_id = "thread-1"
