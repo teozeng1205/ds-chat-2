@@ -294,6 +294,15 @@ class InvestigationRuntime:
             "elapsed_ms": elapsed_ms,
         }
 
+    # ── Tool implementation: list_s3 ──
+
+    def list_s3(self, *, bucket: str, prefix: str = "", max_keys: int = 50) -> dict[str, Any]:
+        """List S3 object metadata without saving a dataset."""
+        started = time.time()
+        result = self.registry.list_s3_objects(bucket, prefix, max_keys=max_keys)
+        result["elapsed_ms"] = int((time.time() - started) * 1000)
+        return result
+
     # ── Tool implementation: run_python ──
 
     def run_python(

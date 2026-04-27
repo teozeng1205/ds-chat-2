@@ -30,10 +30,12 @@
     {
       "name": "how_does_priceeye_work",
       "thread_id": "thread-smoke-priceeye-arch",
-      "question": "how does priceeye work? Use search_kb to ground your answer in the indexed documentation and quote at least one specific source file.",
+      "question": "how does priceeye work? Use search_kb to ground your answer in the indexed documentation and quote at least one specific source file. This is a bounded documentation answer; do not inspect repos or run shell commands.",
       "assertions": {
         "min_tool_calls": 1,
+        "max_tool_calls": 2,
         "required_tools": ["search_kb"],
+        "forbidden_tools": ["bash", "read_file", "trace_pipeline"],
         "answer_contains": ["PriceEye"]
       }
     },
@@ -117,10 +119,12 @@
       "name": "prod_s3_common_output_freshness",
       "thread_id": "smoke-prod-s3-common-output",
       "requires_aws_creds": true,
-      "question": "Bounded S3 freshness smoke check. Use bash with AWS credentials to list the latest visible objects under s3://s3-atp-3victors-3vdev-use1-pe-common-output/ (development common output bucket). Show one latest path or prefix and a small file/key count. If the latest visible object is old relative to today's date, explicitly call it stale rather than recent.",
+      "question": "Bounded S3 freshness smoke check. Use list_s3 with max_keys 50000 to list the latest visible objects under s3://s3-atp-3victors-3vdev-use1-pe-common-output/ (development common output bucket). Show one latest path or prefix and the scanned key count. If the latest visible object is old relative to today's date, explicitly call it stale rather than recent. Do not use bash, run_python, or review_answer.",
       "assertions": {
         "min_tool_calls": 1,
-        "required_tools": ["bash"],
+        "max_tool_calls": 2,
+        "required_tools": ["list_s3"],
+        "forbidden_tools": ["bash", "run_python", "review_answer"],
         "answer_contains": ["s3-atp-3victors-3vdev-use1-pe-common-output"],
         "answer_not_contains": ["recent objects"]
       }
@@ -149,13 +153,14 @@
     {
       "name": "cross_db_ql2_mysql_vs_redshift",
       "thread_id": "smoke-cross-mysql-redshift",
-      "question": "Look up QL2's site configuration in MySQL using priceeye.site columns provider_code, site_code, site_name, type, retry_count, and status only. Do not select site_category. Then check QL2's top collection errors in Redshift prod.monitoring.provider_combined_audit for today using plural issue_reasons / issue_sources; do not filter provider_combined_audit by status because that table has no status column. What do the site settings tell us about the error patterns you see? Finish with the answer; do not ask a follow-up.",
+      "question": "Bounded cross-db check. Look up QL2's site configuration in MySQL using priceeye.site columns provider_code, site_code, site_name, type, retry_count, and status only. Do not select site_category. Then check QL2's top collection errors in Redshift prod.monitoring.provider_combined_audit for today using sales_date = YYYYMMDD as an integer partition filter and plural issue_reasons / issue_sources; do not use scheduledate and do not filter provider_combined_audit by status because that table has no status column. Use at most three SQL calls, then answer directly. What do the site settings tell us about the error patterns you see? Finish with the answer; do not ask a follow-up.",
       "assertions": {
         "min_tool_calls": 2,
+        "max_tool_calls": 5,
         "max_tool_errors": 0,
         "required_tools": ["execute_sql"],
         "answer_contains": ["QL2"],
-        "answer_not_contains": ["providercode", "site_category", "non-read-only", "would you like me"]
+        "answer_not_contains": ["site_category", "non-read-only", "would you like me", "do you want me"]
       }
     },
     {
@@ -199,10 +204,12 @@
     {
       "name": "agent_knows_monitoring_schema",
       "thread_id": "smoke-meta-monitoring",
-      "question": "What tables are in the prod.monitoring schema? Which ones are most useful for debugging PriceEye collection issues and why? Use search_kb to look this up.",
+      "question": "What tables are in the prod.monitoring schema? Which ones are most useful for debugging PriceEye collection issues and why? Use search_kb to look this up. This is a bounded KB lookup; do not run SQL, Glue, inspect_table, bash, or read_file.",
       "assertions": {
         "min_tool_calls": 1,
+        "max_tool_calls": 2,
         "required_tools": ["search_kb"],
+        "forbidden_tools": ["execute_sql", "inspect_table", "glue_get_table", "bash", "read_file"],
         "answer_contains": ["provider_combined_audit"]
       }
     },

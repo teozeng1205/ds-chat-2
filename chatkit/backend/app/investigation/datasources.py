@@ -399,6 +399,59 @@ class DatasourceRegistry:
         merged = pd.concat(frames, ignore_index=True)
         return merged, keys
 
+    def list_s3_objects(
+        self, bucket: str, prefix: str = "", *, max_keys: int = 50000
+    ) -> dict[str, Any]:
+        """List S3 object metadata without downloading object bodies."""
+        self.ensure_credentials()
+        if self._s3 is None:
+            raise DatasourceDependencyError("ds-threevictors s3_util is not installed")
+
+        s3_client = getattr(self._s3, "s3_client", None)
+        if s3_client is None and hasattr(self._s3, "get_s3_client"):
+            s3_client = self._s3.get_s3_client()
+        if s3_client is None:
+            raise DatasourceDependencyError("Unable to initialize S3 client from ds-threevictors S3Util")
+
+        max_keys = max(1, min(int(max_keys), 50000))
+        requested_prefix = prefix.strip()
+        objects: list[dict[str, Any]] = []
+        continuation: str | None = None
+        is_truncated = False
+        while len(objects) < max_keys:
+            kwargs: dict[str, Any] = {
+                "Bucket": bucket,
+                "Prefix": requested_prefix,
+                "MaxKeys": min(1000, max_keys - len(objects)),
+            }
+            if continuation:
+                kwargs["ContinuationToken"] = continuation
+            response = s3_client.list_objects_v2(**kwargs)
+            for item in response.get("Contents", []) or []:
+                last_modified = item.get("LastModified")
+                objects.append(
+                    {
+                        "key": str(item.get("Key", "")),
+                        "size": int(item.get("Size") or 0),
+                        "last_modified": last_modified.isoformat() if hasattr(last_modified, "isoformat") else str(last_modified or ""),
+                    }
+                )
+            is_truncated = bool(response.get("IsTruncated"))
+            continuation = response.get("NextContinuationToken")
+            if not is_truncated or not continuation:
+                break
+
+        objects.sort(key=lambda row: row.get("last_modified") or "", reverse=True)
+        return {
+            "bucket": bucket,
+            "prefix": requested_prefix,
+            "object_count": len(objects),
+            "is_truncated": is_truncated,
+            "max_keys_scanned": max_keys,
+            "latest": objects[0] if objects else None,
+            "objects": objects[:50],
+        }
+
 
 __all__ = [
     "CredentialsBootstrapError",

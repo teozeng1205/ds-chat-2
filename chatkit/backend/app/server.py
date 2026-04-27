@@ -29,7 +29,7 @@ from .thread_store import InMemoryStore
 
 MAX_RECENT_ITEMS = 50
 MAX_AGENT_TURNS = 600
-DEFAULT_MODEL = "gpt-5.4"
+DEFAULT_MODEL = "gpt-5.5"
 MAX_ATTACHMENT_SNIPPET_CHARS = 8_000
 TEXT_ATTACHMENT_MIME_TYPES = {
     "application/json",

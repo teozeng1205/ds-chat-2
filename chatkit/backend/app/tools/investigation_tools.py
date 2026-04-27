@@ -414,7 +414,41 @@ async def fetch_s3(
         return {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
 
 
-# ── Tool 3: run_python ──
+# ── Tool 3: list_s3 ──
+
+@function_tool(timeout=TIMEOUT_SHORT_NET, failure_error_function=tool_error)
+async def list_s3(
+    ctx: RunContextWrapper[AgentContext],
+    bucket: str,
+    prefix: str = "",
+    max_keys: int = 50000,
+) -> dict[str, Any]:
+    """List S3 object metadata without downloading files.
+
+    Args:
+        bucket: S3 bucket name.
+        prefix: Optional S3 prefix.
+        max_keys: Maximum keys to scan, clamped to 1..50000. The tool returns
+            the newest 50 scanned objects, not every scanned key.
+
+    Returns: object_count, latest object metadata, and listed object metadata.
+    """
+    try:
+        runtime = get_runtime()
+        await _stream_progress(ctx, "clock", f"Listing S3 objects in {bucket}.")
+        result = runtime.list_s3(bucket=bucket, prefix=prefix, max_keys=max_keys)
+        await _stream_progress(
+            ctx,
+            "check-circle",
+            f"S3 list complete: {result.get('object_count')} keys.",
+        )
+        return result
+    except Exception as exc:
+        log.exception("list_s3 failed")
+        return {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
+
+
+# ── Tool 4: run_python ──
 
 @function_tool(timeout=TIMEOUT_DB_QUERY, failure_error_function=tool_error)
 async def run_python(
@@ -449,7 +483,7 @@ async def run_python(
         return {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
 
 
-# ── Tool 4: inspect_table ──
+# ── Tool 5: inspect_table ──
 
 @function_tool(timeout=TIMEOUT_DB_QUERY, failure_error_function=tool_error)
 async def inspect_table(
@@ -829,6 +863,7 @@ def investigation_tools_core() -> list[Any]:
     return [
         execute_sql,
         fetch_s3,
+        list_s3,
         run_python,
         inspect_table,
         search_kb,
@@ -840,6 +875,7 @@ def investigation_tools_core() -> list[Any]:
 __all__ = [
     "cleanup_thread_workspace",
     "investigation_tools_core",
+    "list_s3",
     "publish_image",
     "run_python",
 ]

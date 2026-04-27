@@ -118,10 +118,15 @@ function ChatKitCore({
         dictation: { enabled: true },
         models: [
           {
-            id: "gpt-5.4",
+            id: "gpt-5.5",
             label: "Default",
-            description: "gpt-5.4 — most capable",
+            description: "gpt-5.5 — default",
             default: true,
+          },
+          {
+            id: "gpt-5.4",
+            label: "5.4",
+            description: "gpt-5.4 — fallback",
           },
           {
             id: "gpt-5.4-mini",

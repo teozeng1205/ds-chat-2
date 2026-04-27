@@ -101,6 +101,7 @@ export function SessionStateBar({ threadId }: SessionStateBarProps) {
         {state?.model && (
           <span className="text-slate-400 shrink-0">
             {({
+              "gpt-5.5": "5.5",
               "gpt-5.4": "5.4",
               "gpt-5.4-mini": "mini",
               "gpt-5-mini": "mini",

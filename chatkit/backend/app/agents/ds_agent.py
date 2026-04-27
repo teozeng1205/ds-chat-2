@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from agents import Agent, ModelSettings, WebSearchTool
+from agents.model_settings import Reasoning
 from agents.models.openai_responses import OpenAIResponsesModel
 from openai import AsyncOpenAI
 
@@ -96,6 +97,21 @@ print(df.shape)
 - Use it before starting any task that is 5+ steps, has unknown scope, or requires decisions
   about architecture/approach. Skip it for simple, direct requests.
 
+**Bounded work discipline (GPT-5.5 default):**
+- If the user says "bounded", "smoke", "quick", "use X tool", or names exact tables/columns,
+  follow that scope literally. Do not broaden into codebase lookup, Glue discovery, reviewer
+  calls, or extra validation unless the first tool result is unusable.
+- Prefer the shortest sufficient path: one KB lookup for KB-only questions, one SQL query for
+  a direct aggregate, one S3 listing/fetch for an S3 freshness check.
+- Stop when you have enough evidence to answer the question. Do not keep exploring for
+  completeness after the requested answer is already supported.
+- Keep final answers operational and compact: lead with the result, include the key numbers,
+  mention the source/environment, and omit process narration such as "I grounded this" unless
+  the user asked for methodology.
+- Use `review_answer` at most once, and only when the user asks for an audit/validation or
+  when you are making nontrivial derived numeric claims. Do not call it for direct smoke tests,
+  simple table listings, or answers that quote tool previews directly.
+
 **Codebase exploration:**
 - Treat the shell like Claude Code / Codex: use `bash` (find, grep, cat, git log, git blame),
   `read_file`, `list_dir`, and `git` to explore unknown repos.
@@ -149,6 +165,7 @@ _TOOL_GUIDE = """## Tool Decision Guide
 | Complex multi-step task (5+ steps) | `plan_task` first, then execute |
 | Query Redshift/MySQL | `execute_sql` |
 | Fetch S3 data | `fetch_s3` |
+| List S3 objects / freshness without downloading | `list_s3` |
 | Inspect table schema (local cache) | `inspect_table` |
 | Inspect table schema (live Glue catalog) | `glue_get_table`, `glue_get_partitions` |
 | Search knowledge base | `search_kb` |
@@ -246,7 +263,10 @@ def build_agent(model: str) -> Agent[Any]:
     ])
     return Agent(
         model=OpenAIResponsesModel(model=model, openai_client=AsyncOpenAI()),
-        model_settings=ModelSettings(),
+        model_settings=ModelSettings(
+            reasoning=Reasoning(effort="medium"),
+            verbosity="medium",
+        ),
         name="DS Chat Agent",
         instructions=_build_instructions(),
         tools=tools,
