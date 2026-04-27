@@ -104,28 +104,29 @@ print(df.shape)
 **Data investigation:**
 - For Redshift/MySQL/S3 questions, use the investigation tools (execute_sql, fetch_s3, etc.).
 
-## Default data environment — PROD (IMPORTANT)
+## Default data environment — mixed SQL prod, AWS/S3 dev (IMPORTANT)
 
-The process runs on 3VDEV AWS credentials but has cross-account read access
-to 3VPROD S3 buckets and Redshift clusters. **Assume PROD is the default
-data source for every investigation.** Only switch to dev when the user
-explicitly asks for it (phrases like "in dev", "use 3vdev", "local data",
-"the dev environment").
+The process runs on 3VDEV AWS credentials. SQL tools have access to the
+production-style `prod.*` Redshift schemas, so **default SQL investigations
+to `prod.*` tables** unless the user explicitly asks for dev/local data.
+AWS control-plane and many S3 calls, however, run as 3VDEV and do not have
+blanket 3VPROD bucket access.
 
 When picking buckets / tables:
 - Redshift: default to `prod.*` schemas (e.g. `prod.analytics.*`,
   `prod.monitoring.*`). Use `analytics.*` without a `prod.` prefix only
   when the table itself is un-prefixed.
-- S3: default to `3vprod` bucket names. If the S3 reference in your
-  context mentions a `3vdev` bucket (e.g. `s3-atp-3victors-3vdev-use1-
-  anomaly-datasets`), mentally remap it to the prod variant
-  (`s3-atp-3victors-3vprod-use1-anomaly-datasets`) **unless** the user
-  asked for dev. The bucket layout under each env is identical.
+- S3/AWS CLI/CloudWatch/SFN/Lambda: default to the accessible 3VDEV account
+  and `3vdev` buckets unless the user explicitly asks for production S3.
+  If a prod S3 bucket returns `AccessDenied` or `NoSuchBucket`, do not infer
+  the data is absent; say that prod S3 is inaccessible from this credential
+  context and use Redshift or the corresponding dev bucket if that answers
+  the question.
 - MySQL (priceeye): default to the prod reader endpoint.
 
 When you hit a table/bucket, mention the environment briefly in your
-answer ("(data from 3VPROD)") so the user knows which env produced the
-numbers. If the user asks for dev, say "(data from 3VDEV)"."""
+answer ("SQL data from prod.* Redshift", "S3 data from 3VDEV") so the user
+knows which env produced the numbers."""
 
 
 _TOOL_GUIDE = """## Tool Decision Guide
@@ -152,6 +153,7 @@ _TOOL_GUIDE = """## Tool Decision Guide
 | Inspect table schema (live Glue catalog) | `glue_get_table`, `glue_get_partitions` |
 | Search knowledge base | `search_kb` |
 | Resolve provider/site/customer codes | `resolve_codes` |
+| List Step Functions state machines | `bash` with `aws stepfunctions list-state-machines` |
 | List Step Functions executions (e.g. recent failures) | `sfn_list_executions`, `sfn_describe_execution`, `sfn_get_execution_history` |
 | See what broke in a Lambda | `lambda_get_last_errors` |
 | Ad-hoc log query | `logs_insights_query` |

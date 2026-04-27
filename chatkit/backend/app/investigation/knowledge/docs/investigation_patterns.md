@@ -26,7 +26,7 @@ All tables listed below are the **prod** variants on the default reader. Substit
 | Revenue score                    | `prod.analytics.revenue_score_v1` (redshift_analytics)                                 | `sales_date` + `customer`| `origin`, `destination`, `carrier`, `cabin`, `avg_price`, `pax_count`, `estimated_revenue` |
 | Tax regression coefficients      | `prod.tax_reg.tax_reg_output_v1` (redshift_analytics)                                  | `sales_date`             | `pos`, `od`, `carrier`, `m`, `b`, `r2`, `correlation` |
 | Tax regression MySQL             | `taxregression.tax_regression_v1` (mysql_priceeye)                                     | —                        | overwritten every Tuesday |
-| Collection anomalies (S3)        | S3 `s3-atp-3victors-3vprod-use1-collection-anomalies`                                  | date in path             | `collection-customer/v1/YYYY/MM/DD/` — see `s3_buckets.md` |
+| Collection anomalies (S3)        | S3 `s3-atp-3victors-3vdev-use1-collection-anomalies`                                   | date in path             | `collection-customer/v1/YYYY/MM/DD/` — verified accessible from 3VDEV; see `s3_buckets.md` |
 | Customer collection health       | `billing_db.customer_daily_requests_v2` (redshift_core)                                | `sales_date`             | `customer`, `total_reqs`, `success`, `site_failed` |
 | Table health / row counts        | `metadata.table_row_counts` (redshift_analytics)                                       | `checked_date`           | `table_name`, `row_count`, `last_updated` |
 

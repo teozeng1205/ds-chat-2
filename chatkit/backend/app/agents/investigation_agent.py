@@ -10,7 +10,11 @@ KNOWLEDGE_ROOT = Path(__file__).resolve().parents[1] / "investigation" / "knowle
 
 
 def _load_common_table_metadata() -> str:
-    """Load table metadata and emit a compact schema summary (grouped by datasource + schema)."""
+    """Load verified table metadata for the agent prompt.
+
+    The month-old harness worked better because the prompt carried real column
+    names. Keep that signal, but cap the output so the prompt stays bounded.
+    """
     path = KNOWLEDGE_ROOT / "common_table_live_metadata.json"
     if not path.exists():
         return ""
@@ -20,32 +24,54 @@ def _load_common_table_metadata() -> str:
         return ""
     tables = payload.get("tables", []) if isinstance(payload, dict) else []
 
-    # Group by datasource → schema → count
-    from collections import defaultdict
-    groups: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    priority_tables = {
+        "prod.monitoring.provider_combined_audit",
+        "prod.monitoring.combined_audit",
+        "prod.analytics.market_level_anomalies",
+        "prod.analytics.market_level_anomalies_v3",
+        "prod.analytics.market_level_anomalies_v4",
+        "prod.analytics.segment_level_anomalies_v3",
+        "prod.analytics.competitive_position",
+        "priceeye.site",
+        "priceeye.site_hierarchy",
+        "billing_db.customer_daily_requests_v3",
+    }
+
+    rows: list[tuple[int, str]] = []
     for table in tables:
         if not isinstance(table, dict):
             continue
-        if table.get("status") == "error" or not table.get("table_name"):
+        name = str(table.get("table_name") or "")
+        if table.get("status") == "error" or not name:
             continue
         ds = table.get("datasource", "unknown")
-        name = table.get("table_name", "")
-        parts = name.split(".")
-        if len(parts) >= 3:
-            schema = parts[1]
-        elif len(parts) == 2:
-            schema = parts[0]
-        else:
-            schema = "other"
-        groups[ds][schema] += 1
+        partitions = table.get("partitions", [])
+        part_cols = [str(p.get("column", "")) for p in partitions if isinstance(p, dict) and p.get("column")]
+        columns = table.get("columns", [])
+        col_names = [str(c.get("column_name", "")) for c in columns if isinstance(c, dict) and c.get("column_name")]
+        if not col_names and isinstance(table.get("sample_row_masked"), dict):
+            col_names = list((table.get("sample_row_masked") or {}).keys())
 
-    lines: list[str] = []
-    for ds, schemas in sorted(groups.items()):
-        schema_parts = ", ".join(f"{s} ({c})" for s, c in sorted(schemas.items()))
-        lines.append(f"- **{ds}**: {schema_parts}")
-    if lines:
-        lines.append("Use `inspect_table_metadata(table_name)` for column details, partitions, and freshness.")
-        lines.append("Use `search_kb` for table-level docs and query examples.")
+        max_cols = 28 if name in priority_tables else 16
+        cols_str = ", ".join(col_names[:max_cols]) if col_names else "unknown; call inspect_table first"
+        if len(col_names) > max_cols:
+            cols_str += f" (+{len(col_names) - max_cols} more)"
+        part_str = ", ".join(part_cols) if part_cols else "none"
+        freshness = f"last_date={table.get('max_sales_date', '?')}" if part_cols else "no_date_part"
+        tier = table.get("tier", "")
+        tier_str = f" [{tier}]" if tier else ""
+        s3_location = table.get("s3_location") or ""
+        lineage_str = f" | s3:{s3_location}" if s3_location else ""
+        priority = 0 if name in priority_tables else 1
+        rows.append((
+            priority,
+            f"- `{name}`{tier_str} ({ds}) -- {freshness}. Partitions: {part_str}. Columns: {cols_str}{lineage_str}",
+        ))
+
+    rows.sort(key=lambda item: (item[0], item[1]))
+    lines = [line for _, line in rows[:120]]
+    lines.append("Use `inspect_table` before querying when a table's columns are unknown or when a query gets a schema error.")
+    lines.append("Use `search_kb` for table-level docs, S3 paths, and query examples.")
     return "\n".join(lines)
 
 
@@ -119,7 +145,7 @@ You investigate issues across Redshift, MySQL, and S3 by writing SQL, fetching d
   priceeye-v2 → ds-priceeye-data-collection → collection_optimizer.*, site_metrics.*, yqyr_cache.*
   priceeye-v2 → ds-priceeye-enrichment → tax_reg.* (regression coefficients, runs weekly on Tuesdays)
 
-**How to work:** Think step by step. First understand the question. Resolve any codes (provider, site, customer) using resolve_codes. Inspect table schemas if needed. Write and execute SQL with proper partition filters. Analyze results with Python if needed. Show your findings clearly with data and numbers.
+**How to work:** Think step by step. First understand the question. Resolve any codes (provider, site, customer) using resolve_codes. Use `search_kb` for the table/S3 path if the question names a business concept. Inspect table schemas before guessing columns. Write and execute SQL with proper partition filters. Analyze results with Python if needed. Show your findings clearly with data and numbers.
 
 **You have full freedom** to decide what tools to call and in what order. There is no fixed sequence -- reason about what you need and act accordingly.""",
 
@@ -162,6 +188,17 @@ Use `resolve_codes` to resolve natural language names (e.g. "JetBlue" -> B6, "Am
     `local.*` equivalents exist but return dev data — only use them when the user explicitly asks.
 - **Single statement only.** No semicolons mid-query.
 - The system automatically clamps LIMIT to 120,000 rows max.""",
+
+        # ── High-signal schema reminders ──
+        """## High-Signal Current Schema Reminders
+
+- `prod.monitoring.provider_combined_audit` uses plural `issue_sources` and `issue_reasons`; it does not have `status`.
+  `prod.monitoring.combined_audit` uses singular `issue_source` and `issue_reason`.
+- `prod.analytics.market_level_anomalies` uses `metro_market`, `competitive_position`, `segment_name`, `itinerary_count`, and `cp_score`. It does not have `market`, `market_code`, `mkt`, `impact_score`, or `anomaly_type`.
+- `prod.analytics.competitive_position` uses fare/position columns such as `metro_market`, `diff_min_ow`, `pcnt_diff_min_ow`, and `competitive_position_min_ow`. It does not have `impact_score`.
+- `priceeye.site` uses `provider_code`, `site_code`, `site_name`, `pos`, `type`, `provider_properties`, `retry_count`, `status`, and `last_updated`; it does not use `providercode`, `provider`, or `site_category`.
+- Redshift does not allow multiple `PERCENTILE_CONT ... WITHIN GROUP` expressions with different ORDER BY columns in the same SELECT. For multi-column EDA, use simple numeric stats (`MIN`, `MAX`, `AVG`) plus separate grouped counts, or run one percentile query per column. Do not average categorical fields such as `competitive_position_min_ow`.
+- When S3 data is inaccessible, do not claim agreement or absence. Say the S3 side is inaccessible/unknown and, if useful, compare only the accessible Redshift side.""",
 
         # ── Domain knowledge lookup ──
         """## Domain Knowledge Lookup
@@ -210,7 +247,9 @@ training data is not. Examples:
 If `search_kb` returns no relevant doc and you truly need a table you
 don't know, run a `SELECT DISTINCT table_schema, table_name FROM
 svv_columns WHERE table_name LIKE '%...%'` discovery query rather than
-guessing.
+guessing. If you know the table but not the columns, call `inspect_table`
+or run a `svv_columns`/`information_schema.columns` query before writing
+business SQL.
 
 Fallback chain when a query returns 0 rows:
   0. Discover tables with `svv_columns` / `information_schema.tables`.
@@ -230,6 +269,11 @@ When executing Python code, these functions are available in scope:
 - `save_plot(fig, name)` -- Save a matplotlib figure to /tmp and return file path
 - `save_analysis(payload)` -- Save an analysis record
 - `pd`, `np`, `plt`, `sns`, `json`, `Path` -- Available imports
+
+Print any values you need in the final answer; bare expressions are not
+returned by `run_python`. When sorting unique values with Python `sorted(...)`,
+use `len(sorted_values)` to test emptiness (not `.size`, because sorted returns
+a list).
 
 Example: computing stats and plotting
 ```python
@@ -279,11 +323,15 @@ hallucinate names that don't exist. Examples:
     search_kb("competitive position s3")
 
 Bucket naming convention: `s3-atp-3victors-{env}-use1-{purpose}`.
-Default `{env}` = `3vprod` (process runs on 3VDEV creds with
-cross-account read into 3VPROD). Swap to `3vdev` only when the user
-explicitly asks for dev.
+For direct S3 reads, prefer KB-verified accessible `3vdev` buckets unless
+the user explicitly asks for prod S3. `execute_sql` can read prod Redshift
+through the 3VDEV role, but that does not imply direct 3VPROD S3 access.
 
-`fetch_s3` reads CSV, Parquet, and JSONL automatically.""",
+`fetch_s3` reads CSV, Parquet, and JSONL automatically. Treat the returned
+dataset/preview/columns/S3 keys as S3 output, not as a Redshift table. Do not
+call `execute_sql` against fetched S3 dataset ids or pseudo-tables like
+`s3object`; use the fetch result itself unless the user explicitly asks for a
+separate SQL comparison.""",
     ]
 
     return "\n\n".join(section for section in sections if section)

@@ -15,6 +15,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import subprocess
 import traceback
 from datetime import datetime, timezone
@@ -175,6 +176,75 @@ def _is_retryable_agent_error(exc: Exception) -> bool:
     return "timeout" in error_type or any(fragment in message for fragment in retryable_fragments)
 
 
+def _tool_error_type(output: str) -> str | None:
+    if "'ok': False" not in output and '"ok": false' not in output.lower():
+        return None
+    for pattern in (
+        r"'error_type': '([^']+)'",
+        r'"error_type"\s*:\s*"([^"]+)"',
+    ):
+        match = re.search(pattern, output)
+        if match:
+            return match.group(1)
+    return "ToolError"
+
+
+def _check_assertions(case: dict[str, Any], tool_calls: list[dict[str, Any]], answer: str) -> dict[str, Any]:
+    assertions = case.get("assertions")
+    if not isinstance(assertions, dict):
+        return {"checked": False, "passed": True, "details": []}
+
+    details: list[dict[str, Any]] = []
+    passed = True
+
+    def add(assertion: str, ok: bool, **extra: Any) -> None:
+        nonlocal passed
+        details.append({"assertion": assertion, "passed": ok, **extra})
+        if not ok:
+            passed = False
+
+    tool_names = [str(tc.get("tool", "")) for tc in tool_calls]
+    tool_set = set(tool_names)
+
+    min_tool_calls = assertions.get("min_tool_calls")
+    if min_tool_calls is not None:
+        add("min_tool_calls", len(tool_calls) >= int(min_tool_calls), expected=min_tool_calls, actual=len(tool_calls))
+
+    max_tool_calls = assertions.get("max_tool_calls")
+    if max_tool_calls is not None:
+        add("max_tool_calls", len(tool_calls) <= int(max_tool_calls), expected=max_tool_calls, actual=len(tool_calls))
+
+    for tool_name in assertions.get("required_tools", []) or []:
+        add("required_tool", str(tool_name) in tool_set, expected=tool_name, actual=tool_names)
+
+    for tool_name in assertions.get("forbidden_tools", []) or []:
+        add("forbidden_tool", str(tool_name) not in tool_set, expected_absent=tool_name, actual=tool_names)
+
+    answer_lower = answer.lower()
+    for keyword in assertions.get("answer_contains", []) or []:
+        add("answer_contains", str(keyword).lower() in answer_lower, keyword=keyword)
+
+    for keyword in assertions.get("answer_not_contains", []) or []:
+        add("answer_not_contains", str(keyword).lower() not in answer_lower, keyword=keyword)
+
+    tool_errors: list[dict[str, Any]] = []
+    for idx, tc in enumerate(tool_calls, 1):
+        error_type = _tool_error_type(str(tc.get("output", "")))
+        if error_type:
+            tool_errors.append({"index": idx, "tool": tc.get("tool"), "error_type": error_type})
+
+    fail_on = {str(item) for item in assertions.get("fail_on_tool_error_types", []) or []}
+    if fail_on:
+        offending = [err for err in tool_errors if err.get("error_type") in fail_on]
+        add("fail_on_tool_error_types", not offending, expected_absent=sorted(fail_on), actual=offending)
+
+    max_tool_errors = assertions.get("max_tool_errors")
+    if max_tool_errors is not None:
+        add("max_tool_errors", len(tool_errors) <= int(max_tool_errors), expected=max_tool_errors, actual=tool_errors)
+
+    return {"checked": True, "passed": passed, "details": details}
+
+
 async def run_case(
     agent: Any,
     case: dict[str, Any],
@@ -249,7 +319,12 @@ async def run_case(
         report["tool_call_count"] = len(tool_calls)
         report["answer"] = answer
         report["answer_length"] = len(answer)
-        report["failed"] = False
+        assertion_result = _check_assertions(case, tool_calls, answer)
+        report["assertions"] = assertion_result
+        assertion_failed = assertion_result.get("checked") and not assertion_result.get("passed", True)
+        report["failed"] = bool(assertion_failed)
+        if assertion_failed:
+            report["failure_kind"] = "assertion"
 
     except asyncio.TimeoutError:
         report["failed"] = True
@@ -321,6 +396,16 @@ def _render_markdown_report(payload: dict[str, Any]) -> str:
         if report.get("trace_id"):
             lines.append(f"- **Trace ID:** `{report.get('trace_id')}`")
         lines.append("")
+
+        assertions = report.get("assertions", {})
+        if assertions.get("checked"):
+            lines.append(f"### Assertions: {'ALL PASSED' if assertions.get('passed') else 'SOME FAILED'}")
+            lines.append("")
+            for detail in assertions.get("details", []):
+                mark = "PASS" if detail.get("passed") else "FAIL"
+                payload = json.dumps({k: v for k, v in detail.items() if k not in {"assertion", "passed"}}, default=str)
+                lines.append(f"- [{mark}] {detail.get('assertion')}: {payload}")
+            lines.append("")
 
         if report.get("error"):
             lines.append(f"**Error:** `{report['error'].get('error_type')}: {report['error'].get('message')}`")

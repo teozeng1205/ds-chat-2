@@ -44,7 +44,11 @@ async def sfn_list_executions(
     status_filter: str | None = None,
     max_results: int = 50,
 ) -> dict[str, Any]:
-    """List Step Functions executions for a state machine (read-only).
+    """List Step Functions executions for one known state machine ARN (read-only).
+
+    Do not use this tool to discover or list state machines. It requires a
+    non-empty state_machine_arn; use AWS CLI `aws stepfunctions list-state-machines`
+    via bash when the user asks for state machine names.
 
     Args:
         state_machine_arn: ARN of the state machine (e.g. arn:aws:states:us-east-1:...:stateMachine/My-SFN).
@@ -54,6 +58,12 @@ async def sfn_list_executions(
     Returns: {ok, executions: [{executionArn, name, status, startDate, stopDate}]}.
     """
     try:
+        if not state_machine_arn.strip():
+            return {
+                "ok": False,
+                "error": "state_machine_arn is required; use bash with aws stepfunctions list-state-machines to list state machines",
+                "error_type": "MissingStateMachineArn",
+            }
         await _stream(ctx, "clock", f"Listing SFN executions for {state_machine_arn.rsplit(':', 1)[-1]}.")
         executions = oc.sfn_list_executions(
             state_machine_arn, status_filter=status_filter, max_results=max_results

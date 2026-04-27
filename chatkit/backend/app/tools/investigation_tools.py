@@ -28,10 +28,13 @@ from ._common import (
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
 log = logging.getLogger(__name__)
+WORKSPACE_DATASET_SQL_PATTERN = re.compile(r"\b(?:dataset_[a-f0-9]{10}|s3object)\b", re.IGNORECASE)
 
 # ── Run-id cache: one run per thread per agent turn ──
-# Entries expire after _RUN_TTL_SECONDS so a new conversation turn gets a fresh run.
-_RUN_TTL_SECONDS = 120
+# Entries expire after _RUN_TTL_SECONDS so a new conversation turn gets a fresh
+# run. Keep this above the E2E per-case timeout so long SQL/S3 turns can still
+# analyze datasets created earlier in the same agent run.
+_RUN_TTL_SECONDS = 1800
 _run_cache: dict[str, tuple[str, float]] = {}
 _run_cache_lock = threading.Lock()
 
@@ -61,6 +64,22 @@ def _thread_id(ctx: RunContextWrapper[AgentContext]) -> str:
     thread = getattr(ctx.context, "thread", None)
     thread_id = getattr(thread, "id", None)
     return str(thread_id) if thread_id else "default-thread"
+
+
+def _workspace_dataset_sql_error(query: str) -> dict[str, Any] | None:
+    """Return a structured error when SQL targets local workspace datasets."""
+    match = WORKSPACE_DATASET_SQL_PATTERN.search(query or "")
+    if match is None:
+        return None
+    token = match.group(0)
+    return {
+        "ok": False,
+        "error_type": "WorkspaceDatasetNotSqlRelation",
+        "error": (
+            f"`{token}` is a local investigation workspace dataset, not a Redshift/MySQL relation. "
+            "Use run_python with load_dataset(dataset_id) to analyze fetched S3 or SQL result datasets."
+        ),
+    }
 
 
 async def _stream_progress(ctx: RunContextWrapper[AgentContext], icon: str, text: str) -> None:
@@ -299,6 +318,10 @@ async def execute_sql(
         runtime = get_runtime()
         thread_id = _thread_id(ctx)
         run_id = _get_or_create_run_id(thread_id)
+        dataset_sql_error = _workspace_dataset_sql_error(query)
+        if dataset_sql_error is not None:
+            await _stream_progress(ctx, "info", dataset_sql_error["error"])
+            return dataset_sql_error
 
         # ── Cache lookup ────────────────────────────────────────
         # Cache only the preview-shaped payload; strip dataset_id because it
@@ -391,7 +414,42 @@ async def fetch_s3(
         return {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
 
 
-# ── Tool 3: inspect_table ──
+# ── Tool 3: run_python ──
+
+@function_tool(timeout=TIMEOUT_DB_QUERY, failure_error_function=tool_error)
+async def run_python(
+    ctx: RunContextWrapper[AgentContext],
+    code: str,
+) -> dict[str, Any]:
+    """Run Python/pandas against saved investigation datasets.
+
+    Args:
+        code: Python code. Available helpers include list_datasets(),
+            load_dataset(dataset_id), save_dataframe(), save_plot(), and
+            save_analysis().
+
+    Returns: stdout plus any created datasets or saved analyses.
+    """
+    try:
+        runtime = get_runtime()
+        thread_id = _thread_id(ctx)
+        run_id = _get_or_create_run_id(thread_id)
+        await _stream_progress(ctx, "square-code", "Running Python analysis on saved datasets.")
+        t0 = time.monotonic()
+        result = runtime.run_python(thread_id=thread_id, run_id=run_id, code=code)
+        elapsed = time.monotonic() - t0
+        await _stream_progress(
+            ctx,
+            "check-circle",
+            f"Python complete in {elapsed:.1f}s; created {len(result.get('created_datasets', []))} datasets.",
+        )
+        return result
+    except Exception as exc:
+        log.exception("run_python failed")
+        return {"ok": False, "error": str(exc), "error_type": type(exc).__name__}
+
+
+# ── Tool 4: inspect_table ──
 
 @function_tool(timeout=TIMEOUT_DB_QUERY, failure_error_function=tool_error)
 async def inspect_table(
@@ -767,10 +825,11 @@ async def publish_image(
 
 
 def investigation_tools_core() -> list[Any]:
-    """Return the 6 core data tools for the coding agent (excludes run_python, browse_repo_files)."""
+    """Return the core data tools for the coding agent."""
     return [
         execute_sql,
         fetch_s3,
+        run_python,
         inspect_table,
         search_kb,
         resolve_codes,
@@ -782,4 +841,5 @@ __all__ = [
     "cleanup_thread_workspace",
     "investigation_tools_core",
     "publish_image",
+    "run_python",
 ]

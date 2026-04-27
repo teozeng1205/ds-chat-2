@@ -194,6 +194,20 @@ class KnowledgeBase:
             out.extend(sorted(self.root.glob(pattern)))
         return [p for p in out if p.is_file()]
 
+    def _document_source_files(self) -> list[Path]:
+        """Files that should be retrievable as human-facing KB documents.
+
+        Large generated JSON snapshots are still included in `_source_hash`
+        so the sqlite index refreshes when metadata changes, but they should
+        not compete with authored docs in `document_hints`.
+        """
+        excluded = {
+            "common_table_live_metadata.json",
+            "common_codes.json",
+            "pipelines.json",
+        }
+        return [p for p in self._source_files() if p.name not in excluded]
+
     def _load_live_table_metadata(self) -> dict[str, dict[str, Any]]:
         path = self.root / "common_table_live_metadata.json"
         if not path.exists():
@@ -277,6 +291,20 @@ class KnowledgeBase:
 
             table_rows = self._parse_tables_markdown(self.root / "tables.md")
             live_meta = self._load_live_table_metadata()
+            for table_name, live in live_meta.items():
+                if str(live.get("status", "")).lower() == "error":
+                    continue
+                table_rows.setdefault(
+                    table_name,
+                    {
+                        "table_name": table_name,
+                        "datasource": live.get("datasource") or "redshift_analytics",
+                        "tier": live.get("tier") or "common",
+                        "notes": "Live metadata table",
+                        "query_example": f"SELECT * FROM {table_name} LIMIT 200",
+                        "analysis_example": "Run generic profile + targeted python analysis",
+                    },
+                )
             for table_name, row in table_rows.items():
                 live = live_meta.get(table_name, {})
                 status = str(live.get("status", "")).lower()
@@ -352,7 +380,7 @@ class KnowledgeBase:
                     (code, code_type, source, now),
                 )
 
-            source_files = self._source_files()
+            source_files = self._document_source_files()
             for file_path in source_files:
                 content = file_path.read_text(encoding="utf-8", errors="replace")
                 doc_id = hashlib.sha256(str(file_path).encode("utf-8")).hexdigest()[:24]
@@ -414,11 +442,41 @@ class KnowledgeBase:
             )
         return out
 
+    def _load_column_info(self, conn: sqlite3.Connection) -> dict[str, list[dict[str, Any]]]:
+        rows = conn.execute(
+            "SELECT table_name, column_name, data_type, nullable, is_key FROM kb_columns"
+        ).fetchall()
+        out: dict[str, list[dict[str, Any]]] = {}
+        for table_name, column_name, data_type, nullable, is_key in rows:
+            out.setdefault(table_name, []).append(
+                {
+                    "column_name": column_name,
+                    "data_type": data_type,
+                    "nullable": bool(nullable),
+                    "is_key": bool(is_key),
+                }
+            )
+        return out
+
+    def _load_sample_rows(self, conn: sqlite3.Connection) -> dict[str, dict[str, Any]]:
+        rows = conn.execute("SELECT table_name, example_json_masked FROM kb_example_rows").fetchall()
+        out: dict[str, dict[str, Any]] = {}
+        for table_name, raw in rows:
+            try:
+                parsed = json.loads(raw or "{}")
+            except Exception:
+                parsed = {}
+            if isinstance(parsed, dict):
+                out[table_name] = parsed
+        return out
+
     def retrieve(self, *, question: str, entities: dict[str, Any], top_k: int = 8) -> dict[str, Any]:
         tokens = self._tokens(question)
         conn = sqlite3.connect(self.db_path)
         try:
             partition_info = self._load_partition_info(conn)
+            column_info = self._load_column_info(conn)
+            sample_rows = self._load_sample_rows(conn)
 
             table_rows = conn.execute(
                 "SELECT table_name, datasource, tier, notes, query_example, analysis_example, max_sales_date, s3_location, git_repo, git_path FROM kb_tables"
@@ -429,10 +487,38 @@ class KnowledgeBase:
             table_scored: list[tuple[float, dict[str, Any]]] = []
             for table_name, datasource, tier, notes, query_example, analysis_example, max_sales_date, s3_location, git_repo, git_path in table_rows:
                 score = 0.0
-                text = f"{table_name} {notes}".lower()
+                columns = column_info.get(table_name, [])
+                sample_row = sample_rows.get(table_name)
+                sample_columns = list(sample_row.keys()) if sample_row else []
+                column_names = [str(c.get("column_name", "")) for c in columns if c.get("column_name")]
+                text = " ".join([
+                    table_name,
+                    str(notes or ""),
+                    str(s3_location or ""),
+                    " ".join(column_names),
+                    " ".join(sample_columns),
+                ]).lower()
                 for tok in tokens:
                     if tok in text:
                         score += 1.0
+                    if tok in table_name.lower():
+                        score += 1.0
+                if (
+                    "monitoring" in tokens
+                    and ("schema" in tokens or "tables" in tokens)
+                    and table_name.startswith("prod.monitoring.")
+                ):
+                    score += 4.0
+                if (
+                    table_name == "prod.monitoring.provider_combined_audit"
+                    and any(tok in {"issue", "issues", "debug", "debugging", "collection", "provider", "priceeye"} for tok in tokens)
+                ):
+                    score += 6.0
+                if (
+                    table_name == "prod.monitoring.combined_audit"
+                    and any(tok in {"issue", "issues", "debug", "debugging", "collection", "customer", "priceeye"} for tok in tokens)
+                ):
+                    score += 3.0
                 if entities.get("providers") and any(v in text for v in ["provider", "providercode"]):
                     score += 1.0
                 if entities.get("sites") and "site" in text:
@@ -443,6 +529,10 @@ class KnowledgeBase:
                     score -= 5.0
                 if table_name.startswith("local."):
                     score -= 2.5
+                if table_name.startswith("prod."):
+                    score += 0.75
+                if "analytics-env" in str(notes).lower():
+                    score -= 1.25
                 if "{" in table_name or "}" in table_name:
                     score -= 10.0
                 if max_sales_date and int(max_sales_date) >= yesterday_int:
@@ -464,6 +554,8 @@ class KnowledgeBase:
                             "git_repo": git_repo,
                             "git_path": git_path,
                             "partitions": partition_info.get(table_name, []),
+                            "columns": columns[:60],
+                            "sample_columns": sample_columns[:80],
                         },
                     )
                 )
@@ -479,6 +571,14 @@ class KnowledgeBase:
             doc_scored: list[tuple[float, dict]] = []
             for doc_id, source_path, content in doc_rows:
                 score = sum(1.0 for tok in tokens if tok in content.lower())
+                source_name = Path(source_path).name.lower()
+                for tok in tokens:
+                    if tok in source_name:
+                        score += 4.0
+                if "s3" in tokens and source_name == "s3_buckets.md":
+                    score += 8.0
+                if any(tok in {"issue", "issues", "anomalies", "competitive"} for tok in tokens) and source_name == "investigation_patterns.md":
+                    score += 4.0
                 if score > 0:
                     lines = content.splitlines()
                     pivot = next(

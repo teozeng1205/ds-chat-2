@@ -1,16 +1,22 @@
 # S3 Bucket + Prefix Reference
 
 All buckets follow the pattern `s3-atp-3victors-{env}-use1-{purpose}` where `{env}` is
-`3vprod` for production (default) or `3vdev` for development. The process runs on 3VDEV
-AWS credentials but has cross-account read access to 3VPROD. **Default to `3vprod`.**
-Substitute `3vdev` only when the user asks for dev data — the layout under each env is
-identical.
+`3vprod` for production or `3vdev` for development. The agent process runs on 3VDEV
+AWS credentials. Some production S3 buckets are not listable from that account even when
+the equivalent Redshift `prod.*` table is readable. For smoke tests and direct S3 reads,
+prefer the verified accessible `3vdev` buckets unless the user explicitly asks for prod S3.
+If a prod bucket returns `AccessDenied` or `NoSuchBucket`, report S3 as inaccessible/unknown
+instead of concluding the data is absent.
 
 ## Buckets
 
 ### Collection anomalies
-Bucket: `s3-atp-3victors-3vprod-use1-collection-anomalies`
+Verified accessible bucket: `s3-atp-3victors-3vdev-use1-collection-anomalies`
+Production bucket may be inaccessible from 3VDEV credentials: `s3-atp-3victors-3vprod-use1-collection-anomalies`
 - `collection-customer/v1/YYYY/MM/DD/` — Customer collection anomaly CSVs by date
+- Fetch `collection-customer/v1/` or a date prefix, then filter customer rows in the
+  returned data. Do not append `{customer}/` to this prefix; the verified layout is
+  date-level files.
 
 ### Derived common output (DCO)
 Bucket: `s3-atp-3victors-3vprod-use1-derived-common-output`
@@ -32,14 +38,14 @@ Bucket: `s3-atp-3victors-3vprod-use1-competitive-position`
 - `v2/{customer}/{YYYY}/{MM}/{DD}/data.parquet` — Competitive position Parquet
 
 ### PE common output (raw)
-Bucket: `s3-atp-3victors-3vprod-use1-pe-common-output`
+Verified accessible dev bucket: `s3-atp-3victors-3vdev-use1-pe-common-output`
+Production bucket: `s3-atp-3victors-3vprod-use1-pe-common-output` if explicitly requested and accessible
 - `{customer}/{YYYY}/{MM}/{DD}/{HH}/` — Raw common output before DCO normalization
 
 ## Redshift table → S3 mirror mapping
 
 When a Redshift query returns 0 rows, the S3 mirror of the same pipeline's output is often
-the fastest fallback. Key table-to-path mappings (default to `3vprod`; swap in `3vdev` if
-the user asked for dev):
+the fastest fallback. Key table-to-path mappings:
 
 | Redshift table                       | S3 bucket                                                      | Key pattern |
 |--------------------------------------|----------------------------------------------------------------|-------------|
@@ -51,7 +57,7 @@ the user asked for dev):
 | `revenue_score_v1`                   | `s3-atp-3victors-3vprod-use1-anomaly-datasets`                 | `revenue_score/v1/{customer}/{YYYY}/{MM}/{DD}/revenue_estimates.csv` |
 | `pax_midt`                           | `s3-atp-3victors-3vprod-use1-anomaly-datasets`                 | `pax_midt/v1/{customer}/{YYYY}/{MM}/{DD}/` |
 | `prod.common_output.*` (DCO)         | `s3-atp-3victors-3vprod-use1-derived-common-output`            | `v1/{customer}/{YYYY}/{MM}/{DD}/{HH}/` |
-| collection anomalies                 | `s3-atp-3victors-3vprod-use1-collection-anomalies`             | `collection-customer/v1/YYYY/MM/DD/` |
+| collection anomalies                 | `s3-atp-3victors-3vdev-use1-collection-anomalies`              | `collection-customer/v1/YYYY/MM/DD/` |
 | competitive-position (v2)            | `s3-atp-3victors-3vprod-use1-competitive-position`             | `v2/{customer}/{YYYY}/{MM}/{DD}/data.parquet` |
 
 If a table doesn't appear above, search this document or call `search_kb("s3 ...")` with
