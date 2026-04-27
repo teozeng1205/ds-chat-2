@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 PROFILE="3VDEV"
-MODEL="gpt-5.5"
+MODEL="gpt-5.5-mini"
 MAX_TURNS=100
 CASE_TIMEOUT_SECONDS=900
 SCENARIOS=""
@@ -26,7 +26,7 @@ Usage: backend/scripts/verify_investigation.sh [options]
 
 Options:
   --profile <name>       AWS profile for granted credential-process (default: 3VDEV)
-  --model <name>         Model for smoke_e2e.py (default: gpt-5.5)
+  --model <name>         Model for smoke_e2e.py (default: gpt-5.5-mini)
   --max-turns <n>        Max turns per scenario for E2E smoke (default: 100)
   --case-timeout <sec>   Wall-clock timeout per E2E case (default: 900)
   --scenarios <csv>      Optional scenario filter for E2E smoke
@@ -40,6 +40,7 @@ Examples:
   backend/scripts/verify_investigation.sh
   backend/scripts/verify_investigation.sh --skip-unit
   backend/scripts/verify_investigation.sh --quick
+  backend/scripts/verify_investigation.sh --model gpt-5.5 --skip-unit
   backend/scripts/verify_investigation.sh --scenarios top_site_issues,market_anomalies_distribution
 EOF
 }
