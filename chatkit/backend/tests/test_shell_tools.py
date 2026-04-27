@@ -489,6 +489,30 @@ class TestEditFile:
         assert "REPLACED" in out
         assert "a" in out and "e" in out
 
+    def test_edit_file_rejects_sensitive_path(self, tmp_path):
+        edit_file = self._get_edit_file()
+        ctx = make_ctx()
+        p = tmp_path / ".env"
+        p.write_text("TOKEN=old\n")
+        async def run():
+            return await edit_file(ctx, str(p), "old", "new")
+        out = asyncio.run(run())
+        assert "blocked by guardrails" in out
+
+
+class TestWriteFile:
+    def _get_write_file(self):
+        from app.tools.shell_tools import write_file
+        return write_file
+
+    def test_write_file_rejects_sensitive_path(self, tmp_path):
+        write_file = self._get_write_file()
+        ctx = make_ctx()
+        async def run():
+            return await write_file(ctx, str(tmp_path / ".env"), "TOKEN=x\n")
+        out = asyncio.run(run())
+        assert "blocked by guardrails" in out
+
 
 # ═══════════════════════════════════════════════════════════
 # git tool tests

@@ -26,7 +26,7 @@ from ._common import (
     TIMEOUT_SHORT_NET,
     tool_error,
 )
-from .guardrails import classify_shell_command
+from .guardrails import classify_path_write, classify_shell_command
 
 log = logging.getLogger(__name__)
 
@@ -352,6 +352,9 @@ async def edit_file(
             return f"Error: file not found: {path}. Read the file first with read_file."
         if not path.is_file():
             return f"Error: not a regular file: {path}"
+        path_policy = classify_path_write(path, operation="edit")
+        if path_policy.decision != "allow":
+            return f"Error: edit blocked by guardrails: {path_policy.reason} ({path_policy.matched})"
 
         old_content = path.read_text(encoding="utf-8")
 
@@ -451,6 +454,9 @@ async def write_file(
     """
     try:
         path = _resolve_path(file_path)
+        path_policy = classify_path_write(path, operation="write")
+        if path_policy.decision != "allow":
+            return f"Error: write blocked by guardrails: {path_policy.reason} ({path_policy.matched})"
 
         # Sandbox: reject writes outside allowed roots
         allowed = any(

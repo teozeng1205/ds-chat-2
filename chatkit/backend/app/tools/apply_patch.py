@@ -24,6 +24,8 @@ from typing import Iterable
 
 from agents import ApplyPatchOperation, ApplyPatchResult
 
+from .guardrails import classify_path_write
+
 log = logging.getLogger(__name__)
 
 
@@ -180,6 +182,12 @@ class LocalApplyPatchEditor:
                 status="failed",
                 output=f"Error: path {path} is outside allowed roots.",
             )
+        path_policy = classify_path_write(path, operation="create")
+        if path_policy.decision != "allow":
+            return ApplyPatchResult(
+                status="failed",
+                output=f"Error: create blocked by guardrails: {path_policy.reason} ({path_policy.matched})",
+            )
         if path.exists():
             return ApplyPatchResult(
                 status="failed",
@@ -208,6 +216,12 @@ class LocalApplyPatchEditor:
             return ApplyPatchResult(
                 status="failed",
                 output=f"Error: path {path} is outside allowed roots.",
+            )
+        path_policy = classify_path_write(path, operation="update")
+        if path_policy.decision != "allow":
+            return ApplyPatchResult(
+                status="failed",
+                output=f"Error: update blocked by guardrails: {path_policy.reason} ({path_policy.matched})",
             )
         if not path.exists() or not path.is_file():
             return ApplyPatchResult(
@@ -239,20 +253,10 @@ class LocalApplyPatchEditor:
                 status="failed",
                 output=f"Error: path {path} is outside allowed roots.",
             )
-        if not path.exists():
-            return ApplyPatchResult(
-                status="failed",
-                output=f"Error: {path} does not exist.",
-            )
-        try:
-            path.unlink()
-            return ApplyPatchResult(
-                status="completed",
-                output=f"Deleted {path}.",
-            )
-        except Exception as exc:  # noqa: BLE001
-            log.exception("apply_patch delete_file failed")
-            return ApplyPatchResult(status="failed", output=f"Error: {exc}")
+        return ApplyPatchResult(
+            status="failed",
+            output=f"Error: delete requires explicit approval and was not run: {path}",
+        )
 
 
 def apply_patch_tool() -> "Iterable":  # type: ignore[override]
