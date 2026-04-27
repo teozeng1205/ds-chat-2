@@ -9,24 +9,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from agents import Agent, ModelSettings, WebSearchTool
+from agents import Agent, ModelSettings
 from agents.model_settings import Reasoning
 from agents.models.openai_responses import OpenAIResponsesModel
 from openai import AsyncOpenAI
 
+from ..agent_harness import build_default_tool_registry
 from ..skills import SkillRegistry, render_skills
-from ..tools.apply_patch import apply_patch_tool
-from ..tools.catalog_tools import catalog_tools
-from ..tools.investigation_tools import investigation_tools_core
-from ..tools.lineage_tools import lineage_tools
-from ..tools.ops_tools import ops_tools
-from ..tools.shell_tools import shell_tools
-from ..tools.streams_tools import streams_tools
 from .investigation_agent import _build_instructions as _investigation_instructions
-from .planner import as_agent_tool as _planner_as_tool
-from .planner import build_planner_agent
-from .reviewer import as_agent_tool as _reviewer_as_tool
-from .reviewer import build_reviewer_agent
 
 
 _CODING_IDENTITY = """You are DS Chat — a general-purpose coding and data science agent
@@ -246,21 +236,11 @@ def _model_supports_apply_patch(model: str) -> bool:
 
 def build_agent(model: str) -> Agent[Any]:
     """Build the DS Chat coding + data science agent."""
-    tools = [
-        WebSearchTool(search_context_size="medium"),
-        _planner_as_tool(build_planner_agent()),     # real sub-agent w/ read-only tools
-        _reviewer_as_tool(build_reviewer_agent()),   # grounded-verdict JSON reviewer
-    ]
-    if _model_supports_apply_patch(model):
-        tools.extend(apply_patch_tool())             # hosted multi-hunk diff editor
-    tools.extend([
-        *shell_tools(),
-        *investigation_tools_core(),
-        *ops_tools(),        # SFN / Lambda logs / Logs Insights / ECS / alarms / EventBridge
-        *streams_tools(),    # kinesis_tail
-        *catalog_tools(),    # glue_get_table / glue_get_partitions / quicksight_*
-        *lineage_tools(),    # trace_pipeline
-    ])
+    registry = build_default_tool_registry(
+        model=model,
+        include_apply_patch=_model_supports_apply_patch(model),
+    )
+    tools = registry.build_tools()
     return Agent(
         model=OpenAIResponsesModel(model=model, openai_client=AsyncOpenAI()),
         model_settings=ModelSettings(
