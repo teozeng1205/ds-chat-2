@@ -26,6 +26,7 @@ from ._common import (
     TIMEOUT_SHORT_NET,
     tool_error,
 )
+from .guardrails import classify_shell_command
 
 log = logging.getLogger(__name__)
 
@@ -77,6 +78,16 @@ async def bash(
         timeout: Max seconds to wait (default 120, max 1800).
     """
     thread_id = _thread_id(ctx)
+
+    policy = classify_shell_command(command)
+    if policy.decision == "deny":
+        return f"Error: command blocked by guardrails: {policy.reason} ({policy.matched})"
+    if policy.decision == "approval_required":
+        return (
+            "Error: command requires explicit approval and was not run: "
+            f"{policy.reason} ({policy.matched})"
+        )
+
     await _stream_progress(ctx, "square-code", f"$ {command[:80]}")
 
     shell = await get_session(thread_id)

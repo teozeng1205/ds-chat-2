@@ -61,9 +61,15 @@ for _n in ("chatkit", "chatkit.agents", "chatkit.types", "chatkit.widgets",
 
 agents_mod = sys.modules["agents"]
 _AGENTS_ORIG_FN_TOOL = getattr(agents_mod, "function_tool", None)
-# Override function_tool so @function_tool returns the raw callable — tests
-# below call tools as plain async functions.
-agents_mod.function_tool = lambda f: f  # type: ignore[attr-defined]
+# Override function_tool so @function_tool(...) returns the raw callable —
+# tests below call tools as plain async functions.
+def _identity_function_tool(func=None, **_kwargs):
+    if func is None:
+        return lambda wrapped: wrapped
+    return func
+
+
+agents_mod.function_tool = _identity_function_tool  # type: ignore[attr-defined]
 if not hasattr(agents_mod, "RunContextWrapper"):
     agents_mod.RunContextWrapper = MagicMock  # type: ignore[attr-defined]
 if not hasattr(agents_mod, "Agent"):
@@ -272,6 +278,25 @@ class TestBashTool:
             return out
         out = asyncio.run(run())
         assert "/tmp" in out
+
+    def test_bash_blocks_destructive_command(self):
+        """bash() applies guardrails before command execution."""
+        bash = self._get_bash()
+        ctx = make_ctx("bash-blocked")
+        async def run():
+            _registry.clear()
+            return await bash(ctx, "git reset --hard HEAD")
+        out = asyncio.run(run())
+        assert "blocked by guardrails" in out
+
+    def test_bash_requires_approval_for_aws_run_task(self):
+        bash = self._get_bash()
+        ctx = make_ctx("bash-aws-approval")
+        async def run():
+            _registry.clear()
+            return await bash(ctx, "aws ecs run-task --cluster c --task-definition td")
+        out = asyncio.run(run())
+        assert "requires explicit approval" in out
 
 
 # ═══════════════════════════════════════════════════════════
