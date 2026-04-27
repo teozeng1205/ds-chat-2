@@ -17,7 +17,7 @@ def test_default_registry_excludes_orchestration_tools() -> None:
     assert "trace_pipeline" in names
     assert "plan_task" not in names
     assert "review_answer" not in names
-    assert "sfn_list_executions" in names
+    assert "sfn_list_executions" not in names
 
 
 def test_registry_can_enable_orchestration_for_experiments() -> None:
@@ -43,3 +43,13 @@ def test_registry_can_disable_aws_ops() -> None:
     assert "plan_task" not in names
     assert "review_answer" not in names
     assert "sfn_list_executions" not in names
+
+
+def test_registry_can_enable_aws_ops_for_rollback() -> None:
+    registry = build_default_tool_registry(
+        model="gpt-5.4-mini",
+        include_apply_patch=False,
+        include_aws_ops=True,
+    )
+    names = {getattr(tool, "name", getattr(tool, "tool_name", None)) for tool in registry.build_tools()}
+    assert "sfn_list_executions" in names

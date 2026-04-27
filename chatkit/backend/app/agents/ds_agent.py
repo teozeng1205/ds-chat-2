@@ -153,12 +153,12 @@ _TOOL_GUIDE = """## Tool Decision Guide
 | Search knowledge base | `search_kb` |
 | Resolve provider/site/customer codes | `resolve_codes` |
 | List Step Functions state machines | `bash` with `aws stepfunctions list-state-machines` |
-| List Step Functions executions (e.g. recent failures) | `sfn_list_executions`, `sfn_describe_execution`, `sfn_get_execution_history` |
-| See what broke in a Lambda | `lambda_get_last_errors` |
-| Ad-hoc log query | `logs_insights_query` |
-| Inspect ECS service health | `ecs_describe_tasks`, `ecs_list_stopped_reasons` |
-| Current CloudWatch alarms | `cloudwatch_alarms` |
-| What does an EventBridge rule do | `eventbridge_describe_rule` |
+| List Step Functions executions (e.g. recent failures) | `bash` with `aws stepfunctions list-executions --state-machine-arn ... --status-filter FAILED` |
+| See what broke in a Lambda | `bash` with `aws logs filter-log-events --log-group-name /aws/lambda/... --filter-pattern ...` |
+| Ad-hoc log query | `bash` with `aws logs start-query` then `aws logs get-query-results` |
+| Inspect ECS service health | `bash` with `aws ecs list-tasks` / `aws ecs describe-tasks` |
+| Current CloudWatch alarms | `bash` with `aws cloudwatch describe-alarms --state-value ALARM` |
+| What does an EventBridge rule do | `bash` with `aws events describe-rule` and `aws events list-targets-by-rule` |
 | Tail a live ingest stream | `kinesis_tail` |
 | Show an existing BI dashboard | `quicksight_list_dashboards`, `quicksight_get_embed_url` |
 | Walk the cross-repo data-flow graph (who writes / who reads this table, bucket, or app) | `trace_pipeline(entity, direction, depth)` |

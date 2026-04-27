@@ -68,5 +68,5 @@ lineage the graph doesn't confirm — say so and move on.
 User: "Why is market_level_anomalies_v4 wrong for B6 today?"
 
 1. `trace_pipeline("market_level_anomalies_v4", direction="upstream", depth=4)` — reveals `market-level-generator` (writes it), `market-level-analysis` (its input), `competitive-position` (its input), `derived-common-output` (its input), `common-output` (its input).
-2. For each upstream stage, check pipeline health: `sfn_list_executions` + `lambda_get_last_errors` + a quick `execute_sql` to confirm recent row counts in each stage's output table.
+2. For each upstream stage, check pipeline health with guarded `bash` AWS CLI read-only commands (`aws stepfunctions list-executions`, `aws logs filter-log-events`) plus a quick `execute_sql` to confirm recent row counts in each stage's output table.
 3. Report the bottleneck to the user in terms of the graph — "market-level-generator ran fine, but competitive-position had no output today for B6, which is why market-level-generator produced stale results." Then link the Redshift tables / S3 prefixes where they can verify.

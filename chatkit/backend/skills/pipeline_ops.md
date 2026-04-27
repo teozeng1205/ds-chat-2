@@ -1,44 +1,45 @@
 ---
 name: pipeline_ops
-description: Live AWS pipeline inspection — Step Functions, Lambda logs, ECS, alarms, EventBridge schedules.
+description: Read-only AWS ops patterns through guarded AWS CLI commands.
 keywords: [sfn, step, function, lambda, ecs, cloudwatch, alarm, eventbridge, rule, logs, insights, cluster, task, pipeline, ops, failure, error, timeout, schedule]
-tier: high
 ---
 
-## Live AWS ops tools (read-only)
+# Pipeline Ops
 
-All tools run with 3VDEV credentials and do NOT mutate the cloud.
+## Live AWS ops access
 
-### Step Functions
-- `sfn_list_executions(state_machine_arn, status_filter?)` — e.g. `statusFilter="FAILED"` for last failures.
-- `sfn_describe_execution(execution_arn)` — status, input, output, error, cause.
-- `sfn_get_execution_history(execution_arn, max_results=200)` — flattened events; `failure_count` is pre-computed in the response.
+Use `bash` with AWS CLI for read-only AWS ops checks. The process runs with
+3VDEV credentials; be explicit when an answer is about dev resources.
 
-### Lambda errors
-- `lambda_get_last_errors(function_name, lookback_hours=6)` — filters `/aws/lambda/{fn}` for
-  ERROR / Exception / Traceback / "Task timed out".
+AWS mutating or execution commands (`run-task`, `invoke`, `start-execution`,
+`put-*`, `update-*`, `delete-*`, `send-message`, `publish`, etc.) are guarded
+and require explicit approval support. Do not use them for routine investigation.
 
-### Logs Insights
-- `logs_insights_query(log_group, query, since_seconds=3600)` — polls to completion up to 60s.
-  Use for ad-hoc scans: `fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc`.
+## Read-only command patterns
 
-### ECS
-- `ecs_describe_tasks(cluster)` — running tasks + health.
-- `ecs_list_stopped_reasons(cluster, service?)` — stopped tasks + `stoppedReason` + container exit codes
-  (`137` = OOMKilled, `139` = segfault).
+- Step Functions state machines:
+  `aws stepfunctions list-state-machines`
+- Step Functions executions:
+  `aws stepfunctions list-executions --state-machine-arn <ARN> --status-filter FAILED --max-results 20`
+- Step Functions execution detail:
+  `aws stepfunctions describe-execution --execution-arn <ARN>`
+- Lambda recent errors:
+  `aws logs filter-log-events --log-group-name /aws/lambda/<FUNCTION> --filter-pattern '?ERROR ?Exception ?Traceback ?Task timed out' --limit 50`
+- Logs Insights:
+  `aws logs start-query --log-group-name <GROUP> --start-time <EPOCH> --end-time <EPOCH> --query-string 'fields @timestamp, @message | sort @timestamp desc | limit 50'`
+  then `aws logs get-query-results --query-id <ID>`.
+- ECS running tasks:
+  `aws ecs list-tasks --cluster <CLUSTER>` then
+  `aws ecs describe-tasks --cluster <CLUSTER> --tasks <TASK_ARNS...>`.
+- ECS stopped task reasons:
+  `aws ecs list-tasks --cluster <CLUSTER> --desired-status STOPPED`
+  then `aws ecs describe-tasks`.
+- CloudWatch alarms:
+  `aws cloudwatch describe-alarms --state-value ALARM --max-records 100`.
+- EventBridge rule and targets:
+  `aws events describe-rule --name <RULE>` and
+  `aws events list-targets-by-rule --rule <RULE>`.
 
-### CloudWatch / EventBridge
-- `cloudwatch_alarms(state_value="ALARM")` — currently-firing alarms.
-- `eventbridge_describe_rule(name)` — the schedule, the event pattern, and the rule's targets.
+Prefer small `--query` filters or pipe to `python -m json.tool` / `jq` when
+available so the output stays compact.
 
-## Typical investigations
-
-- **Overnight pipeline broke?** → `sfn_list_executions(arn, status_filter="FAILED", since=last night)`
-  → `sfn_describe_execution` on the first failure → `sfn_get_execution_history` to find the failed
-  state → `lambda_get_last_errors` on the responsible Lambda.
-- **Why did my ECS service crash?** → `ecs_list_stopped_reasons(cluster, service)`
-  → `logs_insights_query` on the ECS log group.
-- **What triggers this job?** → `eventbridge_describe_rule(name)` — returns scheduleExpression + targets.
-
-All tools return plain dicts with `ok` + the payload, never raise for expected
-AWS errors (missing resources return `ok=False` with `error_type="NotFound"`).

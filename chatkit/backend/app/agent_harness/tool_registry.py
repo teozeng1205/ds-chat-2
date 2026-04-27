@@ -49,7 +49,7 @@ def build_default_tool_registry(
     model: str,
     include_apply_patch: bool,
     include_orchestration: bool = False,
-    include_aws_ops: bool = True,
+    include_aws_ops: bool = False,
 ) -> ToolRegistry:
     """Build the default DS Chat tool registry.
 

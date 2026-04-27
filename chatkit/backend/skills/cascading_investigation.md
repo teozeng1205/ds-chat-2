@@ -115,9 +115,9 @@ Look for:
 Only if the break-point stage has a DEV mirror Lambda / SFN. You CAN look at 3VDEV
 logs for crashes since the process runs on 3VDEV creds:
 ```
-sfn_list_executions(state_machine_arn="arn:aws:states:...:<DEV_SFN>", status="FAILED")
-lambda_get_last_errors(function_name="<DEV_LAMBDA>")
-logs_insights_query(log_group="/aws/lambda/<DEV_LAMBDA>", ...)
+bash("aws stepfunctions list-executions --state-machine-arn arn:aws:states:...:<DEV_SFN> --status-filter FAILED --max-results 20")
+bash("aws logs filter-log-events --log-group-name /aws/lambda/<DEV_LAMBDA> --filter-pattern '?ERROR ?Exception ?Traceback ?Task timed out' --limit 50")
+bash("aws logs start-query ...") followed by bash("aws logs get-query-results --query-id <ID>")
 ```
 Evidence found → pair it with the code reading from 5b. **Be explicit in your
 answer that this is a DEV observation**, not a prod observation — the two
@@ -126,8 +126,7 @@ environments are not guaranteed identical.
 #### 5d. 3VPROD CloudWatch (HARD BOUNDARY — do not attempt)
 The process runs on 3VDEV with cross-account access for **S3 + Redshift only**.
 3VPROD CloudWatch logs, 3VPROD Lambda, 3VPROD Step Functions are **not reachable**.
-**Do not call `lambda_get_last_errors` / `sfn_list_executions` / `logs_insights_query`
-with a prod ARN — the call will fail with a `AccessDenied` or return nothing
+**Do not use AWS CLI with a prod ARN — the call will fail with a `AccessDenied` or return nothing
 meaningful, and you MUST NOT try to `aws sts assume-role` into 3VPROD.**
 
 When you hit this boundary, end the investigation with a concrete handoff:
