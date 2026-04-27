@@ -148,12 +148,28 @@ def _extract_tool_calls(result: Any) -> list[dict[str, Any]]:
         elif item_type == "tool_call_output_item":
             # Match output back to existing tool calls
             raw = getattr(item, "raw_item", None)
-            call_id = _raw_value(raw, "call_id", "") if raw else ""
-            output = getattr(item, "output", "")
+            call_id = (
+                _raw_value(raw, "call_id", "")
+                or getattr(item, "call_id", "")
+                or getattr(getattr(item, "agent_call", None), "call_id", "")
+            )
+            output = (
+                getattr(item, "output", None)
+                or _raw_value(raw, "output", None)
+                or _raw_value(raw, "content", None)
+                or ""
+            )
+            matched = False
             for tc in tool_calls:
-                if tc.get("call_id") == call_id:
+                if call_id and tc.get("call_id") == call_id:
                     tc["output"] = str(output)
+                    matched = True
                     break
+            if not matched:
+                for tc in reversed(tool_calls):
+                    if "output" not in tc:
+                        tc["output"] = str(output)
+                        break
     return tool_calls
 
 
