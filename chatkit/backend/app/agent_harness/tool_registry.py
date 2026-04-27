@@ -48,13 +48,13 @@ def build_default_tool_registry(
     *,
     model: str,
     include_apply_patch: bool,
-    include_orchestration: bool = True,
+    include_orchestration: bool = False,
     include_aws_ops: bool = True,
 ) -> ToolRegistry:
     """Build the default DS Chat tool registry.
 
-    ``include_orchestration`` and ``include_aws_ops`` intentionally default
-    to True in this compatibility step; later commits flip them off.
+    Orchestration tools default off for the general computer harness. The
+    modules remain available for experiments and direct tests.
     """
     from agents import WebSearchTool
 
@@ -126,4 +126,3 @@ def build_default_tool_registry(
 
 
 __all__ = ["ToolBundle", "ToolRegistry", "build_default_tool_registry"]
-

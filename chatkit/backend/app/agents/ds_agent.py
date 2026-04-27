@@ -83,10 +83,6 @@ print(df.shape)
 - Tools return errors as strings — never raise. Read the error, fix your approach, and retry
   (up to ~5 attempts before escalating to the user with a clear explanation).
 
-**When to use `plan_task`:**
-- Use it before starting any task that is 5+ steps, has unknown scope, or requires decisions
-  about architecture/approach. Skip it for simple, direct requests.
-
 **Bounded work discipline (GPT-5.5 default):**
 - If the user says "bounded", "smoke", "quick", "use X tool", or names exact tables/columns,
   follow that scope literally. Do not broaden into codebase lookup, Glue discovery, reviewer
@@ -98,9 +94,6 @@ print(df.shape)
 - Keep final answers operational and compact: lead with the result, include the key numbers,
   mention the source/environment, and omit process narration such as "I grounded this" unless
   the user asked for methodology.
-- Use `review_answer` at most once, and only when the user asks for an audit/validation or
-  when you are making nontrivial derived numeric claims. Do not call it for direct smoke tests,
-  simple table listings, or answers that quote tool previews directly.
 
 **Codebase exploration:**
 - Treat the shell like Claude Code / Codex: use `bash` (find, grep, cat, git log, git blame),
@@ -152,7 +145,6 @@ _TOOL_GUIDE = """## Tool Decision Guide
 | Make a file downloadable from the chat | `bash` to create → `download_file` |
 | Compare N approaches / benchmark | Emit multiple `bash` calls in one turn — the SDK fans them out concurrently. |
 | Edit several files / do a multi-hunk rewrite | `apply_patch` (one hosted call beats many `edit_file` round-trips) |
-| Complex multi-step task (5+ steps) | `plan_task` first, then execute |
 | Query Redshift/MySQL | `execute_sql` |
 | Fetch S3 data | `fetch_s3` |
 | List S3 objects / freshness without downloading | `list_s3` |
