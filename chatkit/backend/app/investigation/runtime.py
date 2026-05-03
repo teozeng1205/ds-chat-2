@@ -16,10 +16,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .catalog import KnowledgeBase, LocalCodeCatalog
+from .catalog import LocalCodeCatalog
 from .datasources import DatasourceRegistry, datasource_for_table
 from .entity_resolution import EntityResolver
 from .executor import OperatorRuntime, PartitionGuard, SqlGuard
+from .kb import KnowledgeRetriever
 from .workspace import WorkspaceManager
 
 log = logging.getLogger(__name__)
@@ -45,9 +46,6 @@ def _partition_check(validated_query: str) -> list[str]:
         return PartitionGuard.check(validated_query)
 WORK_ROOT = BACKEND_ROOT / ".work"
 SESSION_ROOT = WORK_ROOT / "sessions"
-KB_RUNTIME_ROOT = WORK_ROOT / "knowledge"
-KB_DB_PATH = KB_RUNTIME_ROOT / "knowledge.sqlite"
-
 INVESTIGATION_ROOT = Path(__file__).resolve().parent
 KNOWLEDGE_ROOT = INVESTIGATION_ROOT / "knowledge"
 COMMON_CODES_PATH = KNOWLEDGE_ROOT / "common_codes.json"
@@ -155,11 +153,10 @@ class InvestigationRuntime:
         WORK_ROOT.mkdir(parents=True, exist_ok=True)
         SESSION_ROOT.mkdir(parents=True, exist_ok=True)
         KNOWLEDGE_ROOT.mkdir(parents=True, exist_ok=True)
-        KB_RUNTIME_ROOT.mkdir(parents=True, exist_ok=True)
 
         self.registry = DatasourceRegistry()
         self.catalog = LocalCodeCatalog(path=COMMON_CODES_PATH)
-        self.kb = KnowledgeBase(root=KNOWLEDGE_ROOT, db_path=KB_DB_PATH)
+        self.kb = KnowledgeRetriever()
         self.resolver = EntityResolver(catalog=self.catalog, registry=self.registry)
         self.guard = SqlGuard(default_limit=DEFAULT_SQL_LIMIT, max_limit=MAX_SQL_LIMIT)
         self.workspace = WorkspaceManager(root=SESSION_ROOT)
@@ -178,7 +175,7 @@ class InvestigationRuntime:
             handle.write(json.dumps({"ts": _iso_now(), "event": event, "payload": payload}, ensure_ascii=True, default=_json_default) + "\n")
 
     def ensure_kb_ready(self) -> dict[str, Any]:
-        return self.kb.refresh(force=False, catalog=self.catalog)
+        return self.kb.ensure_ready(force=False)
 
     # ── Tool implementation: execute_sql ──
 
@@ -350,17 +347,8 @@ class InvestigationRuntime:
         except Exception:
             sample_row_masked = None
 
-        knowledge = self.kb.retrieve(question=table_name, entities={})
-        tier = "common" if table_name in knowledge.get("candidate_tables", []) else "discovered"
-        self.kb.upsert_table_metadata(
-            table_name=table_name,
-            datasource=source,
-            columns=metadata.get("columns", []),
-            partitions=metadata.get("partitions", []),
-            sample_row_masked=sample_row_masked,
-            tier=tier,
-            notes="Discovered from metadata inspection" if tier == "discovered" else "Common table",
-        )
+        knowledge = self.search_kb(table_name)
+        tier = "common" if any(t.get("name") == table_name for t in knowledge.get("tables", [])) else "discovered"
 
         return {
             **metadata,
@@ -372,9 +360,8 @@ class InvestigationRuntime:
     # ── Tool implementation: search_kb ──
 
     def search_kb(self, query: str) -> dict[str, Any]:
-        """Search local knowledge base for matching tables and docs."""
-        self.ensure_kb_ready()
-        return self.kb.retrieve(question=query, entities={})
+        """Search the V2 task-first KB."""
+        return self.kb.search(query=query).to_dict()
 
     # ── Tool implementation: resolve_codes ──
 
@@ -429,7 +416,6 @@ __all__ = [
     "DatasourceRegistry",
     "EntityResolver",
     "InvestigationRuntime",
-    "KnowledgeBase",
     "LocalCodeCatalog",
     "OperatorRuntime",
     "PartitionGuard",

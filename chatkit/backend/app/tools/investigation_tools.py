@@ -431,7 +431,8 @@ async def list_s3(
         max_keys: Maximum keys to scan, clamped to 1..50000. The tool returns
             the newest 50 scanned objects, not every scanned key.
 
-    Returns: object_count, latest object metadata, and listed object metadata.
+    Returns: bucket, object_count, latest object metadata including `s3_uri`,
+    and listed object metadata.
     """
     try:
         runtime = get_runtime()
@@ -515,289 +516,28 @@ async def inspect_table(
 
 # ── Tool 5: search_kb ──
 
-def _pipeline_context(
-    *,
-    candidate_tables: list[str] | None = None,
-    semantic_hits: list[dict[str, Any]] | None = None,
-    max_entries: int = 6,
-) -> dict[str, Any]:
-    """Attach 1-hop lineage to KB hits that resolve to graph nodes.
-
-    Best-effort — returns {} when the graph DB hasn't been built or
-    when no KB hit maps to a known node. Each entry in the returned
-    dict is keyed by graph node id and has at most ~2 upstream /
-    ~2 downstream neighbors plus the stage that produces the entity.
-    """
-    try:
-        from pathlib import Path
-        from ..pipelines.graph_store import GraphStore, default_graph_db_path
-
-        db_path = default_graph_db_path()
-        if not Path(db_path).exists():
-            return {}
-
-        store = GraphStore(db_path)
-        try:
-            if store.stats()["total_nodes"] == 0:
-                return {}
-
-            seeds: list[str] = []
-            for t in candidate_tables or []:
-                if isinstance(t, str) and t:
-                    seeds.append(t)
-            for hit in semantic_hits or []:
-                sid = hit.get("id") if isinstance(hit, dict) else None
-                if isinstance(sid, str) and sid:
-                    seeds.append(sid)
-                meta = (hit or {}).get("metadata") if isinstance(hit, dict) else None
-                if isinstance(meta, dict):
-                    for k in ("table_name", "code", "source"):
-                        v = meta.get(k)
-                        if isinstance(v, str) and v:
-                            seeds.append(v)
-
-            out: dict[str, Any] = {}
-            seen: set[str] = set()
-            for seed in seeds:
-                if len(out) >= max_entries:
-                    break
-                resolved = store.resolve(seed)
-                if resolved is None or resolved in seen:
-                    continue
-                seen.add(resolved)
-                node = store.get_node(resolved)
-                if node is None:
-                    continue
-                edges = store.get_edges(resolved, direction="both")
-                entry: dict[str, Any] = {"kind": node.kind, "name": node.name}
-
-                # Bucket edges by their semantic role relative to `resolved`:
-                # - produced_by: some source writes INTO us
-                # - consumed_by: some source reads FROM us
-                # - reads_from:  we (as source) read a thing
-                # - writes_to:   we (as source) write a thing
-                produced_by: list[str] = []
-                consumed_by: list[str] = []
-                reads_from: list[str] = []
-                writes_to: list[str] = []
-                triggers: list[str] = []
-                for e in edges:
-                    if e.rel == "writes" and e.target_id == resolved:
-                        produced_by.append(e.source_id)
-                    elif e.rel == "reads" and e.target_id == resolved:
-                        consumed_by.append(e.source_id)
-                    elif e.rel == "reads" and e.source_id == resolved:
-                        reads_from.append(e.target_id)
-                    elif e.rel == "writes" and e.source_id == resolved:
-                        writes_to.append(e.target_id)
-                    elif e.rel == "triggers":
-                        triggers.append(
-                            e.source_id if e.target_id == resolved else e.target_id
-                        )
-
-                if produced_by:
-                    entry["produced_by"] = produced_by[:3]
-                if consumed_by:
-                    entry["consumed_by"] = consumed_by[:3]
-                if reads_from:
-                    entry["reads_from"] = reads_from[:6]
-                if writes_to:
-                    entry["writes_to"] = writes_to[:6]
-                if triggers:
-                    entry["triggers"] = triggers[:3]
-                out[resolved] = entry
-            return out
-        finally:
-            store.close()
-    except Exception as exc:  # noqa: BLE001 — graph lookup is best-effort
-        log.debug("pipeline_context lookup skipped: %s", exc)
-        return {}
-
-
-# ── Semantic retrieval layer: multi-query expansion + cross-encoder rerank ──
-#
-# Implements two frontier RAG improvements from Anthropic/research (2024):
-#   1. Multi-query expansion: generate 2 alternative phrasings → union results
-#      → +10-20% recall on ambiguous queries.
-#   2. Cross-encoder reranker (ms-marco-MiniLM-L-6-v2): retrieve top-20,
-#      rerank to top_k → +8-15% answer correctness.
-#
-# Both are best-effort: failures fall back to the original single-query path.
-
-_RERANKER: Any | None = None
-
-
-def _get_reranker() -> Any | None:
-    """Lazy-load the cross-encoder. Returns None on import failure."""
-    global _RERANKER
-    if _RERANKER is not None:
-        return _RERANKER
-    try:
-        from sentence_transformers import CrossEncoder  # type: ignore[import]
-        _RERANKER = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2", max_length=512)
-        return _RERANKER
-    except Exception as exc:  # noqa: BLE001
-        log.debug("cross-encoder unavailable: %s", exc)
-        return None
-
-
-def _expand_query(query: str, client: Any, n: int = 2) -> list[str]:
-    """Generate n alternative phrasings for better recall on the PriceEye KB."""
-    try:
-        resp = client.chat.completions.create(
-            model="gpt-5.4-mini",
-            messages=[{
-                "role": "user",
-                "content": (
-                    "You are searching an ATPCO PriceEye data-pipeline knowledge base.\n"
-                    f"Generate {n} alternative search phrasings for the question below.\n"
-                    "Think about: technical synonyms, table/pipeline names, "
-                    "upstream/downstream framing, provider/customer codes.\n"
-                    "Return one phrasing per line, no numbering.\n\n"
-                    f"Question: {query}"
-                ),
-            }],
-            max_completion_tokens=120,
-            temperature=0.3,
-        )
-        alts = [
-            ln.strip() for ln in resp.choices[0].message.content.splitlines()
-            if ln.strip()
-        ]
-        return [query] + alts[:n]
-    except Exception as exc:  # noqa: BLE001
-        log.debug("query expansion failed: %s", exc)
-        return [query]
-
-
-def _rerank(query: str, hits: list[Any], top_k: int) -> list[Any]:
-    """Rerank hits with a cross-encoder; fall back to original order on error."""
-    reranker = _get_reranker()
-    if reranker is None or not hits:
-        return hits[:top_k]
-    try:
-        pairs = [(query, h.text[:512]) for h in hits]
-        scores = reranker.predict(pairs)
-        for hit, score in zip(hits, scores):
-            hit.score = float(score)
-        hits.sort(key=lambda h: h.score, reverse=True)
-        return hits[:top_k]
-    except Exception as exc:  # noqa: BLE001
-        log.debug("reranking failed: %s", exc)
-        return hits[:top_k]
-
-
-def _semantic_hits(query: str, *, top_k: int = 6) -> list[dict[str, Any]]:
-    """Best-effort semantic search over the pre-built embedding index.
-
-    Pipeline:
-      1. Multi-query expansion (2 alternatives via gpt-5.4-mini)
-      2. Embed each query variant with text-embedding-3-large
-      3. Hybrid cosine+lexical search, retrieve top-20 per variant, union
-      4. Cross-encoder rerank to top_k using ms-marco-MiniLM-L-6-v2
-
-    Returns an empty list when the index doesn't exist or all steps fail.
-    Never raises.
-    """
-    try:
-        from pathlib import Path
-        backend_root = Path(__file__).resolve().parents[2]
-        index_path = backend_root / "app" / ".data" / "ds-chat-semantic.sqlite"
-        if not index_path.exists():
-            return []
-
-        from openai import OpenAI
-        from app.investigation.semantic_index import SemanticIndex, tokenize
-        client = OpenAI()
-
-        # Step 1: multi-query expansion
-        queries = _expand_query(query, client, n=2)
-
-        # Step 2+3: embed all variants, union results
-        seen_ids: set[str] = set()
-        all_hits: list[Any] = []
-        retrieve_k = min(20, max(top_k * 3, 12))  # retrieve more so reranker has room
-
-        idx = SemanticIndex(index_path)
-        try:
-            for q in queries:
-                try:
-                    resp = client.embeddings.create(model="text-embedding-3-large", input=[q])
-                    q_vec = list(resp.data[0].embedding)
-                    for h in idx.hybrid_search(q_vec, lexical_terms=tokenize(q), top_k=retrieve_k):
-                        if h.id not in seen_ids:
-                            seen_ids.add(h.id)
-                            all_hits.append(h)
-                except Exception as exc:  # noqa: BLE001
-                    log.debug("embedding/search failed for variant %r: %s", q, exc)
-        finally:
-            idx.close()
-
-        if not all_hits:
-            return []
-
-        # Step 4: cross-encoder rerank
-        final_hits = _rerank(query, all_hits, top_k=top_k)
-
-        return [
-            {
-                "id": h.id,
-                "kind": h.kind,
-                "score": round(h.score, 4),
-                "snippet": h.text[:600],
-                "source": (h.metadata or {}).get("source"),
-            }
-            for h in final_hits
-        ]
-    except Exception as exc:  # noqa: BLE001 — semantic path is best-effort
-        log.debug("semantic KB search skipped: %s", exc)
-        return []
-
-
 @function_tool(timeout=TIMEOUT_SHORT_NET, failure_error_function=tool_error)
 async def search_kb(
     ctx: RunContextWrapper[AgentContext],
     query: str,
 ) -> dict[str, Any]:
-    """Search the local knowledge base for matching tables, docs, and investigation patterns.
+    """Search the DS Chat KB V2 for task, table, lineage, and citation context.
 
     Args:
         query: Natural language search query (e.g. 'market anomalies', 'site issues', 'combined audit').
 
-    Returns: candidate_tables, table_hints (with partition info), document_hints.
-    When the embedding index has been built (run
-    `python -m app.investigation.knowledge.build_embeddings`), the result also
-    carries `semantic_hits` — hybrid cosine+lexical ranked chunks with score,
-    snippet, and source path.
+    Returns: V2 fields only: query, task, items, tables, lineage, tool_plan,
+    citations, confidence, retrieval_trace.
     """
     try:
         await _stream_progress(ctx, "search", f"Searching KB for: {query}")
         runtime = get_runtime()
         result = runtime.search_kb(query=query)
 
-        # Best-effort semantic overlay. Additive: never replaces the
-        # lexical path, just adds a `semantic_hits` field when available.
-        sem = _semantic_hits(query)
-        if sem:
-            result["semantic_hits"] = sem
-
-        # Best-effort pipeline-lineage overlay. When a candidate_table or
-        # semantic_hit resolves to a graph node, attach its 1-hop
-        # neighborhood so the agent sees upstream producers / downstream
-        # consumers without needing a separate trace_pipeline call.
-        pipe_ctx = _pipeline_context(
-            candidate_tables=result.get("candidate_tables") or [],
-            semantic_hits=sem,
-        )
-        if pipe_ctx:
-            result["pipeline_context"] = pipe_ctx
-
         await _stream_progress(
             ctx, "check-circle",
-            f"KB search complete: {len(result.get('candidate_tables', []))} tables"
-            + (f", {len(sem)} semantic hits" if sem else "")
-            + (f", {len(pipe_ctx)} lineage nodes" if pipe_ctx else "")
-            + ".",
+            f"KB V2 search complete: {len(result.get('items', []))} items, "
+            f"{len(result.get('tables', []))} tables, {len(result.get('lineage', []))} lineage edges.",
         )
         return result
     except Exception as exc:

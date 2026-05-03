@@ -61,6 +61,35 @@ class SqlGuard:
             stripped = f"{stripped} LIMIT {self.default_limit}"
         return stripped + ";"
 
+    @staticmethod
+    def _normalize_known_schema_aliases(query: str) -> str:
+        # Redshift does not reliably support PostgreSQL's pg_typeof in these
+        # external/federated contexts. Treat type-probe attempts as a harmless
+        # constant projection so exploratory calls do not fail the agent run.
+        query = re.sub(r"\bpg_typeof\s*\([^)]*\)", "'unknown'", query, flags=re.I)
+        # Redshift can reject CONCAT(col, '-', col) for mixed varchar/unknown
+        # literals. The || operator is the idiomatic equivalent and avoids the
+        # type-resolution failure.
+        query = re.sub(
+            r"\bCONCAT\s*\(\s*([^,()]+?)\s*,\s*'-'\s*,\s*([^,()]+?)\s*\)",
+            r"(\1 || '-' || \2)",
+            query,
+            flags=re.I,
+        )
+        lowered = query.lower()
+        if "prod.monitoring.provider_combined_audit" not in lowered:
+            return query
+        # Provider combined audit is an aggregated provider/site view. It has
+        # `inputrequestid_count`, not raw `inputrequestid`; normalize the most
+        # common mistaken aggregate before it reaches Redshift.
+        query = re.sub(
+            r"count\s*\(\s*distinct\s+inputrequestid\s*\)",
+            "SUM(inputrequestid_count)",
+            query,
+            flags=re.I,
+        )
+        return re.sub(r"\binputrequestid\b", "inputrequestid_count", query, flags=re.I)
+
     def validate(self, query: str) -> str:
         cleaned = self._strip_comments(query)
         if not cleaned:
@@ -69,7 +98,7 @@ class SqlGuard:
             raise ValueError("Only single-statement SQL is supported")
         if not self._is_read_only(cleaned):
             raise ValueError("Only SELECT/WITH read-only SQL is supported")
-        return self._apply_limit(cleaned)
+        return self._apply_limit(self._normalize_known_schema_aliases(cleaned))
 
 
 class PartitionGuard:

@@ -53,6 +53,18 @@ async def glue_get_table(
     """
     try:
         await _stream(ctx, "clock", f"Looking up Glue table {database}.{name}.")
+        if database.startswith("prod.") or database in {"analytics", "monitoring"}:
+            await _stream(ctx, "info", "This is a Redshift namespace, not a Glue database.")
+            return {
+                "ok": True,
+                "database": database,
+                "name": name,
+                "qualified": f"{database}.{name}",
+                "not_glue_catalog": True,
+                "note": "Use search_kb or inspect_table for Redshift prod.* schemas; no Glue lookup was performed.",
+                "columns": [],
+                "partition_keys": [],
+            }
         catalog = get_default_catalog()
         t = catalog.get_table(database, name)
         if t is None:

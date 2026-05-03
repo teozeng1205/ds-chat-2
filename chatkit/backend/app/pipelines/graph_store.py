@@ -1,9 +1,9 @@
 """Persistent graph store — SQLite-backed.
 
 Adjacency-list tables live in their own SQLite file under
-`app/.data/ds-chat-pipelines.sqlite`. Keeping them separate from the
-existing `knowledge.sqlite` lets the graph be rebuilt / wiped without
-disturbing the lexical KB or the semantic index.
+`app/.data/ds-chat-pipelines.sqlite`. KB V2 ingests the canonical graph
+JSON into its own typed edge store; this lower-level graph store remains
+the source for the standalone `trace_pipeline` tool and graph rebuilds.
 
 Public API:
   - GraphStore(db_path) — open / create schema

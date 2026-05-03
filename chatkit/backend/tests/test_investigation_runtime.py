@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from app.investigation.catalog import KnowledgeBase, LocalCodeCatalog
+from app.investigation.catalog import LocalCodeCatalog
 from app.investigation.datasources import DatasourceRegistry, datasource_for_table
 from app.investigation.entity_resolution import EntityResolver
 from app.investigation.executor import OperatorRuntime, PartitionGuard, SqlGuard
@@ -140,6 +140,40 @@ def test_sql_guard_blocks_non_readonly():
         guard.validate("DELETE FROM prod.analytics.market_level_anomalies_v3")
 
 
+def test_sql_guard_normalizes_provider_combined_audit_request_id_alias():
+    guard = SqlGuard()
+    query = """
+    SELECT COUNT(DISTINCT inputrequestid) AS request_ids
+    FROM prod.monitoring.provider_combined_audit
+    WHERE sales_date = 20260502
+    """
+
+    validated = guard.validate(query)
+
+    assert "SUM(inputrequestid_count) AS request_ids" in validated
+    assert "COUNT(DISTINCT inputrequestid)" not in validated
+
+
+def test_sql_guard_neutralizes_pg_typeof_probe():
+    guard = SqlGuard()
+    query = "SELECT pg_typeof(issue_sources) AS issue_sources_type FROM prod.monitoring.provider_combined_audit WHERE sales_date = 20260502"
+
+    validated = guard.validate(query)
+
+    assert "pg_typeof" not in validated.lower()
+    assert "'unknown' AS issue_sources_type" in validated
+
+
+def test_sql_guard_rewrites_redshift_concat_dash():
+    guard = SqlGuard()
+    query = "SELECT CONCAT(origincitycode, '-', destinationcitycode) AS market FROM prod.monitoring.provider_combined_audit WHERE sales_date = 20260502"
+
+    validated = guard.validate(query)
+
+    assert "CONCAT" not in validated.upper()
+    assert "(origincitycode || '-' || destinationcitycode) AS market" in validated
+
+
 # ── Partition Guard Tests ──
 
 
@@ -260,68 +294,6 @@ def test_workspace_cleanup_retains_manifest(tmp_path: Path):
     assert cleanup["manifest_retained"] == 1
     assert cleanup["deleted_files"] >= 1
     assert not Path(record["local_path"]).exists()
-
-
-# ── Knowledge Base Tests ──
-
-
-def test_knowledge_index_parses_tables_doc_and_refreshes(tmp_path: Path):
-    knowledge_root = tmp_path / "knowledge"
-    knowledge_root.mkdir(parents=True, exist_ok=True)
-
-    (knowledge_root / "tables.md").write_text(
-        "| Table | Notes |\n|---|---|\n| `prod.monitoring.combined_audit` | core monitoring table |\n",
-        encoding="utf-8",
-    )
-    codes_path = knowledge_root / "common_codes.json"
-    _seed_codes(codes_path)
-
-    catalog = LocalCodeCatalog(path=codes_path)
-    db_path = tmp_path / "knowledge.sqlite"
-    kb = KnowledgeBase(root=knowledge_root, db_path=db_path)
-
-    result = kb.refresh(force=True, catalog=catalog)
-    assert result["ok"] is True
-    assert result["refreshed"] is True
-    retrieved = kb.retrieve(question="combined audit", entities={})
-    assert "prod.monitoring.combined_audit" in retrieved["candidate_tables"]
-
-
-def test_knowledge_retrieval_includes_partition_info(tmp_path: Path):
-    knowledge_root = tmp_path / "knowledge"
-    knowledge_root.mkdir(parents=True, exist_ok=True)
-
-    (knowledge_root / "tables.md").write_text(
-        "| Table | Notes |\n|---|---|\n| `prod.monitoring.combined_audit` | core monitoring table |\n",
-        encoding="utf-8",
-    )
-    # Write live metadata with partitions
-    live_meta = {
-        "tables": [
-            {
-                "table_name": "prod.monitoring.combined_audit",
-                "datasource": "redshift_core",
-                "status": "ok",
-                "partitions": [{"column": "sales_date", "role": "recommended", "inferred_type": "date"}],
-                "columns": [{"column_name": "sales_date", "data_type": "bigint"}],
-            }
-        ]
-    }
-    (knowledge_root / "common_table_live_metadata.json").write_text(json.dumps(live_meta), encoding="utf-8")
-    codes_path = knowledge_root / "common_codes.json"
-    _seed_codes(codes_path)
-
-    catalog = LocalCodeCatalog(path=codes_path)
-    db_path = tmp_path / "knowledge.sqlite"
-    kb = KnowledgeBase(root=knowledge_root, db_path=db_path)
-    kb.refresh(force=True, catalog=catalog)
-
-    retrieved = kb.retrieve(question="combined audit", entities={})
-    table_hints = retrieved.get("table_hints", [])
-    assert len(table_hints) > 0
-    first_hint = table_hints[0]
-    assert "partitions" in first_hint
-    assert len(first_hint["partitions"]) > 0
 
 
 # ── Operator Runtime Tests ──

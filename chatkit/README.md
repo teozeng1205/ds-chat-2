@@ -101,8 +101,13 @@ E2E smoke reports with full model output and debug steps are written under:
 - Knowledge sources are local and editable:
   - `backend/app/investigation/knowledge/tables.md`
   - `backend/app/investigation/knowledge/common_codes.json`
-  - `backend/app/investigation/knowledge/task_recipes.json`
+  - `backend/app/investigation/knowledge/common_table_live_metadata.json`
+  - `backend/app/investigation/knowledge/pipelines.json`
+  - `backend/skills/*.md` (ingested as KB V2 task recipes)
+  - `backend/tests/e2e_investigation_cases.json` (ingested as eval/task seeds)
   - `backend/app/investigation/knowledge/sql_best_practices.md`
+- KB V2 stores typed items, chunks, edges, and task recipes in
+  `backend/app/.data/ds-chat-kb-v2.sqlite`.
 
 ## Architecture
 
@@ -155,8 +160,8 @@ E2E smoke reports with full model output and debug steps are written under:
  │  │  │               generates numbered execution plan  │  │  │  · masked sample row   │ │ │
  │  │  │  web_search · WebSearchTool (built-in)           │  │  │                        │ │ │
  │  │  └──────────┬──────────────────────────────────────┘  │  │  search_kb             │ │ │
- │  │             │                                          │  │  · FTS knowledge.sqlite│ │ │
- │  │             │                                          │  │  · 27 docs + tables.md │ │ │
+ │  │             │                                          │  │  · KB V2 typed store   │ │ │
+ │  │             │                                          │  │  · task/table/lineage  │ │ │
  │  │             │                                          │  │                        │ │ │
  │  │             │                                          │  │  resolve_codes         │ │ │
  │  │             │                                          │  │  · common_codes.json   │ │ │

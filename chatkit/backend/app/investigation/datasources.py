@@ -432,6 +432,7 @@ class DatasourceRegistry:
                 objects.append(
                     {
                         "key": str(item.get("Key", "")),
+                        "s3_uri": f"s3://{bucket}/{item.get('Key', '')}",
                         "size": int(item.get("Size") or 0),
                         "last_modified": last_modified.isoformat() if hasattr(last_modified, "isoformat") else str(last_modified or ""),
                     }
