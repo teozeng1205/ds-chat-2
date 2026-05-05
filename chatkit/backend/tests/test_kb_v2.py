@@ -105,8 +105,10 @@ def test_kb_v2_ingests_typed_resources_and_filters_legacy(tmp_path: Path, monkey
     assert schema_hits[0]["item"]["id"] == "schema:prod.monitoring"
     assert "prod.monitoring.combined_audit" in schema_hits[0]["chunk"]["text"]
     overview_hits = store.search_chunks("how does priceeye work overview documentation source file", top_k=3)
-    assert overview_hits[0]["item"]["id"] == "doc_overview:priceeye"
-    assert "docs/priceeye_system.md" in overview_hits[0]["chunk"]["text"]
+    overview_doc = next(hit for hit in overview_hits if hit["item"]["id"] == "doc_overview:priceeye")
+    assert "docs/priceeye_system.md" in overview_doc["chunk"]["text"]
+    assert overview_doc["item"]["source_type"] == "doc_hint"
+    assert overview_doc["item"]["requires_verification"] is True
     assert not any("legacy" in hit["chunk"]["text"].lower() for hit in hits)
     store.close()
 
@@ -126,20 +128,27 @@ def test_kb_v2_search_contract(tmp_path: Path, monkeypatch) -> None:
         "query",
         "task",
         "items",
+        "verified_items",
+        "hints",
         "tables",
         "lineage",
         "tool_plan",
         "citations",
         "confidence",
+        "source_policy",
+        "verification_required",
+        "authority_trace",
         "retrieval_trace",
     }
     assert "candidate" + "_tables" not in result
     assert "semantic" + "_hits" not in result
     assert result["task"] is not None
     assert any(t["name"] == "prod.monitoring.provider_combined_audit" for t in result["tables"])
+    assert any(item["id"] == "table:prod.monitoring.provider_combined_audit" for item in result["verified_items"])
     assert any(edge["rel"] == "writes" for edge in result["lineage"])
 
-    overview = retriever.search("PriceEye how does it work").to_dict()
+    overview = retriever.search("how does priceeye work? Use search_kb. This is a bounded documentation answer.").to_dict()
     assert overview["task"]["id"] == "task:e2e:how_does_priceeye_work"
-    assert overview["items"][0]["id"] == "doc_overview:priceeye"
+    assert any(item["id"] == "doc_overview:priceeye" for item in overview["hints"])
+    assert any(citation["source_type"] == "doc_hint" for citation in overview["citations"])
     retriever.close()

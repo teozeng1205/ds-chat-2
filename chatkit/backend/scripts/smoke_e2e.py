@@ -12,6 +12,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import ast
 import asyncio
 import json
 import os
@@ -193,7 +194,15 @@ def _is_retryable_agent_error(exc: Exception) -> bool:
 
 
 def _tool_error_type(output: str) -> str | None:
-    if "'ok': False" not in output and '"ok": false' not in output.lower():
+    lowered = str(output or "").lower()
+    if "error: command blocked by guardrails" in lowered:
+        return "GuardrailBlocked"
+    has_false_ok = "'ok': false" in lowered or '"ok": false' in lowered
+    if re.search(r"\b(command timed out|timed out after|case exceeded)\b", lowered) or (
+        has_false_ok and re.search(r"\b(timed out|timeout)\b", lowered)
+    ):
+        return "ToolTimeout"
+    if not has_false_ok:
         return None
     for pattern in (
         r"'error_type': '([^']+)'",
@@ -205,7 +214,195 @@ def _tool_error_type(output: str) -> str | None:
     return "ToolError"
 
 
-def _check_assertions(case: dict[str, Any], tool_calls: list[dict[str, Any]], answer: str) -> dict[str, Any]:
+def _parse_tool_output(output: str) -> Any:
+    text = str(output or "").strip()
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+    try:
+        return ast.literal_eval(text)
+    except Exception:
+        return None
+
+
+_INTERNAL_CASE_TERMS = (
+    "priceeye",
+    "3vdev",
+    "3vprod",
+    "atpco",
+    "prod.",
+    "redshift",
+    "mysql",
+    "s3-atp-",
+    "search_kb",
+    "knowledge base",
+    "schema",
+    "codebase",
+)
+_PUBLIC_WEB_TERMS = ("web", "internet", "online", "public", "external")
+
+
+def _case_text(case: dict[str, Any]) -> str:
+    return " ".join(
+        str(value or "")
+        for value in (
+            case.get("name"),
+            case.get("question"),
+            json.dumps(case.get("assertions") or {}, sort_keys=True),
+        )
+    ).lower()
+
+
+def _is_internal_case(case: dict[str, Any]) -> bool:
+    text = _case_text(case)
+    return any(term in text for term in _INTERNAL_CASE_TERMS)
+
+
+def _is_bounded_case(case: dict[str, Any]) -> bool:
+    text = _case_text(case)
+    return any(term in text for term in ("bounded", "smoke", "use search_kb", "do not run", "do not inspect", "exactly one"))
+
+
+def _asks_for_public_web(case: dict[str, Any]) -> bool:
+    text = " ".join(str(value or "") for value in (case.get("name"), case.get("question"))).lower()
+    return "web_search" in text or any(term in text for term in _PUBLIC_WEB_TERMS)
+
+
+def _cases_need_web_search(cases: list[dict[str, Any]]) -> bool:
+    return any(_asks_for_public_web(case) for case in cases)
+
+
+def _tool_outputs(tool_calls: list[dict[str, Any]], tool_name: str) -> list[dict[str, Any]]:
+    outputs: list[dict[str, Any]] = []
+    for tc in tool_calls:
+        if str(tc.get("tool", "")) != tool_name:
+            continue
+        parsed = _parse_tool_output(str(tc.get("output", "")))
+        if isinstance(parsed, dict):
+            outputs.append(parsed)
+    return outputs
+
+
+def _source_reference_present(answer: str, search_outputs: list[dict[str, Any]]) -> bool:
+    candidates: set[str] = set()
+
+    def add_candidate(value: Any) -> None:
+        text = str(value or "").strip()
+        if not text:
+            return
+        candidates.add(text)
+        candidates.add(text.split("#", 1)[0])
+        if ":" in text:
+            candidates.add(text.split(":", 1)[1])
+
+    for output in search_outputs:
+        for citation in output.get("citations", []) or []:
+            if isinstance(citation, dict):
+                add_candidate(citation.get("source"))
+        for bucket in ("items", "verified_items", "hints"):
+            for item in output.get(bucket, []) or []:
+                if isinstance(item, dict):
+                    add_candidate(item.get("source_path"))
+                    metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+                    for key in ("provenance", "git_path", "path", "config_file", "module_path", "template"):
+                        add_candidate(metadata.get(key))
+    answer_l = answer.lower()
+    return any(candidate and candidate.lower() in answer_l for candidate in candidates)
+
+
+def _has_structured_kb_evidence(search_outputs: list[dict[str, Any]]) -> bool:
+    for output in search_outputs:
+        for item in output.get("verified_items", []) or []:
+            if not isinstance(item, dict):
+                continue
+            if item.get("source_type") in {"structured_snapshot", "code_verified", "live_verified"}:
+                return True
+        for table in output.get("tables", []) or []:
+            if isinstance(table, dict) and table.get("source_type") == "structured_snapshot":
+                return True
+    return False
+
+
+def _number_present(answer: str, value: int) -> bool:
+    plain = str(value)
+    with_commas = f"{value:,}"
+    return plain in answer or with_commas in answer
+
+
+def _has_followup_offer(answer: str) -> bool:
+    return re.search(
+        r"\b(?:"
+        r"would you like me|"
+        r"do you want me to|"
+        r"if you want[, ]|"
+        r"let me know if|"
+        r"i can also|"
+        r"i can help (?:with|you)|"
+        r"want me to"
+        r")",
+        answer,
+        flags=re.IGNORECASE,
+    ) is not None
+
+
+def _has_evidence_line(answer: str) -> bool:
+    return re.search(
+        r"(?im)^\s*(?:\*\*)?(source|sources|evidence|verified from|based on)(?:\*\*)?\s*:",
+        answer,
+    ) is not None
+
+
+def _bullet_count(answer: str) -> int:
+    return len(re.findall(r"(?m)^\s*(?:[-*]\s+|\d+[.)]\s+)", answer))
+
+
+def _s3_freshness_wording_ok(answer: str, list_outputs: list[dict[str, Any]]) -> bool:
+    if not list_outputs:
+        return False
+    answer_l = answer.lower()
+    if re.search(r"\b(after|newer than)\s+today\b|\btoday'?s date\b", answer_l):
+        return False
+    for output in list_outputs:
+        latest = output.get("latest") if isinstance(output, dict) else None
+        if not isinstance(latest, dict):
+            continue
+        last_modified = str(latest.get("last_modified") or "")
+        if last_modified and last_modified in answer:
+            return re.search(r"\b(as of|last modified|timestamp|latest visible object)\b", answer_l) is not None
+    return False
+
+
+def _code_source_reference_present(answer: str, tool_calls: list[dict[str, Any]]) -> bool:
+    candidates: set[str] = set()
+    for tc in tool_calls:
+        tool = str(tc.get("tool") or "")
+        if tool not in {"read_file", "list_dir", "bash"}:
+            continue
+        parsed = _parse_tool_output(str(tc.get("arguments") or ""))
+        if isinstance(parsed, dict):
+            for key in ("file_path", "path", "cwd"):
+                value = str(parsed.get(key) or "").strip()
+                if value:
+                    candidates.add(value)
+                    candidates.add(Path(value).name)
+        args = str(tc.get("arguments") or "")
+        for match in re.finditer(r"((?:~|/)[^\s'\"`]+|[\w.-]+/[\w./-]+\.(?:py|java|scala|js|ts|yaml|yml|json|properties))", args):
+            value = match.group(1).strip()
+            candidates.add(value)
+            candidates.add(Path(value).name)
+    answer_l = answer.lower()
+    return any(candidate and candidate.lower() in answer_l for candidate in candidates)
+
+
+def _check_assertions(
+    case: dict[str, Any],
+    tool_calls: list[dict[str, Any]],
+    answer: str,
+    elapsed_seconds: float | None = None,
+) -> dict[str, Any]:
     assertions = case.get("assertions")
     if not isinstance(assertions, dict):
         return {"checked": False, "passed": True, "details": []}
@@ -230,11 +427,23 @@ def _check_assertions(case: dict[str, Any], tool_calls: list[dict[str, Any]], an
     if max_tool_calls is not None:
         add("max_tool_calls", len(tool_calls) <= int(max_tool_calls), expected=max_tool_calls, actual=len(tool_calls))
 
+    max_elapsed_seconds = assertions.get("max_elapsed_seconds")
+    if max_elapsed_seconds is not None and elapsed_seconds is not None:
+        add(
+            "max_elapsed_seconds",
+            elapsed_seconds <= float(max_elapsed_seconds),
+            expected=max_elapsed_seconds,
+            actual=round(elapsed_seconds, 1),
+        )
+
     for tool_name in assertions.get("required_tools", []) or []:
         add("required_tool", str(tool_name) in tool_set, expected=tool_name, actual=tool_names)
 
     for tool_name in assertions.get("forbidden_tools", []) or []:
         add("forbidden_tool", str(tool_name) not in tool_set, expected_absent=tool_name, actual=tool_names)
+
+    if _is_internal_case(case) and _is_bounded_case(case) and not _asks_for_public_web(case):
+        add("internal_bounded_no_web_search", "web_search" not in tool_set, actual=tool_names)
 
     answer_lower = answer.lower()
     for keyword in assertions.get("answer_contains", []) or []:
@@ -242,6 +451,125 @@ def _check_assertions(case: dict[str, Any], tool_calls: list[dict[str, Any]], an
 
     for keyword in assertions.get("answer_not_contains", []) or []:
         add("answer_not_contains", str(keyword).lower() not in answer_lower, keyword=keyword)
+
+    for pattern in assertions.get("answer_regex", []) or []:
+        add("answer_regex", re.search(str(pattern), answer, flags=re.IGNORECASE | re.MULTILINE) is not None, pattern=pattern)
+
+    for pattern in assertions.get("answer_not_regex", []) or []:
+        add("answer_not_regex", re.search(str(pattern), answer, flags=re.IGNORECASE | re.MULTILINE) is None, pattern=pattern)
+
+    if assertions.get("no_followup_offer") or _is_internal_case(case):
+        add("no_followup_offer", not _has_followup_offer(answer))
+
+    if assertions.get("evidence_line_present"):
+        add("evidence_line_present", _has_evidence_line(answer))
+
+    max_answer_chars = assertions.get("max_answer_chars")
+    if max_answer_chars is not None:
+        add("max_answer_chars", len(answer) <= int(max_answer_chars), expected=max_answer_chars, actual=len(answer))
+
+    max_bullets = assertions.get("max_bullets")
+    if max_bullets is not None:
+        bullets = _bullet_count(answer)
+        add("max_bullets", bullets <= int(max_bullets), expected=max_bullets, actual=bullets)
+
+    for spec in assertions.get("tool_output_contains", []) or []:
+        if not isinstance(spec, dict):
+            continue
+        tool = str(spec.get("tool") or "")
+        text = str(spec.get("text") or "")
+        matching_outputs = [str(tc.get("output", "")) for tc in tool_calls if str(tc.get("tool", "")) == tool]
+        add(
+            "tool_output_contains",
+            any(text in output for output in matching_outputs),
+            tool=tool,
+            text=text,
+            matching_tool_calls=len(matching_outputs),
+        )
+
+    for spec in assertions.get("tool_output_not_contains", []) or []:
+        if not isinstance(spec, dict):
+            continue
+        tool = str(spec.get("tool") or "")
+        text = str(spec.get("text") or "")
+        matching_outputs = [str(tc.get("output", "")) for tc in tool_calls if not tool or str(tc.get("tool", "")) == tool]
+        add(
+            "tool_output_not_contains",
+            all(text not in output for output in matching_outputs),
+            tool=tool or "*",
+            text=text,
+            matching_tool_calls=len(matching_outputs),
+        )
+
+    if assertions.get("s3_actual_count_wording") or "list_s3" in tool_set:
+        list_outputs = _tool_outputs(tool_calls, "list_s3")
+        checked_any = False
+        for output in list_outputs:
+            object_count = output.get("object_count")
+            max_keys_scanned = output.get("max_keys_scanned")
+            if not isinstance(object_count, int) or not isinstance(max_keys_scanned, int):
+                continue
+            checked_any = True
+            object_count_present = _number_present(answer, object_count)
+            max_keys_pattern = rf"(?:{max_keys_scanned}|{max_keys_scanned:,})"
+            scanned_cap_match = re.search(
+                rf"\b(scan(?:ned)?|scanning)\s+(?:key\s+)?(?:count|keys?|objects?|cap)\b[^\n.;:]*[:=]?\s*`?{max_keys_pattern}`?",
+                answer,
+                flags=re.IGNORECASE,
+            )
+            misleading_scanned_cap = bool(
+                object_count != max_keys_scanned
+                and scanned_cap_match
+                and not re.search(r"\b(cap|limit|requested|max-?keys?)\b", scanned_cap_match.group(0), flags=re.IGNORECASE)
+            )
+            add(
+                "s3_actual_count_wording",
+                object_count_present and not misleading_scanned_cap,
+                object_count=object_count,
+                max_keys_scanned=max_keys_scanned,
+                object_count_present=object_count_present,
+                misleading_scanned_cap=misleading_scanned_cap,
+            )
+        if not checked_any:
+            add("s3_actual_count_wording", False, error="No parseable list_s3 output found.")
+
+        for output in list_outputs:
+            latest = output.get("latest") if isinstance(output, dict) else None
+            if not isinstance(latest, dict):
+                continue
+            s3_uri = str(latest.get("s3_uri") or "")
+            key = str(latest.get("key") or "")
+            add(
+                "s3_latest_path_present",
+                bool((s3_uri and s3_uri in answer) or (key and key in answer)),
+                s3_uri=s3_uri,
+                key=key,
+            )
+
+        if assertions.get("s3_freshness_wording"):
+            add("s3_freshness_wording", _s3_freshness_wording_ok(answer, list_outputs))
+
+    search_outputs = _tool_outputs(tool_calls, "search_kb")
+    if search_outputs and _is_internal_case(case) and not "bounded documentation answer" in _case_text(case):
+        add(
+            "internal_kb_has_structured_evidence",
+            _has_structured_kb_evidence(search_outputs),
+            search_calls=len(search_outputs),
+        )
+
+    if search_outputs and "quote at least one specific source file" in _case_text(case):
+        add(
+            "kb_source_reference_present",
+            _source_reference_present(answer, search_outputs),
+            search_calls=len(search_outputs),
+        )
+
+    if assertions.get("source_reference_present"):
+        add(
+            "source_reference_present",
+            _source_reference_present(answer, search_outputs) or _code_source_reference_present(answer, tool_calls),
+            search_calls=len(search_outputs),
+        )
 
     tool_errors: list[dict[str, Any]] = []
     for idx, tc in enumerate(tool_calls, 1):
@@ -335,7 +663,8 @@ async def run_case(
         report["tool_call_count"] = len(tool_calls)
         report["answer"] = answer
         report["answer_length"] = len(answer)
-        assertion_result = _check_assertions(case, tool_calls, answer)
+        elapsed_for_assertions = (datetime.now(timezone.utc) - started).total_seconds()
+        assertion_result = _check_assertions(case, tool_calls, answer, elapsed_seconds=elapsed_for_assertions)
         report["assertions"] = assertion_result
         assertion_failed = assertion_result.get("checked") and not assertion_result.get("passed", True)
         report["failed"] = bool(assertion_failed)
@@ -518,8 +847,10 @@ async def run_all(args: argparse.Namespace) -> int:
         print("No test cases selected.")
         return 1
 
-    agent = build_investigation_agent(args.model)
+    include_web_search = bool(args.include_web_search or _cases_need_web_search(cases))
+    agent = build_investigation_agent(args.model, include_web_search=include_web_search)
     print(f"Agent: {agent.name}, tools: {len(agent.tools)}, model: {args.model}")
+    print(f"Web search tool: {'enabled' if include_web_search else 'disabled for selected internal smoke cases'}")
     print(
         f"Running {len(cases)} E2E test cases "
         f"(concurrency={args.concurrency}, max_turns={args.max_turns}, "
@@ -608,6 +939,7 @@ def main() -> int:
         help="Directory for report output",
     )
     parser.add_argument("--concurrency", type=int, default=5, help="Max parallel cases (default: 5)")
+    parser.add_argument("--include-web-search", action="store_true", help="Force-enable hosted web_search during E2E runs")
     parser.add_argument("--master", action="store_true", help="Run only master-tagged long-running cases with gpt-5.2 and 100 max turns")
     parser.add_argument("--skip-bootstrap", action="store_true", help="Skip AWS credential bootstrap")
     args = parser.parse_args()

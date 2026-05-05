@@ -41,11 +41,11 @@ _DENY_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bgit\s+reset\s+--hard\b"), "git reset --hard is destructive"),
     (re.compile(r"\bgit\s+clean\s+-[^\s]*f"), "git clean -f is destructive"),
     (re.compile(r"\bgit\s+push\b.*\s--force(?:-with-lease)?\b|\bgit\s+push\s+-f\b"), "force push is blocked"),
-    (re.compile(r"\b(?:mkfs|shutdown|reboot|poweroff|halt)\b"), "host-destructive system command"),
     (re.compile(r"\bdd\b.*\bof=/dev/"), "raw device write is blocked"),
     (re.compile(r"\bchmod\s+-R\s+777\s+(/|~|\$HOME)\b"), "broad chmod is blocked"),
     (re.compile(r"\bchown\s+-R\b.*\s(/|~|\$HOME)\b"), "broad chown is blocked"),
 )
+_DESTRUCTIVE_COMMAND_NAMES = {"mkfs", "shutdown", "reboot", "poweroff", "halt"}
 
 _WRITE_COMMANDS = {
     "cat",
@@ -195,6 +195,8 @@ def classify_shell_command(command: str) -> GuardrailResult:
             if aws_decision.decision != "allow":
                 return aws_decision
         first = Path(tokens[0]).name
+        if first in _DESTRUCTIVE_COMMAND_NAMES:
+            return GuardrailResult("deny", "host-destructive system command", first)
         if first == "git" and len(tokens) > 1 and tokens[1] in {"commit", "push", "tag"}:
             return GuardrailResult("approval_required", "Git publishing/history operations require approval", f"git {tokens[1]}")
         if first in {"npm", "pnpm", "yarn"} and any(tok in {"install", "add", "remove", "run"} for tok in tokens[1:]):
@@ -225,4 +227,3 @@ def classify_path_write(path: Path | str, *, operation: str = "write") -> Guardr
     if _SENSITIVE_NAME_RE.search(text):
         return GuardrailResult("deny", f"{operation} to sensitive credential/secret path is blocked", text)
     return GuardrailResult("allow", f"{operation} path is allowed", text)
-

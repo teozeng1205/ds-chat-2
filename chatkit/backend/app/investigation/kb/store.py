@@ -13,6 +13,13 @@ from typing import Any, Iterable
 from .models import KnowledgeChunk, KnowledgeEdge, KnowledgeItem, TaskRecipe
 
 _TOKEN_RE = re.compile(r"[A-Za-z0-9_./:-]{2,}")
+_SOURCE_WEIGHT = {
+    "structured_snapshot": 1.35,
+    "code_verified": 1.25,
+    "live_verified": 1.5,
+    "doc_hint": 0.45,
+    "task_hint": 0.6,
+}
 
 
 def tokenize(text: str) -> list[str]:
@@ -31,6 +38,16 @@ def _json_loads(value: str | None) -> dict[str, Any]:
     except Exception:
         return {}
     return parsed if isinstance(parsed, dict) else {}
+
+
+def _source_type(item_metadata: dict[str, Any], chunk_metadata: dict[str, Any]) -> str:
+    return str(
+        chunk_metadata.get("source_type")
+        or item_metadata.get("source_type")
+        or chunk_metadata.get("authority")
+        or item_metadata.get("authority")
+        or "unknown"
+    )
 
 
 class KnowledgeStore:
@@ -278,7 +295,7 @@ class KnowledgeStore:
                 """
                 SELECT c.id, c.item_id, c.kind, c.text, c.source_path, c.heading, c.citation,
                        c.metadata, c.confidence,
-                       i.type, i.name, i.title, i.summary, i.metadata, i.confidence
+                       i.type, i.name, i.title, i.summary, i.source_path, i.metadata, i.confidence
                 FROM kb_v2_chunks c
                 JOIN kb_v2_items i ON i.id = c.item_id
                 """
@@ -306,11 +323,13 @@ class KnowledgeStore:
                 continue
             if score <= 0:
                 continue
-            item_metadata = _json_loads(row[13])
+            item_metadata = _json_loads(row[14])
             chunk_metadata = _json_loads(row[7])
+            source_type = _source_type(item_metadata, chunk_metadata)
+            source_weight = _SOURCE_WEIGHT.get(source_type, 1.0)
             scored.append(
                 (
-                    score * float(row[14] or 1.0) * float(row[8] or 1.0),
+                    score * float(row[15] or 1.0) * float(row[8] or 1.0) * source_weight,
                     {
                         "chunk": {
                             "id": row[0],
@@ -322,6 +341,11 @@ class KnowledgeStore:
                             "citation": row[6],
                             "metadata": chunk_metadata,
                             "confidence": row[8],
+                            "source_type": source_type,
+                            "requires_verification": bool(
+                                chunk_metadata.get("requires_verification")
+                                or item_metadata.get("requires_verification")
+                            ),
                         },
                         "item": {
                             "id": row[1],
@@ -329,9 +353,11 @@ class KnowledgeStore:
                             "name": row[10],
                             "title": row[11],
                             "summary": row[12],
-                            "source_path": row[4],
+                            "source_path": row[13] or row[4],
                             "metadata": item_metadata,
-                            "confidence": row[14],
+                            "confidence": row[15],
+                            "source_type": source_type,
+                            "requires_verification": bool(item_metadata.get("requires_verification")),
                         },
                     },
                 )
@@ -383,7 +409,8 @@ class KnowledgeStore:
                 "metadata": _json_loads(row[6]),
                 "confidence": row[7],
             }
-            scored.append((score * float(row[7] or 1.0), task))
+            source_type = str(task["metadata"].get("source_type") or "unknown")
+            scored.append((score * float(row[7] or 1.0) * _SOURCE_WEIGHT.get(source_type, 1.0), task))
         scored.sort(key=lambda item: item[0], reverse=True)
         return [{**task, "score": round(float(score), 4)} for score, task in scored[:top_k]]
 
@@ -412,6 +439,7 @@ class KnowledgeStore:
                 "source_path": r[3],
                 "metadata": _json_loads(r[4]),
                 "confidence": r[5],
+                "source_type": _source_type({}, _json_loads(r[4])),
                 "source": {"type": r[6], "name": r[7]},
                 "target": {"type": r[8], "name": r[9]},
             }
@@ -441,6 +469,8 @@ class KnowledgeStore:
                 "source_path": row[5],
                 "metadata": _json_loads(row[6]),
                 "confidence": row[7],
+                "source_type": str(_json_loads(row[6]).get("source_type") or "unknown"),
+                "requires_verification": bool(_json_loads(row[6]).get("requires_verification")),
                 "score": 4.0,
                 "matched_chunk_id": None,
                 "matched_text": row[4],

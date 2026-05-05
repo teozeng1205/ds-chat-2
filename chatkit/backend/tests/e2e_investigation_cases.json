@@ -33,9 +33,15 @@
       "question": "how does priceeye work? Use search_kb to ground your answer in the indexed documentation and quote at least one specific source file. This is a bounded documentation answer; do not inspect repos or run shell commands.",
       "assertions": {
         "min_tool_calls": 1,
+        "max_tool_errors": 0,
         "required_tools": ["search_kb"],
         "forbidden_tools": ["bash", "read_file", "trace_pipeline"],
-        "answer_contains": ["PriceEye"]
+        "answer_contains": ["PriceEye"],
+        "no_followup_offer": true,
+        "source_reference_present": true,
+        "evidence_line_present": true,
+        "max_answer_chars": 2300,
+        "max_bullets": 8
       }
     },
     {
@@ -121,10 +127,17 @@
       "question": "Bounded S3 freshness smoke check. Use list_s3 with max_keys 50000 to list the latest visible objects under s3://s3-atp-3victors-3vdev-use1-pe-common-output/ (development common output bucket). Show one latest path or prefix and the scanned key count. If the latest visible object is old relative to today's date, explicitly call it stale rather than recent. Do not use bash, run_python, or review_answer.",
       "assertions": {
         "min_tool_calls": 1,
+        "max_tool_calls": 1,
+        "max_tool_errors": 0,
         "required_tools": ["list_s3"],
         "forbidden_tools": ["bash", "run_python", "review_answer"],
         "answer_contains": ["s3-atp-3victors-3vdev-use1-pe-common-output"],
-        "answer_not_contains": ["recent objects"]
+        "answer_not_contains": ["recent objects"],
+        "no_followup_offer": true,
+        "s3_actual_count_wording": true,
+        "s3_freshness_wording": true,
+        "evidence_line_present": true,
+        "max_answer_chars": 900
       }
     },
     {
@@ -201,12 +214,18 @@
     {
       "name": "agent_knows_monitoring_schema",
       "thread_id": "smoke-meta-monitoring",
-      "question": "What tables are in the prod.monitoring schema? Which ones are most useful for debugging PriceEye collection issues and why? Use search_kb to look this up. This is a bounded KB lookup; do not run SQL, Glue, inspect_table, bash, or read_file.",
+      "question": "What tables are in the prod.monitoring schema? Which ones are most useful for debugging PriceEye collection issues and why? Use search_kb to look this up. This is a bounded KB lookup; do not run SQL, Glue, inspect_table, bash, or read_file. Keep the full table list compact, then rank at most the top 5 useful tables. Do not add honorable mentions.",
       "assertions": {
         "min_tool_calls": 1,
+        "max_tool_errors": 0,
         "required_tools": ["search_kb"],
         "forbidden_tools": ["execute_sql", "inspect_table", "glue_get_table", "bash", "read_file"],
-        "answer_contains": ["provider_combined_audit"]
+        "answer_contains": ["provider_combined_audit"],
+        "answer_not_contains": ["Honorable mentions"],
+        "no_followup_offer": true,
+        "evidence_line_present": true,
+        "max_answer_chars": 2600,
+        "max_bullets": 21
       }
     },
     {
@@ -239,11 +258,18 @@
     {
       "name": "auto_scheduler_codebase_lookup",
       "thread_id": "smoke-auto-scheduler-code",
-      "question": "How does the auto-scheduler work in priceeye-scheduling? Look it up in the knowledge base and then check the actual codebase to show me the real class names and entry points.",
+      "question": "How does the auto-scheduler work in priceeye-scheduling? Look it up in the knowledge base and then check the actual codebase to show me the real class names and entry points. Keep verification targeted: after KB, confirm the repo and read only the key entrypoint/orchestrator/worker/persistence files needed to answer. Do not inspect tests, wrapper modules, adjacent submodules, or lineage unless the targeted files are missing. Answer in one direct sentence plus 5-8 non-nested bullets and a Source line.",
       "assertions": {
         "min_tool_calls": 2,
+        "max_tool_errors": 0,
+        "fail_on_tool_error_types": ["GraphEmpty", "ToolTimeout", "GuardrailBlocked", "ToolError"],
         "required_tools": ["search_kb"],
-        "answer_contains": ["auto"]
+        "answer_contains": ["auto"],
+        "no_followup_offer": true,
+        "source_reference_present": true,
+        "evidence_line_present": true,
+        "max_answer_chars": 3500,
+        "max_bullets": 10
       }
     }
   ]

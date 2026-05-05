@@ -31,6 +31,17 @@ def test_registry_can_enable_orchestration_for_experiments() -> None:
     assert "review_answer" in names
 
 
+def test_registry_can_disable_web_search_for_internal_smokes() -> None:
+    registry = build_default_tool_registry(
+        model="gpt-5.4-mini",
+        include_apply_patch=False,
+        include_web_search=False,
+    )
+    names = {getattr(tool, "name", getattr(tool, "tool_name", None)) for tool in registry.build_tools()}
+    assert "web_search" not in names
+    assert "search_kb" in names
+
+
 def test_registry_can_disable_aws_ops() -> None:
     registry = build_default_tool_registry(
         model="gpt-5.4-mini",

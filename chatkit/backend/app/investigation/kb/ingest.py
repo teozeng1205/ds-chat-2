@@ -21,7 +21,15 @@ E2E_CASES_PATH = BACKEND_ROOT / "tests" / "e2e_investigation_cases.json"
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.MULTILINE)
 _LEGACY_RE = re.compile(r"\blegacy\b|_old\b|-old\b|common-web-legacy", re.IGNORECASE)
-INGEST_VERSION = "kb-v2-2026-05-02-6"
+INGEST_VERSION = "kb-v2-2026-05-04-source-authority-1"
+
+SOURCE_POLICY = {
+    "live_verified": "Evidence produced by SQL, S3, AWS, or code tools during the current answer.",
+    "structured_snapshot": "Machine-readable snapshots such as table metadata, pipeline graph, codes, and YAML maps.",
+    "code_verified": "Facts checked against the local repo checkout.",
+    "doc_hint": "Markdown documentation. Useful for routing, not authoritative without verification.",
+    "task_hint": "Skills and E2E seeds. Useful for tool planning, not answer evidence.",
+}
 
 
 def _stable_id(*parts: str) -> str:
@@ -45,6 +53,29 @@ def _source_hash(paths: list[Path]) -> str:
     return digest.hexdigest()
 
 
+def _source_metadata(
+    source_type: str,
+    *,
+    path: Path | None = None,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    metadata = {
+        "source_type": source_type,
+        "authority": source_type,
+        "requires_verification": source_type in {"doc_hint", "task_hint"},
+    }
+    if source_type in {"doc_hint", "task_hint"}:
+        metadata["staleness_note"] = "Markdown is not treated as authoritative; verify against structured/live/code evidence before relying on it."
+    if path is not None and path.exists():
+        try:
+            metadata["source_mtime"] = path.stat().st_mtime
+        except OSError:
+            pass
+    if extra:
+        metadata.update(extra)
+    return metadata
+
+
 def _chunk_markdown(path: Path, *, kind: str, item_type: str) -> tuple[list[KnowledgeItem], list[KnowledgeChunk]]:
     text = path.read_text(encoding="utf-8", errors="replace")
     rel = str(path.relative_to(KNOWLEDGE_ROOT)) if KNOWLEDGE_ROOT in path.parents else str(path)
@@ -55,9 +86,10 @@ def _chunk_markdown(path: Path, *, kind: str, item_type: str) -> tuple[list[Know
         type=item_type,
         name=path.stem,
         title=title,
-        summary=f"{title} knowledge document",
+        summary=f"{title} documentation hint",
         source_path=rel,
-        metadata={"format": "markdown"},
+        metadata=_source_metadata("doc_hint", path=path, extra={"format": "markdown"}),
+        confidence=0.35,
     )
     chunks: list[KnowledgeChunk] = []
     headings = list(_HEADING_RE.finditer(text))
@@ -72,6 +104,8 @@ def _chunk_markdown(path: Path, *, kind: str, item_type: str) -> tuple[list[Know
                     text=body,
                     source_path=rel,
                     citation=rel,
+                    metadata=_source_metadata("doc_hint", path=path, extra={"format": "markdown"}),
+                    confidence=0.35,
                 )
             )
         return [item], chunks
@@ -92,7 +126,8 @@ def _chunk_markdown(path: Path, *, kind: str, item_type: str) -> tuple[list[Know
                 source_path=rel,
                 heading=heading,
                 citation=f"{rel}#{heading}",
-                metadata={"level": len(match.group(1))},
+                metadata=_source_metadata("doc_hint", path=path, extra={"format": "markdown", "level": len(match.group(1))}),
+                confidence=0.35,
             )
         )
     return [item], chunks
@@ -132,10 +167,10 @@ def _ingest_docs() -> tuple[list[KnowledgeItem], list[KnowledgeChunk]]:
                 type="doc",
                 name="priceeye_system_overview",
                 title="PriceEye system overview",
-                summary="Answer-ready overview of how PriceEye works from docs/priceeye_system.md.",
+                summary="Documentation hint for how PriceEye works from docs/priceeye_system.md.",
                 source_path="docs/priceeye_system.md",
-                metadata={"format": "markdown", "overview": True},
-                confidence=1.0,
+                metadata=_source_metadata("doc_hint", path=overview_path, extra={"format": "markdown", "overview": True}),
+                confidence=0.35,
             )
         )
         chunks.append(
@@ -147,7 +182,8 @@ def _ingest_docs() -> tuple[list[KnowledgeItem], list[KnowledgeChunk]]:
                 source_path="docs/priceeye_system.md",
                 heading="Data Flow Overview",
                 citation="docs/priceeye_system.md#Data Flow Overview",
-                confidence=1.0,
+                metadata=_source_metadata("doc_hint", path=overview_path, extra={"format": "markdown", "overview": True}),
+                confidence=0.35,
             )
         )
     return items, chunks
@@ -202,6 +238,7 @@ def _ingest_tables() -> tuple[list[KnowledgeItem], list[KnowledgeChunk], list[Kn
                 summary=summary,
                 source_path="common_table_live_metadata.json",
                 metadata={
+                    **_source_metadata("structured_snapshot", path=path),
                     "datasource": datasource,
                     "tier": row.get("tier"),
                     "partitions": row.get("partitions") or [],
@@ -223,7 +260,7 @@ def _ingest_tables() -> tuple[list[KnowledgeItem], list[KnowledgeChunk], list[Kn
                 text=summary,
                 source_path="common_table_live_metadata.json",
                 citation=f"common_table_live_metadata.json:{name}",
-                metadata={"datasource": datasource},
+                metadata={**_source_metadata("structured_snapshot", path=path), "datasource": datasource},
                 confidence=0.95,
             )
         )
@@ -237,7 +274,7 @@ def _ingest_tables() -> tuple[list[KnowledgeItem], list[KnowledgeChunk], list[Kn
                     title=str(s3_location),
                     summary=f"S3 location associated with {name}",
                     source_path="common_table_live_metadata.json",
-                    metadata={"table": name},
+                    metadata={**_source_metadata("structured_snapshot", path=path), "table": name},
                     confidence=0.8,
                 )
             )
@@ -254,7 +291,7 @@ def _ingest_tables() -> tuple[list[KnowledgeItem], list[KnowledgeChunk], list[Kn
                         title=code_name,
                         summary=f"Code provenance associated with {name}",
                         source_path="common_table_live_metadata.json",
-                        metadata={"repo": git_repo, "path": git_path, "table": name},
+                        metadata={**_source_metadata("structured_snapshot", path=path), "repo": git_repo, "path": git_path, "table": name},
                         confidence=0.8,
                     )
                 )
@@ -289,7 +326,7 @@ def _ingest_tables() -> tuple[list[KnowledgeItem], list[KnowledgeChunk], list[Kn
                 title=f"{schema_name} schema",
                 summary=f"{schema_name} has {len(table_names)} KB-indexed tables: {', '.join(table_names[:12])}",
                 source_path="common_table_live_metadata.json",
-                metadata={"table_count": len(table_names), "tables": table_names},
+                metadata={**_source_metadata("structured_snapshot", path=path), "table_count": len(table_names), "tables": table_names},
                 confidence=0.98 if schema_name.startswith("prod.") else 0.8,
             )
         )
@@ -302,7 +339,7 @@ def _ingest_tables() -> tuple[list[KnowledgeItem], list[KnowledgeChunk], list[Kn
                 source_path="common_table_live_metadata.json",
                 heading=f"{schema_name} schema inventory",
                 citation=f"common_table_live_metadata.json:{schema_name}",
-                metadata={"table_count": len(table_names)},
+                metadata={**_source_metadata("structured_snapshot", path=path), "table_count": len(table_names)},
                 confidence=0.98,
             )
         )
@@ -350,7 +387,7 @@ def _ingest_codes() -> tuple[list[KnowledgeItem], list[KnowledgeChunk]]:
                     title=name,
                     summary=text,
                     source_path="common_codes.json",
-                    metadata={"aliases": aliases, "bucket": bucket},
+                    metadata={**_source_metadata("structured_snapshot", path=path), "aliases": aliases, "bucket": bucket},
                 )
             )
             chunks.append(
@@ -361,6 +398,7 @@ def _ingest_codes() -> tuple[list[KnowledgeItem], list[KnowledgeChunk]]:
                     text=text,
                     source_path="common_codes.json",
                     citation=f"common_codes.json:{bucket}:{code}",
+                    metadata=_source_metadata("structured_snapshot", path=path),
                 )
             )
     return items, chunks
@@ -398,7 +436,7 @@ def _ingest_pipelines() -> tuple[list[KnowledgeItem], list[KnowledgeChunk], list
                     title=name,
                     summary=summary,
                     source_path="pipelines.json",
-                    metadata={**meta, "aliases": aliases, "node_kind": kind},
+                    metadata={**_source_metadata("structured_snapshot", path=path), **meta, "aliases": aliases, "node_kind": kind},
                     confidence=0.85,
                 )
             )
@@ -410,6 +448,7 @@ def _ingest_pipelines() -> tuple[list[KnowledgeItem], list[KnowledgeChunk], list
                     text=summary,
                     source_path="pipelines.json",
                     citation=f"pipelines.json:{node_id}",
+                    metadata=_source_metadata("structured_snapshot", path=path),
                     confidence=0.85,
                 )
             )
@@ -428,7 +467,7 @@ def _ingest_pipelines() -> tuple[list[KnowledgeItem], list[KnowledgeChunk], list
                 target_id=tgt,
                 rel=rel,
                 source_path="pipelines.json",
-                metadata={"provenance": provenance, **(edge.get("metadata") or {})},
+                metadata={**_source_metadata("structured_snapshot", path=path), "provenance": provenance, **(edge.get("metadata") or {})},
                 confidence=float(edge.get("weight") or 1.0),
             )
         )
@@ -454,8 +493,8 @@ def _ingest_skills() -> tuple[list[KnowledgeItem], list[KnowledgeChunk], list[Ta
                 title=skill.name,
                 summary=skill.description,
                 source_path=source_path,
-                metadata={"keywords": list(skill.keywords), "tier": skill.tier},
-                confidence=0.9,
+                metadata=_source_metadata("task_hint", path=skill.path, extra={"keywords": list(skill.keywords), "tier": skill.tier}),
+                confidence=0.45,
             )
         )
         chunks.append(
@@ -466,7 +505,8 @@ def _ingest_skills() -> tuple[list[KnowledgeItem], list[KnowledgeChunk], list[Ta
                 text=text,
                 source_path=source_path,
                 citation=source_path,
-                confidence=0.9,
+                metadata=_source_metadata("task_hint", path=skill.path),
+                confidence=0.45,
             )
         )
         tasks.append(
@@ -477,8 +517,8 @@ def _ingest_skills() -> tuple[list[KnowledgeItem], list[KnowledgeChunk], list[Ta
                 triggers=tuple(skill.keywords),
                 tool_plan=_tools_from_text(skill.body),
                 source_path=source_path,
-                metadata={"skill": skill.name, "tier": skill.tier},
-                confidence=0.85,
+                metadata=_source_metadata("task_hint", path=skill.path, extra={"skill": skill.name, "tier": skill.tier}),
+                confidence=0.65,
             )
         )
     return items, chunks, tasks
@@ -516,7 +556,7 @@ def _ingest_e2e_cases() -> list[TaskRecipe]:
         question = str(case.get("question") or "").strip()
         if not case_id or not question or _is_legacy_only(case_id, question):
             continue
-        metadata: dict[str, Any] = {"case_id": case_id, "eval_seed": True}
+        metadata: dict[str, Any] = _source_metadata("task_hint", path=E2E_CASES_PATH, extra={"case_id": case_id, "eval_seed": True})
         lowered = question.lower()
         if "bounded" in lowered or "do not run" in lowered or "do not inspect" in lowered:
             metadata["bounded"] = True

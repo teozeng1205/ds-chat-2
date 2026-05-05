@@ -94,6 +94,10 @@ print(df.shape)
 - Keep final answers operational and compact: lead with the result, include the key numbers,
   mention the source/environment, and omit process narration such as "I grounded this" unless
   the user asked for methodology.
+- For internal, bounded, smoke, S3, KB, or codebase answers, finish with the answer. Do not
+  append follow-up offers such as "I can also..." or "let me know if...".
+- When the answer relies on KB, S3, SQL, or source files, include one short `Source:` or
+  `Evidence:` line naming the tool output, table/bucket, or file paths used.
 
 **Codebase exploration:**
 - Treat the shell like Claude Code / Codex: use `bash` (find, grep, cat, git log, git blame),
@@ -125,7 +129,11 @@ When picking buckets / tables:
 
 When you hit a table/bucket, mention the environment briefly in your
 answer ("SQL data from prod.* Redshift", "S3 data from 3VDEV") so the user
-knows which env produced the numbers."""
+knows which env produced the numbers.
+
+For S3 listing results, use the tool fields precisely: `object_count` is the
+actual visible object count returned, `max_keys_scanned` is the requested cap,
+and `latest.s3_uri` is the exact latest path to report."""
 
 
 _TOOL_GUIDE = """## Tool Decision Guide
@@ -139,7 +147,7 @@ _TOOL_GUIDE = """## Tool Decision Guide
 | Edit a file | `read_file` first → `edit_file` |
 | Explore a codebase | `bash` (find/grep/cat) + `read_file` + `list_dir` + `git` |
 | Git log, diff, status, blame | `git` |
-| Search the web | `web_search` (built-in) |
+| Search public web facts only | `web_search` (built-in); never for bounded internal PriceEye/3VDEV/KB/schema/S3/repo tasks |
 | Fetch a specific URL | `fetch_url` |
 | Display a plot or image inline | `render_image` |
 | Make a file downloadable from the chat | `bash` to create → `download_file` |
@@ -162,6 +170,22 @@ _TOOL_GUIDE = """## Tool Decision Guide
 | Tail a live ingest stream | `kinesis_tail` |
 | Show an existing BI dashboard | `quicksight_list_dashboards`, `quicksight_get_embed_url` |
 | Walk the cross-repo data-flow graph (who writes / who reads this table, bucket, or app) | `trace_pipeline(entity, direction, depth)` |
+
+**Lineage / codebase lookup pruning:**
+- Use `trace_pipeline` only when the question needs graph lineage. If it returns
+  `GraphEmpty`, treat that as unavailable evidence and continue from `search_kb`
+  metadata plus targeted repo/file reads; do not keep retrying lineage or start a
+  broad shell crawl to compensate.
+- For repo/codebase questions, start with KB `items`, `verified_items`, `lineage`,
+  and citation metadata to identify likely repos and paths. Confirm the repo exists,
+  then use targeted `read_file` calls. Use broad grep/find only when metadata gives
+  no usable path or the targeted file read contradicts the KB.
+- For "how does this component work" codebase answers, stop after you have the
+  entry point, the main orchestrator/worker classes, and the persistence or output
+  path. Do not inspect wrapper modules, tests, or adjacent submodules unless the
+  user specifically asks for them. Final answer shape: one conclusion sentence, then
+  5-8 bullets maximum covering entry point, main classes, flow, persistence/output,
+  and `Source:` file paths. Do not use nested bullets. No trailing offer.
 
 **`edit_file` contract (read-before-edit enforced):**
 1. Call `read_file` on the target file to get exact content with line numbers.
@@ -226,11 +250,12 @@ def _model_supports_apply_patch(model: str) -> bool:
     return True
 
 
-def build_agent(model: str) -> Agent[Any]:
+def build_agent(model: str, *, include_web_search: bool = True) -> Agent[Any]:
     """Build the DS Chat coding + data science agent."""
     registry = build_default_tool_registry(
         model=model,
         include_apply_patch=_model_supports_apply_patch(model),
+        include_web_search=include_web_search,
     )
     tools = registry.build_tools()
     return Agent(

@@ -48,6 +48,7 @@ def build_default_tool_registry(
     *,
     model: str,
     include_apply_patch: bool,
+    include_web_search: bool = True,
     include_orchestration: bool = False,
     include_aws_ops: bool = False,
 ) -> ToolRegistry:
@@ -71,11 +72,12 @@ def build_default_tool_registry(
     from ..tools.streams_tools import streams_tools
 
     registry = ToolRegistry()
-    registry.register(ToolBundle(
-        id="web",
-        description="OpenAI-hosted web search.",
-        factory=lambda: [WebSearchTool(search_context_size="medium")],
-    ))
+    if include_web_search:
+        registry.register(ToolBundle(
+            id="web",
+            description="OpenAI-hosted web search.",
+            factory=lambda: [WebSearchTool(search_context_size="medium")],
+        ))
     if include_orchestration:
         registry.register(ToolBundle(
             id="orchestration",

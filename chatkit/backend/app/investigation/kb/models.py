@@ -85,11 +85,16 @@ class SearchResult:
     query: str
     task: dict[str, Any] | None
     items: list[dict[str, Any]]
+    verified_items: list[dict[str, Any]]
+    hints: list[dict[str, Any]]
     tables: list[dict[str, Any]]
     lineage: list[dict[str, Any]]
     tool_plan: list[str]
     citations: list[dict[str, Any]]
     confidence: float
+    source_policy: dict[str, Any]
+    verification_required: bool
+    authority_trace: list[dict[str, Any]]
     retrieval_trace: dict[str, Any]
 
     def to_dict(self) -> dict[str, Any]:

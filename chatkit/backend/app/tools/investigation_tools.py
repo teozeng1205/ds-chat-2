@@ -526,8 +526,9 @@ async def search_kb(
     Args:
         query: Natural language search query (e.g. 'market anomalies', 'site issues', 'combined audit').
 
-    Returns: V2 fields only: query, task, items, tables, lineage, tool_plan,
-    citations, confidence, retrieval_trace.
+    Returns: query, task, items, verified_items, hints, tables, lineage,
+    tool_plan, citations, source_policy, verification_required,
+    authority_trace, confidence, retrieval_trace.
     """
     try:
         await _stream_progress(ctx, "search", f"Searching KB for: {query}")

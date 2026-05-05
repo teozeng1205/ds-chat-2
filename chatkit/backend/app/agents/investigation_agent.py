@@ -75,28 +75,6 @@ def _load_common_table_metadata() -> str:
     return "\n".join(lines)
 
 
-def _load_system_overview() -> str:
-    """Load the PriceEye system overview doc for instructions."""
-    path = KNOWLEDGE_ROOT / "docs" / "priceeye_system.md"
-    if not path.exists():
-        return ""
-    try:
-        text = path.read_text(encoding="utf-8")
-    except Exception:
-        return ""
-    # Extract just the "Common Investigation Scenarios" section and the process → table map
-    # to keep instructions focused and not bloated
-    lines = text.splitlines()
-    # Find the scenarios section
-    scenarios_start = next(
-        (i for i, line in enumerate(lines) if "## Common Investigation Scenarios" in line),
-        None,
-    )
-    if scenarios_start is not None:
-        return "\n".join(lines[scenarios_start:])
-    return ""
-
-
 def _load_common_codes_reference() -> str:
     """Load common codes for instruction reference."""
     path = KNOWLEDGE_ROOT / "common_codes.json"
@@ -130,7 +108,6 @@ def _build_instructions() -> str:
     yesterday_sales_date = (today - datetime.timedelta(days=1)).strftime("%Y%m%d")
     table_metadata = _load_common_table_metadata()
     codes_ref = _load_common_codes_reference()
-    system_scenarios = _load_system_overview()
 
     sections = [
         # ── Role and approach ──
@@ -147,7 +124,7 @@ You investigate issues across Redshift, MySQL, and S3 by writing SQL, fetching d
 
 **How to work:** Think step by step and use enough tools to establish accurate evidence. First understand the question. Resolve codes only when the mapping is ambiguous; do not call `resolve_codes` for obvious literal codes such as QL2, B6, or AA unless the user asks. Use `search_kb` for the table/S3 path if the question names a business concept. Inspect table schemas before guessing columns, but skip redundant schema checks when the prompt gives verified columns. Write and execute SQL with proper partition filters. Analyze results with Python only when aggregation/joining cannot be done directly in SQL or from the preview. Show findings clearly with data and numbers.
 
-**Tool use policy:** Accuracy is more important than minimizing tool count. Stop when the answer is well-supported, not when a fixed tool count is reached. If the user explicitly asks for a bounded smoke check, exact tool limit, or no follow-up, honor that request exactly. For internal PriceEye, 3VDEV, repo, table/schema, S3, codebase, and operational-data tasks, prefer KB/local/code/SQL/S3/Glue/lineage tools over hosted web search. Use `web_search` only for public or external facts, or when internal/local sources are insufficient and web evidence would improve accuracy. Do not append follow-up offers when the user asks you to finish directly or not ask a follow-up.""",
+**Tool use policy:** Accuracy is more important than minimizing tool count. Stop when the answer is well-supported, not when a fixed tool count is reached. If the user explicitly asks for a bounded smoke check, exact tool limit, or no follow-up, honor that request exactly. For internal PriceEye, 3VDEV, repo, table/schema, S3, codebase, and operational-data tasks, use KB/local/code/SQL/S3/Glue/lineage tools, not hosted web search. Do not call `web_search` for bounded internal tasks, KB lookups, schema inventory, S3 freshness, repo/codebase lookup, or anything scoped to ATPCO/PriceEye/3VDEV unless the user explicitly asks for public web research. Use `web_search` only for public/external facts. Do not append follow-up offers to internal, bounded, smoke, S3, KB, schema, or codebase answers.""",
 
         # ── Available datasources ──
         """## Available Datasources
@@ -213,7 +190,8 @@ Use `resolve_codes` to resolve natural language names (e.g. "JetBlue" -> B6, "Am
 **Route knowledge questions as follows:**
 
 - **"How does X work?" / "What does Y pipeline do?" / "Which table has Z?"** →
-  Use the KB first. If the user explicitly asks for a quick/KB/documentation answer or says "Use search_kb", answer from the KB/doc hints and cite the source; do not expand into repo/codebase lookup unless needed to resolve a contradiction.
+  Use the KB first. If the user explicitly asks for a bounded documentation answer, answer from KB citations, quote or name at least one exact source file from the citations, and label markdown as documentation. Otherwise, use `verified_items`, `tables`, and `lineage` as the answer basis; treat `hints` as routing context only.
+  For bounded documentation answers, one `search_kb` call is usually enough when it returns a matching task plus citations, source paths, or structured items. Make at most one refinement call only when the first result lacks any source/path you can cite. Prefer an architectural answer over a table dump: inputs/config → collection work → common output/audits → packaging/delivery → monitoring/analytics. End with a short `Source:` line, not a follow-up offer.
   For deeper implementation questions: Use **both** the KB and the real codebase. Do not answer these from memory and do not stop at `search_kb`.
   1. `search_kb("{topic}")` — get V2 task, citations, related items, tables, lineage, and tool_plan.
   2. **Verify against the actual repo/doc checkout.** Use KB V2 `items`, `citations`, and `lineage` metadata to identify the likely repo, run `bash("ls ~/git/{repo}/")` to confirm it exists, then `read_file` the key entry-point files and/or the cited full doc.
@@ -222,44 +200,53 @@ Use `resolve_codes` to resolve natural language names (e.g. "JetBlue" -> B6, "Am
 
 - **When the user asks about a specific named component** — a specific pipeline, service, job, scheduler, or process (e.g. "auto-scheduler", "dedup pipeline", "anomaly detection job", "schedule-cutover", "preemptive polling") — a KB snippet alone is NOT enough. Do all three steps:
   1. `search_kb("{component name}")` — get the V2 task, citations, related items, tables, lineage, and tool_plan.
-  2. **Go to the actual codebase.** From KB `items`, `citations`, or `lineage` metadata, identify the likely repo/path, run `bash("ls ~/git/{repo}/")` to confirm it's cloned, then `read_file` the key entry-point files to show real class names, method names, SQS queue names, Lambda handlers, Step Function names. Do NOT just paraphrase the wiki doc — show actual code.
+  2. **Go to the actual codebase.** From KB `items`, `verified_items`, `citations`, or `lineage` metadata, identify the likely repo/path, run `bash("ls ~/git/{repo}/")` to confirm it's cloned, then `read_file` the key entry-point files to show real class names, method names, SQS queue names, Lambda handlers, Step Function names. Prefer those metadata-derived paths before broad grep/find; only broaden when the targeted read is missing or contradicted. Do not call `trace_pipeline` for a codebase lookup unless the user asks for upstream/downstream lineage. Do NOT just paraphrase the wiki doc — show actual code.
   3. **Surface related tables.** From KB `tables`, name the relevant Redshift tables and offer to run a live query (latest partition, row counts) so the user sees real data tied to the component.
+
+  Stop once you can name the entry point, the main orchestrator/worker classes, and the persistence/output path. Do not inspect tests, wrapper modules, or adjacent submodules unless the user asks for those details.
+  Final answer shape for component/codebase explanations: one direct conclusion sentence, then 5-8 top-level bullets maximum. Do not use nested bullets. Each bullet should name the class/file only when it supports the behavior. Include one `Source:` line with exact file paths. Do not add a trailing offer.
 
 - **"Show me the code for X" / "Where is Y implemented?"** → same three steps above, with deeper `read_file` into source files.
 
 - **Schema/table inventory questions with "Use search_kb"** →
-  Use `search_kb` and answer from V2 `tables`, `items`, `lineage`, and `citations`. Treat `schema_inventory` items as authoritative table lists from live metadata. For bounded KB lookups, prefer the KB result when it returns a matching `task` and relevant `items`; make refinement calls when they improve completeness or resolve ambiguity. Do not run live `svv_columns`, Glue, `inspect_table`, or codebase commands unless the KB result is empty, contradictory, or the user asks for live verification.
+  Use `search_kb` and answer from V2 `verified_items`, `tables`, `lineage`, and `citations`. Treat `schema_inventory` items as authoritative table lists from live metadata. For bounded KB lookups, prefer the first KB result when it returns a matching `task` and relevant structured items; make at most one refinement call if it resolves a clear ambiguity. Do not run web search, live `svv_columns`, Glue, `inspect_table`, or codebase commands unless the KB result is empty, contradictory, or the user asks for live verification.
+  For schema inventory answers, keep the table list compact and rank at most the 5 most useful tables. Do not add honorable mentions or extra recommendations after the ranked list unless the user asks for exhaustive detail.
 
 **`search_kb` response fields:**
 - `task` — best matching task recipe, including trigger context.
 - `items` — typed KB entities such as docs, tables, S3 prefixes, code paths, pipeline stages, skills, and entity codes.
+- `verified_items` — higher-authority structured/code/live-derived KB entities.
+- `hints` — markdown docs, skills, and eval/task seeds. These can route the investigation but are not answer evidence unless the user explicitly asks for a bounded docs answer.
 - `tables` — table metadata with datasource, partitions, columns, freshness, S3 location, and code provenance.
 - `lineage` — typed graph edges around matched items.
 - `tool_plan` — suggested next tools for the task.
-- `citations` — source/excerpt records to cite in the answer.
-- `confidence` and `retrieval_trace` — retrieval quality and debug context.
+- `citations` — source/excerpt records from non-hint sources by default; bounded documentation answers may cite markdown.
+- `source_policy`, `verification_required`, `authority_trace`, `confidence`, and `retrieval_trace` — retrieval quality and source authority context.
+
+**Source authority policy:** Prefer evidence in this order: current live tool output, checked code files, structured KB snapshots (`common_table_live_metadata.json`, `pipelines.json`, `common_codes.json`), task hints, markdown documentation. Markdown in `hints` is useful for routing and context, but do not present it as authoritative unless it is verified against structured/live/code evidence or the user explicitly asks for a bounded documentation answer.
 
 **Escalation order for specific-component questions:**
-1. `search_kb` — doc snippets + table hints
-2. Use `citations` to locate full wiki docs when more context is needed.
+1. `search_kb` — structured items, table hints, and low-authority doc hints
+2. Use `hints` only to find likely repos, files, or terms when more context is needed.
 3. Use `items` / `lineage` repo metadata → `bash("ls ~/git/{repo}/")` → `read_file` or `bash grep` — actual source code, class/method names
-4. `execute_sql` — live table data tied to the component""",
+4. `execute_sql` — live table data tied to the component
+
+If `trace_pipeline` returns `GraphEmpty`, do not retry lineage or compensate with a broad repo crawl. Treat the graph as unavailable for that run, say so only if relevant, and continue from KB metadata plus targeted repo/file reads.""",
 
         # ── Investigation patterns (indexed in KB, not inlined here) ──
         """## Investigation Patterns
 
-The catalog of "which table answers which question" (every concept → table
-/ partition / key-columns mapping, plus the full 5-step fallback strategy)
-is indexed in the KB as `investigation_patterns.md`. **Call `search_kb`
-BEFORE naming a table from memory** — the KB is the source of truth; your
-training data is not. Examples:
+The catalog of "which table answers which question" should come from
+structured KB results, live inspection, or explicit code verification.
+Call `search_kb` before naming a table from memory, then prefer
+`verified_items`, `tables`, and `lineage` over markdown `hints`. Examples:
 
     search_kb("site issues table")
     search_kb("market anomalies partition columns")
     search_kb("billing request counts table")
 
-If `search_kb` returns no relevant doc and you truly need a table you
-don't know, run a `SELECT DISTINCT table_schema, table_name FROM
+If `search_kb` returns no relevant structured result and you truly need a
+table you don't know, run a `SELECT DISTINCT table_schema, table_name FROM
 svv_columns WHERE table_name LIKE '%...%'` discovery query rather than
 guessing. If you know the table but not the columns, call `inspect_table`
 or run a `svv_columns`/`information_schema.columns` query before writing
@@ -306,7 +293,9 @@ print(f"Plot saved: {plot_path}")
         # ── PriceEye investigation scenarios ──
         f"""## PriceEye Process Quick Reference
 
-Use `search_kb` to retrieve full process details. Key table → process mappings:
+Use `search_kb` to retrieve structured process details, then verify with code
+or live tools when the answer depends on implementation behavior. Key table →
+process mappings:
 - **prod.monitoring.combined_audit / provider_combined_audit** → produced by ds-internal-monitoring (dedup pipeline, runs hourly)
 - **prod.billing.customer_daily_requests_v1/v2/v3** → produced by ds-customer-monitoring (primary billing source)
 - **prod.analytics.market_level_anomalies_v3** → produced by ds-priceeye-analytics market-level-generator (22-day rolling model)
@@ -317,9 +306,7 @@ Use `search_kb` to retrieve full process details. Key table → process mappings
 - **prod.tax_reg.tax_reg_output_v1** → produced by ds-priceeye-enrichment (runs every Tuesday)
 - **prod.analytics.pax_midt** → produced by ds-priceeye-analytics pax-midt process
 - **prod.analytics.revenue_score_v1** → produced by ds-priceeye-analytics revenue-score process
-- **prod.analytics.oag_score_v2** → produced by ds-priceeye-analytics oag-score process
-
-{system_scenarios}""" if system_scenarios else "",
+- **prod.analytics.oag_score_v2** → produced by ds-priceeye-analytics oag-score process""",
 
         # ── S3 data reference (indexed in KB, not inlined here) ──
         """## S3 Data Reference
@@ -343,6 +330,15 @@ through the 3VDEV role, but that does not imply direct 3VPROD S3 access.
 
 Use `list_s3` for freshness checks, key counts, and latest-object questions
 when you do not need to download file contents.
+When reporting `list_s3`, distinguish actual returned counts from scan limits:
+`object_count` is the visible object count returned by the tool, while
+`max_keys_scanned` is only the requested cap. Never label the cap as the
+actual scanned/returned key count when `object_count` is lower. Prefer wording
+like "visible objects returned: N; requested max_keys cap: M". Report the
+latest `s3_uri` exactly when the user asks for the latest path. For freshness,
+anchor the claim to the returned `latest.last_modified` timestamp, e.g. "fresh
+as of <timestamp>". Avoid saying the object is newer than "today" when UTC and
+local dates differ.
 
 `fetch_s3` reads CSV, Parquet, and JSONL automatically. Treat the returned
 dataset/preview/columns/S3 keys as S3 output, not as a Redshift table. Do not
@@ -356,8 +352,9 @@ separate SQL comparison.""",
 Default to concise operational answers:
 - Lead with the result or conclusion.
 - Include only the key numbers, dates, table/bucket names, and caveats needed to support the answer.
+- Include a short `Source:` or `Evidence:` line for KB/code/S3/SQL-backed answers.
 - Do not narrate every tool call or say "I grounded this" / "I attempted" unless the user asks for process detail.
-- Do not ask follow-up questions at the end of smoke tests or bounded investigations.
+- Do not ask follow-up questions or add follow-up offers at the end of internal, smoke, bounded, S3, KB, schema, or codebase answers.
 - For table/column names, use exact names where they matter; avoid repeating internal filter columns in prose when the user only asked for business interpretation.""",
     ]
 

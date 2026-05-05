@@ -31,11 +31,17 @@ Then walk each upstream stage in order, spot-checking row counts /
 partition freshness / last-run status via the Step Functions / Lambda /
 Logs Insights tools.
 
-**Rule 2 — "how does X work?"** When the user asks how an app, table,
-or pipeline works, **call `trace_pipeline(X, direction="both", depth=3)`**
-and summarize the chain (upstream → origin → downstream) *before* diving
-into any single stage. Name the stages in order so the user sees the big
-picture first.
+**Rule 2 — lineage-oriented "how does X work?"** When the user asks how an app,
+table, or pipeline works *as a data flow* — upstream/downstream, who writes,
+who reads, why an output is stale or empty — **call
+`trace_pipeline(X, direction="both", depth=3)`** and summarize the chain
+(upstream → origin → downstream) *before* diving into any single stage.
+Name the stages in order so the user sees the big picture first.
+
+Do **not** call `trace_pipeline` for a pure repo/codebase lookup where the user
+asks for actual class names, entry points, or implementation files. For those,
+use `search_kb` metadata to identify the repo/path and then read the targeted
+source files.
 
 ## Inputs `trace_pipeline` accepts
 
@@ -61,7 +67,8 @@ The tool returns:
 If the graph is empty, the tool returns a clear error suggesting
 `python scripts/build_pipeline_graph.py`. If the entity doesn't resolve,
 the tool suggests trying an alternative name. Don't speculate about
-lineage the graph doesn't confirm — say so and move on.
+lineage the graph doesn't confirm — say so and move on. Do not retry the graph
+or broaden into a repo crawl just because the graph is empty.
 
 ## Example — the anomalies question
 

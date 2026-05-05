@@ -39,7 +39,7 @@ and set `VITE_CHATKIT_API_DOMAIN_KEY` when deploying.
   - Multi-Agent Orchestrator
   - Investigation Operator Agent
   - Codebase Explanation Agent
-- Local KB files are editable and used by investigation planning.
+- Local KB files are editable and used by investigation planning. Machine-readable snapshots and live/code evidence are authoritative; markdown is treated as low-confidence hint material unless a prompt explicitly asks for a bounded documentation answer.
 - Per-turn datasets are materialized under `backend/.work/sessions/...` and cleaned up after each response turn.
 - Autonomous deep EDA is available for table prompts (for example: `can you do a EDA of the table combined_audit`).
 - `threevictors` must be available in the backend Python runtime for Redshift/MySQL/S3 access.
@@ -98,7 +98,10 @@ E2E smoke reports with full model output and debug steps are written under:
 
 - Default mode (`INVESTIGATION_ENGINE_ENABLED=1`) routes internal data tasks to the
   unified `Investigation Operator Agent`.
-- Knowledge sources are local and editable:
+- Knowledge sources are local and editable, with source authority applied at retrieval time:
+  - live tool output and checked code files are preferred for final answers
+  - structured snapshots are preferred for KB grounding
+  - markdown docs and skills are routing hints, not authoritative answer evidence by default
   - `backend/app/investigation/knowledge/tables.md`
   - `backend/app/investigation/knowledge/common_codes.json`
   - `backend/app/investigation/knowledge/common_table_live_metadata.json`
@@ -107,7 +110,9 @@ E2E smoke reports with full model output and debug steps are written under:
   - `backend/tests/e2e_investigation_cases.json` (ingested as eval/task seeds)
   - `backend/app/investigation/knowledge/sql_best_practices.md`
 - KB V2 stores typed items, chunks, edges, and task recipes in
-  `backend/app/.data/ds-chat-kb-v2.sqlite`.
+  `backend/app/.data/ds-chat-kb-v2.sqlite`. Search results expose
+  `verified_items`, `hints`, `source_policy`, `verification_required`, and
+  `authority_trace` so agents can avoid treating stale markdown as fact.
 
 ## Architecture
 

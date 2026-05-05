@@ -18,6 +18,12 @@ def test_shell_denies_destructive_commands() -> None:
     assert classify_shell_command("git reset --hard HEAD").decision == "deny"
     assert classify_shell_command("git clean -fd").decision == "deny"
     assert classify_shell_command("git push --force origin main").decision == "deny"
+    assert classify_shell_command("shutdown now").decision == "deny"
+
+
+def test_shell_allows_read_only_search_for_destructive_words() -> None:
+    command = "grep -n 'pullFromQueue\\|preRunChecks\\|generateSchedule\\|shutdown()' PEPipeline.java"
+    assert classify_shell_command(command).decision == "allow"
 
 
 def test_shell_requires_approval_for_writes_and_runs() -> None:
@@ -60,4 +66,3 @@ def test_aws_profile_switching_is_denied() -> None:
 def test_sensitive_write_paths_are_denied() -> None:
     assert classify_path_write(Path("chatkit/.env"), operation="write").decision == "deny"
     assert classify_path_write(Path("safe/output.txt"), operation="write").decision == "allow"
-
