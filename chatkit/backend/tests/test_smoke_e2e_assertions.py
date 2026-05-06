@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.smoke_e2e import _check_assertions, _tool_error_type
+from scripts.smoke_e2e import _check_assertions, _render_markdown_report, _tool_error_type
 
 
 def test_internal_bounded_cases_forbid_web_search_by_default() -> None:
@@ -262,13 +262,13 @@ def test_tool_error_type_detects_graph_empty_and_timeout() -> None:
     assert _tool_error_type("Command timed out after 120 seconds") == "ToolTimeout"
 
 
-def test_fail_on_tool_error_types_flags_graph_empty() -> None:
+def test_fail_on_tool_error_types_flags_graph_hydration_error() -> None:
     case = {
         "name": "code_lookup",
         "question": "Look up this codebase component.",
-        "assertions": {"fail_on_tool_error_types": ["GraphEmpty"]},
+        "assertions": {"fail_on_tool_error_types": ["GraphHydrationError"]},
     }
-    tool_calls = [{"tool": "trace_pipeline", "output": "{'ok': False, 'error_type': 'GraphEmpty'}"}]
+    tool_calls = [{"tool": "explain_pipeline", "output": "{'ok': False, 'error_type': 'GraphHydrationError'}"}]
 
     result = _check_assertions(case, tool_calls, "The graph was unavailable.")
 
@@ -285,6 +285,131 @@ def test_max_elapsed_seconds_assertion() -> None:
     assert any(d["assertion"] == "max_elapsed_seconds" and not d["passed"] for d in result["details"])
 
 
+def test_exact_tool_sequence_assertion() -> None:
+    case = {
+        "name": "bounded_sequence",
+        "question": "Run exactly these tools.",
+        "assertions": {"exact_tool_sequence": ["fetch_s3", "run_python", "execute_sql"]},
+    }
+    tool_calls = [{"tool": "fetch_s3"}, {"tool": "execute_sql"}]
+
+    result = _check_assertions(case, tool_calls, "Done.")
+
+    assert result["passed"] is False
+    assert any(d["assertion"] == "exact_tool_sequence" and not d["passed"] for d in result["details"])
+
+
+def test_data_result_reflected_accepts_empty_sql_result() -> None:
+    case = {
+        "name": "empty_sql",
+        "question": "Use execute_sql.",
+        "assertions": {"data_result_reflected": True},
+    }
+    tool_calls = [{"tool": "execute_sql", "output": "{'row_count': 0, 'preview': []}"}]
+
+    result = _check_assertions(case, tool_calls, "No rows were returned for QL2 today.")
+
+    assert result["passed"] is True
+
+
+def test_data_result_reflected_accepts_preview_value() -> None:
+    case = {
+        "name": "sql_preview",
+        "question": "Use execute_sql.",
+        "assertions": {"data_result_reflected": True},
+    }
+    tool_calls = [
+        {
+            "tool": "execute_sql",
+            "output": "{'row_count': 2, 'preview': [{'provider': 'QL2', 'issue_count': 42}]}",
+        }
+    ]
+
+    result = _check_assertions(case, tool_calls, "QL2 had 42 issue rows in the sampled result.")
+
+    assert result["passed"] is True
+
+
+def test_data_result_reflected_rejects_unanchored_answer() -> None:
+    case = {
+        "name": "sql_preview",
+        "question": "Use execute_sql.",
+        "assertions": {"data_result_reflected": True},
+    }
+    tool_calls = [
+        {
+            "tool": "execute_sql",
+            "output": "{'row_count': 2, 'preview': [{'provider': 'QL2', 'issue_count': 42}]}",
+        }
+    ]
+
+    result = _check_assertions(case, tool_calls, "The query completed successfully.")
+
+    assert result["passed"] is False
+    assert any(d["assertion"] == "data_result_reflected" and not d["passed"] for d in result["details"])
+
+
+def test_data_result_reflected_accepts_list_s3_latest_path() -> None:
+    case = {
+        "name": "s3_latest",
+        "question": "Use list_s3.",
+        "assertions": {"data_result_reflected": True},
+    }
+    tool_calls = [
+        {
+            "tool": "list_s3",
+            "output": "{'object_count': 3, 'max_keys_scanned': 50, 'latest': {'s3_uri': 's3://bucket/latest.parquet', 'last_modified': '2026-05-05T00:00:00+00:00'}}",
+        }
+    ]
+
+    result = _check_assertions(
+        case,
+        tool_calls,
+        "Latest visible object: s3://bucket/latest.parquet. Visible objects returned: 3.",
+    )
+
+    assert result["passed"] is True
+
+
+def test_published_image_ok_accepts_chart_with_source_path() -> None:
+    case = {
+        "name": "plot",
+        "question": "Publish a chart.",
+        "assertions": {"published_image_ok": True},
+    }
+    tool_calls = [
+        {
+            "tool": "publish_image",
+            "arguments": '{"path": "/tmp/chart.png", "display_name": "Chart"}',
+            "output": "{'published': True, 'path': '/private/tmp/chart.png', 'image_url': AnyUrl('http://localhost/chart')}",
+        }
+    ]
+
+    result = _check_assertions(case, tool_calls, "Published the chart.\nSource: /tmp/chart.png")
+
+    assert result["passed"] is True
+
+
+def test_published_image_ok_rejects_missing_source_path() -> None:
+    case = {
+        "name": "plot",
+        "question": "Publish a chart.",
+        "assertions": {"published_image_ok": True},
+    }
+    tool_calls = [
+        {
+            "tool": "publish_image",
+            "arguments": '{"path": "/tmp/chart.png", "display_name": "Chart"}',
+            "output": "{'published': True, 'path': '/private/tmp/chart.png'}",
+        }
+    ]
+
+    result = _check_assertions(case, tool_calls, "Published the chart.\nSource: generated plot")
+
+    assert result["passed"] is False
+    assert any(d["assertion"] == "published_image_ok" and not d["passed"] for d in result["details"])
+
+
 def test_source_reference_present_accepts_read_file_argument_path() -> None:
     case = {
         "name": "code_lookup",
@@ -298,3 +423,38 @@ def test_source_reference_present_accepts_read_file_argument_path() -> None:
     result = _check_assertions(case, tool_calls, "The entry point is in scheduler.py.")
 
     assert result["passed"] is True
+
+
+def test_markdown_summary_includes_failed_assertions_and_timing() -> None:
+    report = _render_markdown_report({
+        "generated_at": "2026-05-05T00:00:00+00:00",
+        "model": "test-model",
+        "max_turns": 10,
+        "case_timeout_seconds": 30,
+        "reports": [
+            {
+                "name": "case_a",
+                "failed": True,
+                "failure_kind": "assertion",
+                "elapsed_seconds": 2.0,
+                "tool_call_count": 1,
+                "question": "Q",
+                "assertions": {
+                    "checked": True,
+                    "passed": False,
+                    "details": [{"assertion": "data_result_reflected", "passed": False}],
+                },
+            },
+            {
+                "name": "case_b",
+                "failed": False,
+                "elapsed_seconds": 4.0,
+                "tool_call_count": 0,
+                "question": "Q",
+            },
+        ],
+    })
+
+    assert "Timing: min 2.0s, max 4.0s, avg 3.0s" in report
+    assert "Failed Assertions" in report
+    assert "| 1 | case_a | FAIL | assertion | data_result_reflected | 2.0s | 1 |" in report

@@ -6,25 +6,61 @@
       "question": "What are the top site issues for QL2 today? Use prod.monitoring.provider_combined_audit with plural issue_reasons / issue_sources and the required partition filter sales_date = CURRENT_DATE. Do not use scheduledate. Include issue counts and an impact measure such as summed inputrequestid_count or response_itinerarycount. If there are no rows today, say that directly. Finish with the answer; do not ask a follow-up.",
       "assertions": {
         "min_tool_calls": 1,
+        "max_elapsed_seconds": 300,
         "max_tool_errors": 0,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["QL2", "issue"],
-        "answer_not_contains": ["would you like me", "do you want me", "if you want"]
+        "data_result_reflected": true,
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "QL2",
+          "issue"
+        ],
+        "answer_not_contains": [
+          "would you like me",
+          "do you want me",
+          "if you want"
+        ]
       }
     },
     {
       "name": "collection_anomalies_b6_today_s3",
       "thread_id": "thread-smoke-b6-anom",
-      "question": "Fetch accessible 3VDEV S3 collection anomaly data with exactly one fetch_s3 call: bucket s3-atp-3victors-3vdev-use1-collection-anomalies and prefix collection-customer/v1/. For this smoke case, do not call plan_task, run_python, execute_sql, bash, write_file, or any other tool after fetch_s3. Do not append B6 or a date to the S3 prefix; do not retry another S3 prefix after the first successful fetch. Use only the returned preview/columns/S3 keys to filter or reason about customer B6 and summarize what you find, including the S3 key/date represented by the fetched data. If there are no B6 rows in the fetched data, say that directly. Finish with the answer; do not ask a follow-up.",
+      "question": "Fetch accessible 3VDEV S3 collection anomaly data with exactly one fetch_s3 call: bucket s3-atp-3victors-3vdev-use1-collection-anomalies and prefix collection-customer/v1/. For this smoke case, do not call run_python, execute_sql, bash, write_file, or any other tool after fetch_s3. Do not append B6 or a date to the S3 prefix; do not retry another S3 prefix after the first successful fetch. Use only the returned preview/columns/S3 keys to filter or reason about customer B6 and summarize what you find, including the S3 key/date represented by the fetched data. If there are no B6 rows in the fetched data, say that directly. Finish with the answer; do not ask a follow-up.",
       "assertions": {
         "min_tool_calls": 1,
         "max_tool_calls": 1,
-        "required_tools": ["fetch_s3"],
-        "forbidden_tools": ["plan_task", "run_python", "execute_sql", "bash", "write_file"],
+        "max_elapsed_seconds": 260,
+        "exact_tool_sequence": [
+          "fetch_s3"
+        ],
+        "data_result_reflected": true,
+        "required_tools": [
+          "fetch_s3"
+        ],
+        "forbidden_tools": [
+          "explain_pipeline",
+          "run_python",
+          "execute_sql",
+          "bash",
+          "write_file"
+        ],
         "max_tool_errors": 0,
-        "fail_on_tool_error_types": ["AccessDenied", "NoSuchBucket", "FileNotFoundError"],
-        "answer_contains": ["B6", "anomal"],
-        "answer_not_contains": ["would you like me", "let me know", "permissions do not allow", "couldn't be fetched"]
+        "fail_on_tool_error_types": [
+          "AccessDenied",
+          "NoSuchBucket",
+          "FileNotFoundError"
+        ],
+        "answer_contains": [
+          "B6",
+          "anomal"
+        ],
+        "answer_not_contains": [
+          "would you like me",
+          "let me know",
+          "permissions do not allow",
+          "couldn't be fetched"
+        ]
       }
     },
     {
@@ -33,10 +69,19 @@
       "question": "how does priceeye work? Use search_kb to ground your answer in the indexed documentation and quote at least one specific source file. This is a bounded documentation answer; do not inspect repos or run shell commands.",
       "assertions": {
         "min_tool_calls": 1,
+        "max_elapsed_seconds": 260,
         "max_tool_errors": 0,
-        "required_tools": ["search_kb"],
-        "forbidden_tools": ["bash", "read_file", "trace_pipeline"],
-        "answer_contains": ["PriceEye"],
+        "required_tools": [
+          "search_kb"
+        ],
+        "forbidden_tools": [
+          "bash",
+          "read_file",
+          "explain_pipeline"
+        ],
+        "answer_contains": [
+          "PriceEye"
+        ],
         "no_followup_offer": true,
         "source_reference_present": true,
         "evidence_line_present": true,
@@ -56,10 +101,21 @@
       "question": "Use execute_sql to run an EDA of competitive position for customer B6. First find the latest available sales_date for B6 in prod.analytics.competitive_position. Then query that partition and summarize simple key stats for numeric diff_min_ow and pcnt_diff_min_ow using COUNT, MIN, MAX, and AVG. For categorical competitive_position_min_ow, show grouped counts. Do not use PERCENTILE_CONT and do not AVG competitive_position_min_ow. If today's date has no rows, use the latest available B6 partition and say so.",
       "assertions": {
         "min_tool_calls": 2,
+        "max_elapsed_seconds": 300,
         "max_tool_errors": 0,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["B6", "competitive"],
-        "answer_not_contains": ["impact_score", "currently empty", "would you like me"]
+        "data_result_reflected": true,
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "B6",
+          "competitive"
+        ],
+        "answer_not_contains": [
+          "impact_score",
+          "currently empty",
+          "would you like me"
+        ]
       }
     },
     {
@@ -68,10 +124,20 @@
       "question": "Show me the top 5 markets with the highest anomaly score for customer B6 using prod.analytics.market_level_anomalies. Use the current schema columns metro_market and cp_score. If today has no rows, use the latest available B6 sales_date and say which date you used.",
       "assertions": {
         "min_tool_calls": 2,
+        "max_elapsed_seconds": 340,
         "max_tool_errors": 0,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["B6"],
-        "answer_not_contains": ["market_code", "impact_score", "would you like me"]
+        "data_result_reflected": true,
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "B6"
+        ],
+        "answer_not_contains": [
+          "market_code",
+          "impact_score",
+          "would you like me"
+        ]
       }
     },
     {
@@ -86,8 +152,13 @@
       "question": "Run these two commands in sequence: first cd /tmp, then run pwd. Confirm the directory is /tmp.",
       "assertions": {
         "min_tool_calls": 1,
-        "required_tools": ["bash"],
-        "answer_contains": ["/tmp"]
+        "max_elapsed_seconds": 120,
+        "required_tools": [
+          "bash"
+        ],
+        "answer_contains": [
+          "/tmp"
+        ]
       }
     },
     {
@@ -96,7 +167,10 @@
       "question": "Write a python script to /tmp/smoke_test.py that prints the squares of 1 through 5, then execute it with bash.",
       "assertions": {
         "min_tool_calls": 1,
-        "answer_contains": ["25"]
+        "max_elapsed_seconds": 120,
+        "answer_contains": [
+          "25"
+        ]
       }
     },
     {
@@ -105,7 +179,10 @@
       "question": "Find a git repository on this machine using bash (try: find ~ -maxdepth 4 -name .git -type d 2>/dev/null | head -3). Then use the git tool to show the last 3 commits in that repo and summarize what changed.",
       "assertions": {
         "min_tool_calls": 1,
-        "answer_contains": ["commit"]
+        "max_elapsed_seconds": 180,
+        "answer_contains": [
+          "commit"
+        ]
       }
     },
     {
@@ -114,25 +191,51 @@
       "question": "What are the top site issues for provider QL2 on 20260211? QL2 is a provider, so filter prod.monitoring.provider_combined_audit with providercode = 'QL2' and sales_date = 20260211. Use plural issue_reasons / issue_sources and summarize counts. Finish with the answer; do not ask a follow-up.",
       "assertions": {
         "min_tool_calls": 1,
+        "max_elapsed_seconds": 450,
         "max_tool_errors": 0,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["QL2", "issue"],
-        "answer_not_contains": ["would you like me", "customers = 'QL2'", "no site issues recorded"]
+        "data_result_reflected": true,
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "QL2",
+          "issue"
+        ],
+        "answer_not_contains": [
+          "would you like me",
+          "customers = 'QL2'",
+          "no site issues recorded"
+        ]
       }
     },
     {
       "name": "prod_s3_common_output_freshness",
       "thread_id": "smoke-prod-s3-common-output",
       "requires_aws_creds": true,
-      "question": "Bounded S3 freshness smoke check. Use list_s3 with max_keys 50000 to list the latest visible objects under s3://s3-atp-3victors-3vdev-use1-pe-common-output/ (development common output bucket). Show one latest path or prefix and the scanned key count. If the latest visible object is old relative to today's date, explicitly call it stale rather than recent. Do not use bash, run_python, or review_answer.",
+      "question": "Bounded S3 freshness smoke check. Use list_s3 with max_keys 50000 to list the latest visible objects under s3://s3-atp-3victors-3vdev-use1-pe-common-output/ (development common output bucket). Show one latest path or prefix and the scanned key count. If the latest visible object is old relative to today's date, explicitly call it stale rather than recent. Do not use bash, run_python, or find_pipeline_breakpoints.",
       "assertions": {
         "min_tool_calls": 1,
         "max_tool_calls": 1,
+        "max_elapsed_seconds": 150,
+        "exact_tool_sequence": [
+          "list_s3"
+        ],
         "max_tool_errors": 0,
-        "required_tools": ["list_s3"],
-        "forbidden_tools": ["bash", "run_python", "review_answer"],
-        "answer_contains": ["s3-atp-3victors-3vdev-use1-pe-common-output"],
-        "answer_not_contains": ["recent objects"],
+        "data_result_reflected": true,
+        "required_tools": [
+          "list_s3"
+        ],
+        "forbidden_tools": [
+          "bash",
+          "run_python",
+          "find_pipeline_breakpoints"
+        ],
+        "answer_contains": [
+          "s3-atp-3victors-3vdev-use1-pe-common-output"
+        ],
+        "answer_not_contains": [
+          "recent objects"
+        ],
         "no_followup_offer": true,
         "s3_actual_count_wording": true,
         "s3_freshness_wording": true,
@@ -147,9 +250,17 @@
       "question": "List the AWS Step Functions state machines on this account (3VDEV). Use bash with aws stepfunctions list-state-machines. Do not call sfn_list_executions or any execution-history tool. Note: this is the development account, not production.",
       "assertions": {
         "min_tool_calls": 1,
-        "forbidden_tools": ["sfn_list_executions"],
-        "fail_on_tool_error_types": ["ParamValidationError"],
-        "answer_contains": ["3VDEV", "state"]
+        "max_elapsed_seconds": 420,
+        "forbidden_tools": [
+          "sfn_list_executions"
+        ],
+        "fail_on_tool_error_types": [
+          "ParamValidationError"
+        ],
+        "answer_contains": [
+          "3VDEV",
+          "state"
+        ]
       }
     },
     {
@@ -157,8 +268,13 @@
       "thread_id": "smoke-prod-limits",
       "question": "Can you check the CloudWatch alarms that are currently firing in production PriceEye?",
       "assertions": {
-        "answer_contains": ["production"],
-        "answer_not_contains": ["currently 3 CloudWatch alarms firing in the production"]
+        "answer_contains": [
+          "production"
+        ],
+        "max_elapsed_seconds": 90,
+        "answer_not_contains": [
+          "currently 3 CloudWatch alarms firing in the production"
+        ]
       }
     },
     {
@@ -167,10 +283,21 @@
       "question": "Bounded cross-db check. Look up QL2's site configuration in MySQL using priceeye.site columns provider_code, site_code, site_name, type, retry_count, and status only. Do not select site_category. Then check QL2's top collection errors in Redshift prod.monitoring.provider_combined_audit for today using sales_date = YYYYMMDD as an integer partition filter and plural issue_reasons / issue_sources; do not use scheduledate and do not filter provider_combined_audit by status because that table has no status column. Use at most three SQL calls, then answer directly. What do the site settings tell us about the error patterns you see? Finish with the answer; do not ask a follow-up.",
       "assertions": {
         "min_tool_calls": 2,
+        "max_elapsed_seconds": 160,
         "max_tool_errors": 0,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["QL2"],
-        "answer_not_contains": ["site_category", "non-read-only", "would you like me", "do you want me"]
+        "data_result_reflected": true,
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "QL2"
+        ],
+        "answer_not_contains": [
+          "site_category",
+          "non-read-only",
+          "would you like me",
+          "do you want me"
+        ]
       }
     },
     {
@@ -185,12 +312,37 @@
       "question": "Fetch accessible 3VDEV S3 collection anomaly data using fetch_s3 bucket s3-atp-3victors-3vdev-use1-collection-anomalies and prefix collection-customer/v1/. Do not append B6 to the S3 prefix. Use run_python with load_dataset(dataset_id) to filter the fetched S3 dataset for customer B6 and identify the date from the S3 keys/data; print the B6 row count and latest date, using len(dates_sorted) rather than dates_sorted.size. Do not use execute_sql against the fetched dataset_id or s3object. Then query prod.analytics.market_level_anomalies for B6 on that same date using current columns metro_market and cp_score. Compare only if both data sources are accessible; if one side is empty, say exactly which side is empty. Finish with the answer; do not ask a follow-up.",
       "assertions": {
         "min_tool_calls": 2,
-        "required_tools": ["fetch_s3", "run_python", "execute_sql"],
-        "forbidden_tools": ["bash", "write_file"],
-        "fail_on_tool_error_types": ["AccessDenied", "NoSuchBucket", "FileNotFoundError", "WorkspaceDatasetNotSqlRelation"],
+        "max_elapsed_seconds": 430,
+        "data_result_reflected": true,
+        "required_tools": [
+          "fetch_s3",
+          "run_python",
+          "execute_sql"
+        ],
+        "forbidden_tools": [
+          "bash",
+          "write_file"
+        ],
+        "fail_on_tool_error_types": [
+          "AccessDenied",
+          "NoSuchBucket",
+          "FileNotFoundError",
+          "WorkspaceDatasetNotSqlRelation"
+        ],
         "max_tool_errors": 0,
-        "answer_contains": ["B6"],
-        "answer_not_contains": ["no discrepancy", "agree", "couldn't be fetched", "missing bucket", "market_code", "anomaly_type", "would you like me", "do you want me"]
+        "answer_contains": [
+          "B6"
+        ],
+        "answer_not_contains": [
+          "no discrepancy",
+          "agree",
+          "couldn't be fetched",
+          "missing bucket",
+          "market_code",
+          "anomaly_type",
+          "would you like me",
+          "do you want me"
+        ]
       }
     },
     {
@@ -198,7 +350,20 @@
       "thread_id": "smoke-meta-datasources",
       "question": "What data sources and databases can you connect to? Give me a complete summary of what's available, which tools access each, and any known limitations (e.g. what production resources you cannot reach).",
       "assertions": {
-        "answer_contains": ["Redshift", "MySQL", "S3"]
+        "answer_contains": [
+          "Redshift",
+          "MySQL",
+          "S3"
+        ],
+        "max_elapsed_seconds": 90,
+        "answer_not_contains": [
+          "I can also",
+          "let me know",
+          "if you want"
+        ],
+        "no_followup_offer": true,
+        "max_answer_chars": 3400,
+        "max_bullets": 14
       }
     },
     {
@@ -207,8 +372,15 @@
       "question": "What is today's date, and how fresh is the data in the analytics tables? Check the actual latest sales_date available in prod.analytics.market_level_anomalies using execute_sql.",
       "assertions": {
         "min_tool_calls": 1,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["sales_date", "2026"]
+        "max_elapsed_seconds": 300,
+        "data_result_reflected": true,
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "sales_date",
+          "2026"
+        ]
       }
     },
     {
@@ -217,15 +389,32 @@
       "question": "What tables are in the prod.monitoring schema? Which ones are most useful for debugging PriceEye collection issues and why? Use search_kb to look this up. This is a bounded KB lookup; do not run SQL, Glue, inspect_table, bash, or read_file. Keep the full table list compact, then rank at most the top 5 useful tables. Do not add honorable mentions.",
       "assertions": {
         "min_tool_calls": 1,
+        "max_elapsed_seconds": 240,
         "max_tool_errors": 0,
-        "required_tools": ["search_kb"],
-        "forbidden_tools": ["execute_sql", "inspect_table", "glue_get_table", "bash", "read_file"],
-        "answer_contains": ["provider_combined_audit"],
-        "answer_not_contains": ["Honorable mentions"],
+        "required_tools": [
+          "search_kb"
+        ],
+        "forbidden_tools": [
+          "execute_sql",
+          "inspect_table",
+          "glue_get_table",
+          "bash",
+          "read_file"
+        ],
+        "answer_contains": [
+          "provider_combined_audit"
+        ],
+        "answer_not_contains": [
+          "Honorable mentions"
+        ],
         "no_followup_offer": true,
         "evidence_line_present": true,
         "max_answer_chars": 2600,
-        "max_bullets": 21
+        "max_bullets": 21,
+        "answer_not_regex": [
+          "3\\.\\s*`prod\\.monitoring\\.provider_combined_audit`",
+          "4\\.\\s*`prod\\.monitoring\\.combined_audit`"
+        ]
       }
     },
     {
@@ -233,7 +422,19 @@
       "thread_id": "smoke-meta-tools",
       "question": "What investigation tools do you have available? List each one, what it does, and give a concrete example of when you'd use it over the others.",
       "assertions": {
-        "answer_contains": ["execute_sql", "fetch_s3"]
+        "answer_contains": [
+          "execute_sql",
+          "fetch_s3"
+        ],
+        "max_elapsed_seconds": 90,
+        "answer_not_contains": [
+          "I can also",
+          "let me know",
+          "if you want"
+        ],
+        "no_followup_offer": true,
+        "max_answer_chars": 2800,
+        "max_bullets": 16
       }
     },
     {
@@ -242,7 +443,17 @@
       "question": "Use Python to generate a synthetic time-series dataset of 90 days of daily 'collection request counts' with a realistic upward trend plus noise, then plot it with a trend line overlaid. Save the plot and publish it as an image card.",
       "assertions": {
         "min_tool_calls": 1,
-        "answer_contains": ["plot", "trend"]
+        "max_elapsed_seconds": 300,
+        "published_image_ok": true,
+        "answer_contains": [
+          "chart",
+          "trend",
+          "collection request"
+        ],
+        "answer_regex": [
+          "90[- ]?days?|90-day"
+        ],
+        "evidence_line_present": true
       }
     },
     {
@@ -251,8 +462,17 @@
       "question": "Query prod.monitoring.provider_combined_audit for today and get the top 10 providers by request count. Then use Python to plot a horizontal bar chart of the results and publish it as an image card.",
       "assertions": {
         "min_tool_calls": 2,
-        "required_tools": ["execute_sql"],
-        "answer_contains": ["chart", "provider"]
+        "max_elapsed_seconds": 320,
+        "data_result_reflected": true,
+        "published_image_ok": true,
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "chart",
+          "provider"
+        ],
+        "evidence_line_present": true
       }
     },
     {
@@ -261,10 +481,20 @@
       "question": "How does the auto-scheduler work in priceeye-scheduling? Look it up in the knowledge base and then check the actual codebase to show me the real class names and entry points. Keep verification targeted: after KB, confirm the repo and read only the key entrypoint/orchestrator/worker/persistence files needed to answer. Do not inspect tests, wrapper modules, adjacent submodules, or lineage unless the targeted files are missing. Answer in one direct sentence plus 5-8 non-nested bullets and a Source line.",
       "assertions": {
         "min_tool_calls": 2,
+        "max_elapsed_seconds": 300,
         "max_tool_errors": 0,
-        "fail_on_tool_error_types": ["GraphEmpty", "ToolTimeout", "GuardrailBlocked", "ToolError"],
-        "required_tools": ["search_kb"],
-        "answer_contains": ["auto"],
+        "fail_on_tool_error_types": [
+          "GraphEmpty",
+          "ToolTimeout",
+          "GuardrailBlocked",
+          "ToolError"
+        ],
+        "required_tools": [
+          "search_kb"
+        ],
+        "answer_contains": [
+          "auto"
+        ],
         "no_followup_offer": true,
         "source_reference_present": true,
         "evidence_line_present": true,

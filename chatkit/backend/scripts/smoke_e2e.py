@@ -29,7 +29,7 @@ import sys
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND_ROOT))
 
-from agents import Runner, gen_trace_id, trace  # noqa: E402  # type: ignore[import]
+from agents import RunConfig, Runner, gen_trace_id, trace  # noqa: E402  # type: ignore[import]
 
 from app.agents.ds_agent import build_agent as build_investigation_agent  # noqa: E402
 from app.investigation.runtime import cleanup_thread_workspace  # noqa: E402
@@ -329,7 +329,131 @@ def _has_structured_kb_evidence(search_outputs: list[dict[str, Any]]) -> bool:
 def _number_present(answer: str, value: int) -> bool:
     plain = str(value)
     with_commas = f"{value:,}"
-    return plain in answer or with_commas in answer
+    return (
+        re.search(rf"(?<![\d,]){re.escape(plain)}(?![\d,])", answer) is not None
+        or re.search(rf"(?<![\d,]){re.escape(with_commas)}(?![\d,])", answer) is not None
+    )
+
+
+def _value_present(answer: str, value: Any) -> bool:
+    if value is None or isinstance(value, bool):
+        return False
+    if isinstance(value, int):
+        return _number_present(answer, value)
+    if isinstance(value, float):
+        if value.is_integer():
+            return _number_present(answer, int(value))
+        text = f"{value:.6f}".rstrip("0").rstrip(".")
+        return bool(text and text in answer)
+    text = str(value).strip()
+    if not text or text.lower() in {"none", "nan", "null"}:
+        return False
+    return text in answer
+
+
+def _empty_result_reflected(answer: str) -> bool:
+    return re.search(
+        r"\b(?:no rows?|zero rows?|0 rows?|empty result|empty dataset|no data|nothing returned)\b",
+        answer,
+        flags=re.IGNORECASE,
+    ) is not None
+
+
+def _preview_values(output: dict[str, Any], limit: int = 30) -> list[Any]:
+    preview = output.get("preview")
+    if not isinstance(preview, list):
+        return []
+    values: list[Any] = []
+    for row in preview[:5]:
+        if not isinstance(row, dict):
+            continue
+        for value in row.values():
+            if value is None or isinstance(value, bool):
+                continue
+            if isinstance(value, (int, float)) and abs(float(value)) < 10:
+                continue
+            if isinstance(value, str) and len(value.strip()) < 2:
+                continue
+            values.append(value)
+            if len(values) >= limit:
+                return values
+    return values
+
+
+def _data_result_reflected(answer: str, tool_calls: list[dict[str, Any]]) -> tuple[bool, dict[str, Any]]:
+    data_tools = {"execute_sql", "fetch_s3", "list_s3"}
+    outputs: list[tuple[str, dict[str, Any]]] = []
+    for tc in tool_calls:
+        tool = str(tc.get("tool", ""))
+        if tool not in data_tools:
+            continue
+        parsed = _parse_tool_output(str(tc.get("output", "")))
+        if isinstance(parsed, dict):
+            outputs.append((tool, parsed))
+
+    if not outputs:
+        return False, {"error": "No parseable SQL/S3 output found."}
+
+    for tool, output in outputs:
+        row_count = output.get("row_count")
+        if isinstance(row_count, int):
+            if row_count == 0 and _empty_result_reflected(answer):
+                return True, {"matched": "empty_result", "tool": tool, "row_count": row_count}
+            if _number_present(answer, row_count):
+                return True, {"matched": "row_count", "tool": tool, "row_count": row_count}
+
+        object_count = output.get("object_count")
+        if isinstance(object_count, int) and _number_present(answer, object_count):
+            return True, {"matched": "object_count", "tool": tool, "object_count": object_count}
+
+        latest = output.get("latest")
+        if isinstance(latest, dict):
+            for key in ("s3_uri", "key", "last_modified"):
+                value = latest.get(key)
+                if _value_present(answer, value):
+                    return True, {"matched": f"latest.{key}", "tool": tool, "value": value}
+
+        for value in _preview_values(output):
+            if _value_present(answer, value):
+                return True, {"matched": "preview_value", "tool": tool, "value": value}
+
+    return False, {"checked_outputs": len(outputs)}
+
+
+def _published_image_ok(answer: str, tool_calls: list[dict[str, Any]]) -> tuple[bool, dict[str, Any]]:
+    publish_calls = [tc for tc in tool_calls if str(tc.get("tool", "")) == "publish_image"]
+    if not publish_calls:
+        return False, {"error": "No publish_image call found."}
+    if "chart" not in answer.lower():
+        return False, {"error": "Final answer does not mention chart."}
+    if not _has_evidence_line(answer):
+        return False, {"error": "Final answer is missing a Source/Evidence line."}
+
+    answer_l = answer.lower()
+    for tc in publish_calls:
+        output = str(tc.get("output", ""))
+        published = bool(re.search(r"['\"]published['\"]\s*:\s*(?:True|true)", output))
+        if not published:
+            parsed = _parse_tool_output(output)
+            published = isinstance(parsed, dict) and parsed.get("published") is True
+        if not published:
+            continue
+
+        candidates: set[str] = set()
+        args = _parse_tool_output(str(tc.get("arguments", "")))
+        if isinstance(args, dict):
+            for key in ("path", "file_path"):
+                value = str(args.get(key) or "").strip()
+                if value:
+                    candidates.add(value)
+                    candidates.add(Path(value).name)
+        for match in re.finditer(r"(/[^'\"\s,}]+\.(?:png|jpg|jpeg|gif|webp|svg)|https?://[^'\"\s,}]+)", output, re.I):
+            value = match.group(1)
+            candidates.add(value)
+            candidates.add(Path(value).name)
+        if any(candidate and candidate.lower() in answer_l for candidate in candidates):
+            return True, {"matched": "published_image_source"}
+    return False, {"error": "No published image path/url is referenced in the final answer."}
 
 
 def _has_followup_offer(answer: str) -> bool:
@@ -435,6 +559,11 @@ def _check_assertions(
             expected=max_elapsed_seconds,
             actual=round(elapsed_seconds, 1),
         )
+
+    exact_tool_sequence = assertions.get("exact_tool_sequence")
+    if exact_tool_sequence is not None:
+        expected_sequence = [str(item) for item in exact_tool_sequence]
+        add("exact_tool_sequence", tool_names == expected_sequence, expected=expected_sequence, actual=tool_names)
 
     for tool_name in assertions.get("required_tools", []) or []:
         add("required_tool", str(tool_name) in tool_set, expected=tool_name, actual=tool_names)
@@ -571,6 +700,14 @@ def _check_assertions(
             search_calls=len(search_outputs),
         )
 
+    if assertions.get("data_result_reflected"):
+        ok, extra = _data_result_reflected(answer, tool_calls)
+        add("data_result_reflected", ok, **extra)
+
+    if assertions.get("published_image_ok"):
+        ok, extra = _published_image_ok(answer, tool_calls)
+        add("published_image_ok", ok, **extra)
+
     tool_errors: list[dict[str, Any]] = []
     for idx, tc in enumerate(tool_calls, 1):
         error_type = _tool_error_type(str(tc.get("output", "")))
@@ -594,6 +731,7 @@ async def run_case(
     case: dict[str, Any],
     max_turns: int = 30,
     timeout_seconds: int = 900,
+    profile: str = "",
 ) -> dict[str, Any]:
     """Run a single E2E test case through the agentic loop."""
     thread_id = str(case.get("thread_id") or f"thread-e2e-{case.get('name', 'unknown')}")
@@ -634,6 +772,19 @@ async def run_case(
                             input=[{"role": "user", "content": question}],
                             context=context,
                             max_turns=max_turns,
+                            run_config=RunConfig(
+                                workflow_name="DS Chat E2E smoke case",
+                                trace_id=trace_id,
+                                group_id=thread_id,
+                                trace_metadata={
+                                    "case": str(case.get("name") or ""),
+                                    "thread_id": thread_id,
+                                    "attempt": str(attempt),
+                                    "profile": profile,
+                                },
+                                trace_include_sensitive_data=os.getenv("DS_CHAT_TRACE_SENSITIVE", "").lower()
+                                in {"1", "true", "yes"},
+                            ),
                         ),
                         timeout=timeout_seconds,
                     )
@@ -715,15 +866,31 @@ def _render_markdown_report(payload: dict[str, Any]) -> str:
     # Summary table
     lines.append("## Summary")
     lines.append("")
-    lines.append("| # | Case | Status | Failure | Elapsed | Tools |")
-    lines.append("|---|------|--------|---------|---------|-------|")
+    elapsed_values = [
+        float(report["elapsed_seconds"])
+        for report in payload.get("reports", [])
+        if isinstance(report.get("elapsed_seconds"), (int, float))
+    ]
+    if elapsed_values:
+        avg_elapsed = sum(elapsed_values) / len(elapsed_values)
+        lines.append(
+            f"- Timing: min {min(elapsed_values):.1f}s, max {max(elapsed_values):.1f}s, avg {avg_elapsed:.1f}s"
+        )
+        lines.append("")
+    lines.append("| # | Case | Status | Failure | Failed Assertions | Elapsed | Tools |")
+    lines.append("|---|------|--------|---------|-------------------|---------|-------|")
     for idx, report in enumerate(payload.get("reports", []), 1):
         name = report.get("name", "unknown")
         status = "FAIL" if report.get("failed") else "PASS"
         failure = report.get("failure_kind", "")
+        failed_assertions = ", ".join(
+            str(detail.get("assertion"))
+            for detail in (report.get("assertions", {}) or {}).get("details", [])
+            if not detail.get("passed")
+        )
         elapsed = report.get("elapsed_seconds", "?")
         tc_count = report.get("tool_call_count", 0)
-        lines.append(f"| {idx} | {name} | {status} | {failure} | {elapsed}s | {tc_count} |")
+        lines.append(f"| {idx} | {name} | {status} | {failure} | {failed_assertions} | {elapsed}s | {tc_count} |")
     lines.append("")
 
     # Detailed per-case sections
@@ -869,6 +1036,7 @@ async def run_all(args: argparse.Namespace) -> int:
                 case,
                 max_turns=args.max_turns,
                 timeout_seconds=args.case_timeout_seconds,
+                profile=args.profile,
             )
             status = "FAIL" if report.get("failed") else "PASS"
             failure_kind = f" ({report.get('failure_kind')})" if report.get("failure_kind") else ""
