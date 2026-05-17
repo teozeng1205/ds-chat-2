@@ -6,7 +6,7 @@ Runs test cases through the actual agentic loop using Runner.run().
 Usage:
     cd chatkit/backend
     eval "$(assume 3VDEV)"
-    .venv/bin/python scripts/smoke_e2e.py --profile 3VDEV --model gpt-5.4-mini
+    .venv/bin/python scripts/smoke_e2e.py --profile 3VDEV --model gpt-5-mini
 """
 
 from __future__ import annotations
@@ -222,8 +222,13 @@ def _parse_tool_output(output: str) -> Any:
         return json.loads(text)
     except Exception:
         pass
+    # Tool outputs are often Python dict reprs. Pandas values such as
+    # Timestamp('2026-03-07 13:01:00') are not valid literals, but the
+    # surrounding dict still contains useful row_count/preview evidence.
+    literalish = re.sub(r"\bTimestamp\((['\"][^'\"]*['\"])\)", r"\1", text)
+    literalish = re.sub(r"\bNaT\b", "None", literalish)
     try:
-        return ast.literal_eval(text)
+        return ast.literal_eval(literalish)
     except Exception:
         return None
 
@@ -960,11 +965,9 @@ def _render_markdown_report(payload: dict[str, Any]) -> str:
                 # Output
                 output = tc.get("output", "")
                 if output:
-                    # Truncate very long outputs for readability
-                    display = output if len(output) <= 2000 else output[:2000] + f"\n... ({len(output)} chars total)"
                     lines.append("**Output:**")
                     lines.append("```")
-                    lines.append(display)
+                    lines.append(str(output))
                     lines.append("```")
                     lines.append("")
             lines.append("")
@@ -1083,7 +1086,7 @@ async def run_all(args: argparse.Namespace) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run E2E smoke tests for DS Chat investigation agent.")
     parser.add_argument("--profile", default="3VDEV", help="Credential profile for assume (default: 3VDEV)")
-    parser.add_argument("--model", default="gpt-5.4-mini", help="Model to use for the agent (default: gpt-5.4-mini)")
+    parser.add_argument("--model", default="gpt-5-mini", help="Model to use for the agent (default: gpt-5-mini)")
     parser.add_argument("--max-turns", type=int, default=100, help="Max agentic turns per case (default: 100)")
     parser.add_argument(
         "--case-timeout-seconds",

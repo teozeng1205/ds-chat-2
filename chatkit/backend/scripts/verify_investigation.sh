@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 PROFILE="3VDEV"
-MODEL="gpt-5.4-mini"
+MODEL="gpt-5-mini"
 MAX_TURNS=100
 CASE_TIMEOUT_SECONDS=900
 SCENARIOS=""
@@ -26,7 +26,7 @@ Usage: backend/scripts/verify_investigation.sh [options]
 
 Options:
   --profile <name>       AWS profile for granted credential-process (default: 3VDEV)
-  --model <name>         Model for smoke_e2e.py (default: gpt-5.4-mini)
+  --model <name>         Model for smoke_e2e.py (default: gpt-5-mini)
   --max-turns <n>        Max turns per scenario for E2E smoke (default: 100)
   --case-timeout <sec>   Wall-clock timeout per E2E case (default: 900)
   --scenarios <csv>      Optional scenario filter for E2E smoke

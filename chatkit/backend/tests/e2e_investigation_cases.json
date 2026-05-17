@@ -476,6 +476,467 @@
       }
     },
     {
+      "name": "combined_audit_response_discrepancy",
+      "thread_id": "smoke-combined-audit-response-discrepancy",
+      "question": "Bounded one-id audit discrepancy smoke check. Use execute_sql exactly twice and no other tools. First query prod.monitoring.combined_audit for id = 295456212487587859 and sales_date = 20260307, selecting only id, customer, customersitecode, providercode, sitecode, response_status, response_timestamp, issue_source, issue_reason, retry_response_status, retry_response_timestamp, combined_lastupdated, sales_date with LIMIT 5. Second query prod.monitoring.provider_combined_audit for the same id and sales_date, selecting only id, providercode, sitecode, response_statuses, response_timestamp, issue_sources, issue_reasons, retry_providers, retry_sites, retry_response_statuses, sales_date with LIMIT 5. Compare the returned rows and answer whether the two monitoring tables agree about response/no-response state. Do not inspect schemas or broaden the investigation.",
+      "assertions": {
+        "min_tool_calls": 1,
+        "max_tool_calls": 2,
+        "max_elapsed_seconds": 360,
+        "max_tool_errors": 0,
+        "data_result_reflected": true,
+        "required_tools": [
+          "execute_sql"
+        ],
+        "forbidden_tools": [
+          "bash",
+          "fetch_s3",
+          "run_python"
+        ],
+        "answer_contains": [
+          "295456212487587859",
+          "response"
+        ],
+        "answer_not_contains": [
+          "would you like me",
+          "do you want me"
+        ]
+      }
+    },
+    {
+      "name": "customer_monitoring_recent_days",
+      "thread_id": "smoke-customer-monitoring-recent-days",
+      "question": "Bounded customer monitoring smoke check. Treat misspellings like 'cusotmer' as customer. Use execute_sql exactly twice and no other tools. First find MAX(sales_date) for customer = 'AS' in prod.monitoring.combined_audit. Second query only that sales_date and customer = 'AS', grouping by customersitecode, response_status, issue_source, issue_reason, with COUNT(DISTINCT id) AS request_count and SUM(COALESCE(response_itinerarycount, 0)) AS itinerary_count; order by request_count desc and LIMIT 15. Summarize what happened for AS on that latest available partition. Do not compare additional days.",
+      "assertions": {
+        "min_tool_calls": 2,
+        "max_tool_calls": 2,
+        "max_elapsed_seconds": 360,
+        "max_tool_errors": 0,
+        "data_result_reflected": true,
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "AS",
+          "customer"
+        ],
+        "answer_not_contains": [
+          "cusotmer",
+          "would you like me"
+        ]
+      }
+    },
+    {
+      "name": "top_requesters_monitoring",
+      "thread_id": "smoke-top-requesters-monitoring",
+      "question": "Bounded top-requesters smoke check. Use execute_sql exactly twice and no other tools. First query SELECT MAX(sales_date) AS sales_date FROM prod.monitoring.combined_audit. Second query only that returned sales_date literal in prod.monitoring.combined_audit, grouping by customer and customersitecode with COUNT(DISTINCT id) AS distinct_request_count. Return the top 10 rows by distinct_request_count. Select customer and customersitecode as separate columns; do not use CONCAT, string concatenation, or a CTE in the second query. Answer who made the most requests and name the sales_date used. Do not inspect schemas, do not use inputrequestid_count, and do not broaden beyond the latest partition.",
+      "assertions": {
+        "min_tool_calls": 2,
+        "max_tool_calls": 2,
+        "max_elapsed_seconds": 300,
+        "max_tool_errors": 0,
+        "data_result_reflected": true,
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "request",
+          "sales_date"
+        ],
+        "answer_not_contains": [
+          "would you like me"
+        ]
+      }
+    },
+    {
+      "name": "success_rate_customer_site_anomalies",
+      "thread_id": "smoke-success-rate-customer-site-anomalies",
+      "master": true,
+      "question": "Run a bounded prod monitoring anomaly check for customer|customersitecode success percentage over the latest four available sales_date partitions in prod.monitoring.combined_audit. Define success percent from response_status values that indicate success divided by total distinct ids, compare each latest-day customer|customersitecode against its prior three-day baseline, and list significant drops with latest total requests. Use execute_sql only and no more than four calls.",
+      "assertions": {
+        "min_tool_calls": 1,
+        "max_elapsed_seconds": 420,
+        "max_tool_errors": 0,
+        "data_result_reflected": true,
+        "required_tools": [
+          "execute_sql"
+        ],
+        "forbidden_tools": [
+          "run_python"
+        ],
+        "answer_contains": [
+          "success",
+          "customer"
+        ],
+        "answer_not_contains": [
+          "would you like me"
+        ]
+      }
+    },
+    {
+      "name": "provider_performance_day_over_day",
+      "thread_id": "smoke-provider-performance-dod",
+      "master": true,
+      "question": "Check prod.monitoring.provider_combined_audit for provider anomalies by comparing the latest available sales_date to the previous available sales_date. Look for significant drops in success percent and request volume by providercode|sitecode. Use response_status for success, count distinct id for request volume, and include issue_sources/issue_reasons for context. Use Redshift-compatible SUM(CASE WHEN ...) expressions, do not use FILTER aggregates, and do not name any CTE raw. Use execute_sql only and no more than four calls.",
+      "assertions": {
+        "min_tool_calls": 2,
+        "max_elapsed_seconds": 420,
+        "max_tool_errors": 0,
+        "data_result_reflected": true,
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "provider",
+          "success"
+        ],
+        "answer_not_contains": [
+          "would you like me"
+        ]
+      }
+    },
+    {
+      "name": "request_issue_increase_provider_and_customer",
+      "thread_id": "smoke-request-issue-increase",
+      "master": true,
+      "question": "Check prod.monitoring.combined_audit for issue_source='request' and determine whether request-related issues show an unusual increase on the latest available sales_date. Break it down both by providercode|sitecode and by customer|customersitecode, comparing the latest date against the prior seven available sales_date partitions. The provider column is providercode, not provider. Use Redshift-compatible SUM(CASE WHEN ...) expressions and no more than four execute_sql calls.",
+      "assertions": {
+        "min_tool_calls": 1,
+        "max_elapsed_seconds": 420,
+        "max_tool_errors": 0,
+        "data_result_reflected": true,
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "request",
+          "issue"
+        ],
+        "answer_not_contains": [
+          "would you like me"
+        ]
+      }
+    },
+    {
+      "name": "aa_cache_rates_sitecode_four_weeks_chart",
+      "thread_id": "smoke-aa-cache-rates-sitecode-chart",
+      "master": true,
+      "question": "What are the cache rates for provider AA, broken down by sitecode, over the latest four complete weeks available in prod.monitoring.provider_combined_audit? Use execute_sql for daily cache_count and total_count by sales_date and sitecode where filterreason indicates Cache. Use Redshift-compatible SUM(CASE WHEN filterreason ILIKE '%Cache%' THEN 1 ELSE 0 END), not FILTER aggregates. Then use Python to render a line chart in chat showing both nominal cached count and cache percent. Publish the chart as an image card and include a compact data summary.",
+      "assertions": {
+        "min_tool_calls": 2,
+        "max_elapsed_seconds": 420,
+        "max_tool_errors": 0,
+        "data_result_reflected": true,
+        "published_image_ok": true,
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "AA",
+          "cache",
+          "sitecode"
+        ],
+        "evidence_line_present": true
+      }
+    },
+    {
+      "name": "cache_metrics_code_explanation",
+      "thread_id": "smoke-cache-metrics-code-explanation",
+      "master": true,
+      "question": "Explain how the cache metrics work inside the data science repo. Use search_kb first, then inspect the actual code only for the key implementation files. Include the relevant class/function names and give the specific line of code or expression that identifies cache hits. Keep the answer concise with a Source line.",
+      "assertions": {
+        "min_tool_calls": 2,
+        "max_elapsed_seconds": 360,
+        "max_tool_errors": 0,
+        "required_tools": [
+          "search_kb"
+        ],
+        "answer_contains": [
+          "cache",
+          "line"
+        ],
+        "source_reference_present": true,
+        "evidence_line_present": true,
+        "no_followup_offer": true,
+        "max_answer_chars": 3500
+      }
+    },
+    {
+      "name": "impact_score_code_lookup",
+      "thread_id": "smoke-impact-score-code-lookup",
+      "master": true,
+      "question": "How are anomaly impact scores calculated? Use search_kb first, then inspect the actual analytics code only for the key file that computes impact_score or cp_score. Give the formula or exact expression and the source file path. Do not run SQL.",
+      "assertions": {
+        "min_tool_calls": 2,
+        "max_elapsed_seconds": 360,
+        "max_tool_errors": 0,
+        "required_tools": [
+          "search_kb"
+        ],
+        "forbidden_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "impact",
+          "score"
+        ],
+        "source_reference_present": true,
+        "evidence_line_present": true,
+        "no_followup_offer": true
+      }
+    },
+    {
+      "name": "priceeye_daily_report_with_plots",
+      "thread_id": "smoke-priceeye-daily-report-plots",
+      "master": true,
+      "question": "Give me a daily PriceEye report for the latest available production data, covering all customers at a high level. Use execute_sql for monitoring and analytics freshness, top customers/providers by volume, success percent, top issue reasons, and top anomaly markets; then use Python to render at least one summary chart in chat. Keep the report deep enough to include trends but bounded to no more than six SQL calls.",
+      "assertions": {
+        "min_tool_calls": 2,
+        "max_elapsed_seconds": 520,
+        "max_tool_errors": 0,
+        "data_result_reflected": true,
+        "published_image_ok": true,
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "PriceEye",
+          "report"
+        ],
+        "evidence_line_present": true
+      }
+    },
+    {
+      "name": "priceeye_pdf_report_artifact",
+      "thread_id": "smoke-priceeye-pdf-report",
+      "master": true,
+      "question": "Create a PDF daily PriceEye report artifact for the latest available production data. Use execute_sql to gather a bounded all-customer summary from monitoring and analytics, use Python to create charts if useful, write the PDF to the workspace, and return the file path. Do not ask a follow-up.",
+      "assertions": {
+        "min_tool_calls": 2,
+        "max_elapsed_seconds": 620,
+        "max_tool_errors": 0,
+        "data_result_reflected": true,
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          ".pdf",
+          "PriceEye"
+        ],
+        "answer_not_contains": [
+          "would you like me",
+          "do you want me"
+        ]
+      }
+    },
+    {
+      "name": "active_roundtrip_requests_file",
+      "thread_id": "smoke-active-roundtrip-requests-file",
+      "master": true,
+      "question": "Make a downloadable file of active round-trip requests from input request data. Use execute_sql against the appropriate production input/request monitoring table to find active UA API RT requests, and also include BA round-trip requests that go to provider BA if available. Write a CSV artifact in the workspace and return its path plus row count. Keep SQL bounded and read-only.",
+      "assertions": {
+        "min_tool_calls": 2,
+        "max_elapsed_seconds": 500,
+        "max_tool_errors": 0,
+        "data_result_reflected": true,
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          ".csv",
+          "RT"
+        ],
+        "answer_not_contains": [
+          "would you like me"
+        ]
+      }
+    },
+    {
+      "name": "s3_delivery_file_size_reference_aa_b5",
+      "thread_id": "smoke-s3-delivery-file-size-aa-b5",
+      "master": true,
+      "requires_aws_creds": true,
+      "question": "Examine delivered file sizes for reference AA_B5 over the latest seven visible days under s3://s3-atp-3victors-3vprod-use1-priceeye-aa/web/2026/03/. The folder has day/hour subfolders. Use list_s3 only for S3 discovery, filter paths for AA_B5 or AA/AA_Web_Default keys that correspond to the reference if the reference is not in the filename, and report counts, total bytes, smallest/largest objects, and any zero-byte or suspiciously small files. Do not download full objects.",
+      "assertions": {
+        "min_tool_calls": 1,
+        "max_elapsed_seconds": 260,
+        "max_tool_errors": 0,
+        "required_tools": [
+          "list_s3"
+        ],
+        "forbidden_tools": [
+          "fetch_s3",
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "AA_B5",
+          "bytes"
+        ],
+        "answer_not_contains": [
+          "would you like me"
+        ]
+      }
+    },
+    {
+      "name": "ql2_retry_origin_timeline",
+      "thread_id": "smoke-ql2-retry-origin-timeline",
+      "master": true,
+      "question": "Investigate retries sent to provider QL2. Use prod.monitoring.provider_combined_audit and focus on sitecategory='subRetry1'. Pick a small sample of QL2 retry ids from the latest available sales_date, then use id to find related main rows and determine the original provider/site. Show a timeline for a few ids and say whether any appear to originate from AI|XP main requests. Use at most five execute_sql calls.",
+      "assertions": {
+        "min_tool_calls": 2,
+        "max_elapsed_seconds": 480,
+        "max_tool_errors": 0,
+        "data_result_reflected": true,
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "QL2",
+          "subRetry1"
+        ],
+        "answer_not_contains": [
+          "inputrequestid is definitely",
+          "would you like me"
+        ]
+      }
+    },
+    {
+      "name": "aa_ai_xp_timeout_requested_markets",
+      "thread_id": "smoke-aa-ai-xp-timeout-markets",
+      "master": true,
+      "question": "For customer AA and customersitecode XP, list a few AI|XP main requests that timed out or had issue_reason indicating timeout on the latest available sales_date in prod.monitoring.combined_audit. Include origin, destination, maxstopcabin, departdate, returndate, triptype, id, issue_reason, and response_status. Timeouts may have response_status null, so key off issue_reason as well as status. Use execute_sql only.",
+      "assertions": {
+        "min_tool_calls": 2,
+        "max_elapsed_seconds": 360,
+        "max_tool_errors": 0,
+        "data_result_reflected": true,
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "AA",
+          "XP",
+          "timeout"
+        ],
+        "answer_not_contains": [
+          "would you like me"
+        ]
+      }
+    },
+    {
+      "name": "aa_core_rt_volume_drop_breakdown",
+      "thread_id": "smoke-aa-core-rt-volume-drop",
+      "master": true,
+      "question": "AA says the volume in their AA_Core_RT profile is about half of expected today. Investigate customer='AA', collection name/reference AA_CORE_RT or AA_Core_RT, and data asks from DL, UA, and AA. Use prod.monitoring.combined_audit, compare the latest available sales_date to the previous available sales_date, break down by customersitecode, providercode, market/O&D, response status, packager_recordcount, and delivery counts where available. Explain why volume is lower and whether WN shows a similar issue. Use at most six execute_sql calls.",
+      "assertions": {
+        "min_tool_calls": 2,
+        "max_elapsed_seconds": 620,
+        "max_tool_errors": 0,
+        "data_result_reflected": true,
+        "required_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "AA_Core_RT",
+          "volume"
+        ],
+        "answer_not_contains": [
+          "would you like me"
+        ]
+      }
+    },
+    {
+      "name": "autoscheduler_import_rate_capacity_logic",
+      "thread_id": "smoke-autoscheduler-import-rate-capacity",
+      "master": true,
+      "question": "How is the auto-scheduler using import rates, retry rates, cache rates, and capacity rates? Use search_kb first, then inspect the priceeye-scheduling code for the classes that allocate requests by hour. Explain how shared cache behavior can assign a cache rate to a later provider even if an earlier customer's requests seeded the cache, and cite real class names and source files.",
+      "assertions": {
+        "min_tool_calls": 2,
+        "max_elapsed_seconds": 420,
+        "max_tool_errors": 0,
+        "required_tools": [
+          "search_kb"
+        ],
+        "answer_contains": [
+          "import",
+          "cache",
+          "capacity"
+        ],
+        "source_reference_present": true,
+        "evidence_line_present": true,
+        "no_followup_offer": true,
+        "max_answer_chars": 4200
+      }
+    },
+    {
+      "name": "autoscheduler_dashboard_dataflow",
+      "thread_id": "smoke-autoscheduler-dashboard-dataflow",
+      "master": true,
+      "question": "For the autoscheduler comparison dashboard, determine whether files on S3 are created from a Redshift connection or whether the EC2 visual reads converted output from S3 directly. Use search_kb and targeted code/config inspection only. Name the jobs, buckets/prefixes, and entry points you find. Do not run SQL.",
+      "assertions": {
+        "min_tool_calls": 1,
+        "max_elapsed_seconds": 360,
+        "max_tool_errors": 0,
+        "required_tools": [
+          "search_kb"
+        ],
+        "forbidden_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "S3",
+          "dashboard"
+        ],
+        "source_reference_present": true,
+        "evidence_line_present": true,
+        "no_followup_offer": true
+      }
+    },
+    {
+      "name": "customer_delivery_date_semantics",
+      "thread_id": "smoke-customer-delivery-date-semantics",
+      "master": true,
+      "question": "In ds-priceeye-analytics, explain what customer_delivery_date means in priceeye_audits and whether it differs from customer_observation_time / customer_observation_date. Use search_kb first, then inspect the relevant transform/schema code and cite the exact source files. Do not run SQL.",
+      "assertions": {
+        "min_tool_calls": 2,
+        "max_elapsed_seconds": 360,
+        "max_tool_errors": 0,
+        "required_tools": [
+          "search_kb"
+        ],
+        "forbidden_tools": [
+          "execute_sql"
+        ],
+        "answer_contains": [
+          "customer_delivery_date",
+          "customer_observation"
+        ],
+        "source_reference_present": true,
+        "evidence_line_present": true,
+        "no_followup_offer": true
+      }
+    },
+    {
+      "name": "priceeye_pipeline_visualization_pdf",
+      "thread_id": "smoke-priceeye-pipeline-visualization-pdf",
+      "master": true,
+      "question": "Create a PDF visualization of the PriceEye analytics pipeline. Use search_kb and the pipeline graph tools or targeted code/config inspection to identify the major jobs, tables, and S3 outputs, render a knowledge graph or flow diagram, write it as a PDF artifact in the workspace, and return the file path.",
+      "assertions": {
+        "min_tool_calls": 2,
+        "max_elapsed_seconds": 620,
+        "max_tool_errors": 0,
+        "required_tools": [
+          "search_kb"
+        ],
+        "answer_contains": [
+          ".pdf",
+          "pipeline"
+        ],
+        "source_reference_present": true,
+        "evidence_line_present": true
+      }
+    },
+    {
       "name": "auto_scheduler_codebase_lookup",
       "thread_id": "smoke-auto-scheduler-code",
       "question": "How does the auto-scheduler work in priceeye-scheduling? Look it up in the knowledge base and then check the actual codebase to show me the real class names and entry points. Keep verification targeted: after KB, confirm the repo and read only the key entrypoint/orchestrator/worker/persistence files needed to answer. Do not inspect tests, wrapper modules, adjacent submodules, or lineage unless the targeted files are missing. Answer in one direct sentence plus 5-8 non-nested bullets and a Source line.",

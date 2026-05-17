@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.smoke_e2e import _check_assertions, _render_markdown_report, _tool_error_type
+from scripts.smoke_e2e import _check_assertions, _parse_tool_output, _render_markdown_report, _tool_error_type
 
 
 def test_internal_bounded_cases_forbid_web_search_by_default() -> None:
@@ -260,6 +260,19 @@ def test_answer_length_and_bullet_limits() -> None:
 def test_tool_error_type_detects_graph_empty_and_timeout() -> None:
     assert _tool_error_type("{'ok': False, 'error_type': 'GraphEmpty'}") == "GraphEmpty"
     assert _tool_error_type("Command timed out after 120 seconds") == "ToolTimeout"
+
+
+def test_parse_tool_output_handles_pandas_timestamp_repr() -> None:
+    output = (
+        "{'row_count': 1, 'preview': [{'id': 295456212487587859, "
+        "'response_timestamp': Timestamp('2026-03-07 13:01:00'), 'retry': NaT}]}"
+    )
+
+    parsed = _parse_tool_output(output)
+
+    assert parsed["row_count"] == 1
+    assert parsed["preview"][0]["response_timestamp"] == "2026-03-07 13:01:00"
+    assert parsed["preview"][0]["retry"] is None
 
 
 def test_fail_on_tool_error_types_flags_graph_hydration_error() -> None:

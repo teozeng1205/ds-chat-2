@@ -1,0 +1,1470 @@
+# E2E Investigation Test Cases
+
+Source: `chatkit/backend/tests/e2e_investigation_cases.json`
+
+- Total cases: 44
+- Default smoke cases: 24
+- Master / long-running cases: 20
+
+## Index
+
+| # | Case | Mode | Required Tools |
+|---|------|------|----------------|
+| 1 | `top_site_issues_ql2_today_with_impact` | default | `execute_sql` |
+| 2 | `collection_anomalies_b6_today_s3` | default | `fetch_s3` |
+| 3 | `how_does_priceeye_work` | default | `search_kb` |
+| 4 | `smartest_customer_3v` | master |  |
+| 5 | `eda_competitive_position_b6` | default | `execute_sql` |
+| 6 | `prod_first_market_anomalies` | default | `execute_sql` |
+| 7 | `aa_06utc_request_spike_investigation` | master |  |
+| 8 | `bash_cwd_persist` | default | `bash` |
+| 9 | `bash_python_script` | default |  |
+| 10 | `git_log_summary` | default |  |
+| 11 | `investigation_regression` | default | `execute_sql` |
+| 12 | `prod_s3_common_output_freshness` | default | `list_s3` |
+| 13 | `aws_3vdev_infrastructure` | default |  |
+| 14 | `agent_knows_prod_limits` | default |  |
+| 15 | `cross_db_ql2_mysql_vs_redshift` | default | `execute_sql` |
+| 16 | `cross_db_anomalies_vs_monitoring_b6` | master |  |
+| 17 | `cross_db_s3_vs_sql_anomaly_match` | default | `fetch_s3`, `run_python`, `execute_sql` |
+| 18 | `agent_knows_available_datasources` | default |  |
+| 19 | `agent_knows_data_freshness` | default | `execute_sql` |
+| 20 | `agent_knows_monitoring_schema` | default | `search_kb` |
+| 21 | `agent_knows_own_tools` | default |  |
+| 22 | `python_trend_plot` | default |  |
+| 23 | `python_sql_then_plot` | default | `execute_sql` |
+| 24 | `combined_audit_response_discrepancy` | default | `execute_sql` |
+| 25 | `customer_monitoring_recent_days` | default | `execute_sql` |
+| 26 | `top_requesters_monitoring` | default | `execute_sql` |
+| 27 | `success_rate_customer_site_anomalies` | master | `execute_sql` |
+| 28 | `provider_performance_day_over_day` | master | `execute_sql` |
+| 29 | `request_issue_increase_provider_and_customer` | master | `execute_sql` |
+| 30 | `aa_cache_rates_sitecode_four_weeks_chart` | master | `execute_sql` |
+| 31 | `cache_metrics_code_explanation` | master | `search_kb` |
+| 32 | `impact_score_code_lookup` | master | `search_kb` |
+| 33 | `priceeye_daily_report_with_plots` | master | `execute_sql` |
+| 34 | `priceeye_pdf_report_artifact` | master | `execute_sql` |
+| 35 | `active_roundtrip_requests_file` | master | `execute_sql` |
+| 36 | `s3_delivery_file_size_reference_aa_b5` | master | `list_s3` |
+| 37 | `ql2_retry_origin_timeline` | master | `execute_sql` |
+| 38 | `aa_ai_xp_timeout_requested_markets` | master | `execute_sql` |
+| 39 | `aa_core_rt_volume_drop_breakdown` | master | `execute_sql` |
+| 40 | `autoscheduler_import_rate_capacity_logic` | master | `search_kb` |
+| 41 | `autoscheduler_dashboard_dataflow` | master | `search_kb` |
+| 42 | `customer_delivery_date_semantics` | master | `search_kb` |
+| 43 | `priceeye_pipeline_visualization_pdf` | master | `search_kb` |
+| 44 | `auto_scheduler_codebase_lookup` | default | `search_kb` |
+
+## Cases
+
+### 1. top_site_issues_ql2_today_with_impact
+
+- Mode: `default`
+- Thread ID: `thread-smoke-ql2-issues`
+
+Question:
+
+```text
+What are the top site issues for QL2 today? Use prod.monitoring.provider_combined_audit with plural issue_reasons / issue_sources and the required partition filter sales_date = CURRENT_DATE. Do not use scheduledate. Include issue counts and an impact measure such as summed inputrequestid_count or response_itinerarycount. If there are no rows today, say that directly. Finish with the answer; do not ask a follow-up.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 1,
+  "max_elapsed_seconds": 300,
+  "max_tool_errors": 0,
+  "data_result_reflected": true,
+  "required_tools": [
+    "execute_sql"
+  ],
+  "answer_contains": [
+    "QL2",
+    "issue"
+  ],
+  "answer_not_contains": [
+    "would you like me",
+    "do you want me",
+    "if you want"
+  ]
+}
+```
+
+### 2. collection_anomalies_b6_today_s3
+
+- Mode: `default`
+- Thread ID: `thread-smoke-b6-anom`
+
+Question:
+
+```text
+Fetch accessible 3VDEV S3 collection anomaly data with exactly one fetch_s3 call: bucket s3-atp-3victors-3vdev-use1-collection-anomalies and prefix collection-customer/v1/. For this smoke case, do not call run_python, execute_sql, bash, write_file, or any other tool after fetch_s3. Do not append B6 or a date to the S3 prefix; do not retry another S3 prefix after the first successful fetch. Use only the returned preview/columns/S3 keys to filter or reason about customer B6 and summarize what you find, including the S3 key/date represented by the fetched data. If there are no B6 rows in the fetched data, say that directly. Finish with the answer; do not ask a follow-up.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 1,
+  "max_tool_calls": 1,
+  "max_elapsed_seconds": 260,
+  "exact_tool_sequence": [
+    "fetch_s3"
+  ],
+  "data_result_reflected": true,
+  "required_tools": [
+    "fetch_s3"
+  ],
+  "forbidden_tools": [
+    "explain_pipeline",
+    "run_python",
+    "execute_sql",
+    "bash",
+    "write_file"
+  ],
+  "max_tool_errors": 0,
+  "fail_on_tool_error_types": [
+    "AccessDenied",
+    "NoSuchBucket",
+    "FileNotFoundError"
+  ],
+  "answer_contains": [
+    "B6",
+    "anomal"
+  ],
+  "answer_not_contains": [
+    "would you like me",
+    "let me know",
+    "permissions do not allow",
+    "couldn't be fetched"
+  ]
+}
+```
+
+### 3. how_does_priceeye_work
+
+- Mode: `default`
+- Thread ID: `thread-smoke-priceeye-arch`
+
+Question:
+
+```text
+how does priceeye work? Use search_kb to ground your answer in the indexed documentation and quote at least one specific source file. This is a bounded documentation answer; do not inspect repos or run shell commands.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 1,
+  "max_elapsed_seconds": 260,
+  "max_tool_errors": 0,
+  "required_tools": [
+    "search_kb"
+  ],
+  "forbidden_tools": [
+    "bash",
+    "read_file",
+    "explain_pipeline"
+  ],
+  "answer_contains": [
+    "PriceEye"
+  ],
+  "no_followup_offer": true,
+  "source_reference_present": true,
+  "evidence_line_present": true,
+  "max_answer_chars": 2300,
+  "max_bullets": 8
+}
+```
+
+### 4. smartest_customer_3v
+
+- Mode: `master`
+- Thread ID: `thread-smoke-smartest`
+
+Question:
+
+```text
+Bounded smoke check: pick the smartest 3V customer using at most three small execute_sql queries. Use customer-facing metrics from available analytics/monitoring tables, keep every query LIMITed or aggregated, and finish with one named customer plus a short rationale. Do not exhaustively explore every table.
+```
+
+### 5. eda_competitive_position_b6
+
+- Mode: `default`
+- Thread ID: `thread-smoke-eda-b6`
+
+Question:
+
+```text
+Use execute_sql to run an EDA of competitive position for customer B6. First find the latest available sales_date for B6 in prod.analytics.competitive_position. Then query that partition and summarize simple key stats for numeric diff_min_ow and pcnt_diff_min_ow using COUNT, MIN, MAX, and AVG. For categorical competitive_position_min_ow, show grouped counts. Do not use PERCENTILE_CONT and do not AVG competitive_position_min_ow. If today's date has no rows, use the latest available B6 partition and say so.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 2,
+  "max_elapsed_seconds": 300,
+  "max_tool_errors": 0,
+  "data_result_reflected": true,
+  "required_tools": [
+    "execute_sql"
+  ],
+  "answer_contains": [
+    "B6",
+    "competitive"
+  ],
+  "answer_not_contains": [
+    "impact_score",
+    "currently empty",
+    "would you like me"
+  ]
+}
+```
+
+### 6. prod_first_market_anomalies
+
+- Mode: `default`
+- Thread ID: `thread-smoke-prod-anomalies`
+
+Question:
+
+```text
+Show me the top 5 markets with the highest anomaly score for customer B6 using prod.analytics.market_level_anomalies. Use the current schema columns metro_market and cp_score. If today has no rows, use the latest available B6 sales_date and say which date you used.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 2,
+  "max_elapsed_seconds": 340,
+  "max_tool_errors": 0,
+  "data_result_reflected": true,
+  "required_tools": [
+    "execute_sql"
+  ],
+  "answer_contains": [
+    "B6"
+  ],
+  "answer_not_contains": [
+    "market_code",
+    "impact_score",
+    "would you like me"
+  ]
+}
+```
+
+### 7. aa_06utc_request_spike_investigation
+
+- Mode: `master`
+- Thread ID: `thread-aa-spike-investigation`
+
+Question:
+
+```text
+Bounded AA spike smoke check. Use execute_sql on prod.monitoring.provider_combined_audit only. First find the latest sales_date for providercode='AA'. Then, for that date only, group rows for AA at UTC hour 06 by DATE_PART(minute, observationtimestamp), summing inputrequestid_count and counting rows. Return the top 5 minutes and say whether any minute exceeds 5,400 requests. Keep the investigation to no more than three SQL tool calls.
+```
+
+### 8. bash_cwd_persist
+
+- Mode: `default`
+- Thread ID: `smoke-bash-cwd`
+
+Question:
+
+```text
+Run these two commands in sequence: first cd /tmp, then run pwd. Confirm the directory is /tmp.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 1,
+  "max_elapsed_seconds": 120,
+  "required_tools": [
+    "bash"
+  ],
+  "answer_contains": [
+    "/tmp"
+  ]
+}
+```
+
+### 9. bash_python_script
+
+- Mode: `default`
+- Thread ID: `smoke-python-script`
+
+Question:
+
+```text
+Write a python script to /tmp/smoke_test.py that prints the squares of 1 through 5, then execute it with bash.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 1,
+  "max_elapsed_seconds": 120,
+  "answer_contains": [
+    "25"
+  ]
+}
+```
+
+### 10. git_log_summary
+
+- Mode: `default`
+- Thread ID: `smoke-git-log`
+
+Question:
+
+```text
+Find a git repository on this machine using bash (try: find ~ -maxdepth 4 -name .git -type d 2>/dev/null | head -3). Then use the git tool to show the last 3 commits in that repo and summarize what changed.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 1,
+  "max_elapsed_seconds": 180,
+  "answer_contains": [
+    "commit"
+  ]
+}
+```
+
+### 11. investigation_regression
+
+- Mode: `default`
+- Thread ID: `smoke-investigation-regression`
+
+Question:
+
+```text
+What are the top site issues for provider QL2 on 20260211? QL2 is a provider, so filter prod.monitoring.provider_combined_audit with providercode = 'QL2' and sales_date = 20260211. Use plural issue_reasons / issue_sources and summarize counts. Finish with the answer; do not ask a follow-up.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 1,
+  "max_elapsed_seconds": 450,
+  "max_tool_errors": 0,
+  "data_result_reflected": true,
+  "required_tools": [
+    "execute_sql"
+  ],
+  "answer_contains": [
+    "QL2",
+    "issue"
+  ],
+  "answer_not_contains": [
+    "would you like me",
+    "customers = 'QL2'",
+    "no site issues recorded"
+  ]
+}
+```
+
+### 12. prod_s3_common_output_freshness
+
+- Mode: `default`
+- Thread ID: `smoke-prod-s3-common-output`
+- Requires AWS credentials: `true`
+
+Question:
+
+```text
+Bounded S3 freshness smoke check. Use list_s3 with max_keys 50000 to list the latest visible objects under s3://s3-atp-3victors-3vdev-use1-pe-common-output/ (development common output bucket). Show one latest path or prefix and the scanned key count. If the latest visible object is old relative to today's date, explicitly call it stale rather than recent. Do not use bash, run_python, or find_pipeline_breakpoints.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 1,
+  "max_tool_calls": 1,
+  "max_elapsed_seconds": 150,
+  "exact_tool_sequence": [
+    "list_s3"
+  ],
+  "max_tool_errors": 0,
+  "data_result_reflected": true,
+  "required_tools": [
+    "list_s3"
+  ],
+  "forbidden_tools": [
+    "bash",
+    "run_python",
+    "find_pipeline_breakpoints"
+  ],
+  "answer_contains": [
+    "s3-atp-3victors-3vdev-use1-pe-common-output"
+  ],
+  "answer_not_contains": [
+    "recent objects"
+  ],
+  "no_followup_offer": true,
+  "s3_actual_count_wording": true,
+  "s3_freshness_wording": true,
+  "evidence_line_present": true,
+  "max_answer_chars": 900
+}
+```
+
+### 13. aws_3vdev_infrastructure
+
+- Mode: `default`
+- Thread ID: `smoke-aws-3vdev-infra`
+- Requires AWS credentials: `true`
+
+Question:
+
+```text
+List the AWS Step Functions state machines on this account (3VDEV). Use bash with aws stepfunctions list-state-machines. Do not call sfn_list_executions or any execution-history tool. Note: this is the development account, not production.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 1,
+  "max_elapsed_seconds": 420,
+  "forbidden_tools": [
+    "sfn_list_executions"
+  ],
+  "fail_on_tool_error_types": [
+    "ParamValidationError"
+  ],
+  "answer_contains": [
+    "3VDEV",
+    "state"
+  ]
+}
+```
+
+### 14. agent_knows_prod_limits
+
+- Mode: `default`
+- Thread ID: `smoke-prod-limits`
+
+Question:
+
+```text
+Can you check the CloudWatch alarms that are currently firing in production PriceEye?
+```
+
+Assertions:
+
+```json
+{
+  "answer_contains": [
+    "production"
+  ],
+  "max_elapsed_seconds": 90,
+  "answer_not_contains": [
+    "currently 3 CloudWatch alarms firing in the production"
+  ]
+}
+```
+
+### 15. cross_db_ql2_mysql_vs_redshift
+
+- Mode: `default`
+- Thread ID: `smoke-cross-mysql-redshift`
+
+Question:
+
+```text
+Bounded cross-db check. Look up QL2's site configuration in MySQL using priceeye.site columns provider_code, site_code, site_name, type, retry_count, and status only. Do not select site_category. Then check QL2's top collection errors in Redshift prod.monitoring.provider_combined_audit for today using sales_date = YYYYMMDD as an integer partition filter and plural issue_reasons / issue_sources; do not use scheduledate and do not filter provider_combined_audit by status because that table has no status column. Use at most three SQL calls, then answer directly. What do the site settings tell us about the error patterns you see? Finish with the answer; do not ask a follow-up.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 2,
+  "max_elapsed_seconds": 160,
+  "max_tool_errors": 0,
+  "data_result_reflected": true,
+  "required_tools": [
+    "execute_sql"
+  ],
+  "answer_contains": [
+    "QL2"
+  ],
+  "answer_not_contains": [
+    "site_category",
+    "non-read-only",
+    "would you like me",
+    "do you want me"
+  ]
+}
+```
+
+### 16. cross_db_anomalies_vs_monitoring_b6
+
+- Mode: `master`
+- Thread ID: `smoke-cross-anom-monitor`
+
+Question:
+
+```text
+Bounded cross-db smoke check for B6. Query prod.analytics.market_level_anomalies_v4 using columns sales_date, customer, mkt, impact_score and get the top 5 B6 markets for the latest B6 sales_date. Then query prod.monitoring.provider_combined_audit for the same sales_date using issue_sources, issue_reasons, inputrequestid_count, origincitycode, destinationcitycode, and compare whether those top markets have monitoring issues. Use at most four execute_sql calls and summarize even if one side is empty.
+```
+
+### 17. cross_db_s3_vs_sql_anomaly_match
+
+- Mode: `default`
+- Thread ID: `smoke-cross-s3-sql`
+
+Question:
+
+```text
+Fetch accessible 3VDEV S3 collection anomaly data using fetch_s3 bucket s3-atp-3victors-3vdev-use1-collection-anomalies and prefix collection-customer/v1/. Do not append B6 to the S3 prefix. Use run_python with load_dataset(dataset_id) to filter the fetched S3 dataset for customer B6 and identify the date from the S3 keys/data; print the B6 row count and latest date, using len(dates_sorted) rather than dates_sorted.size. Do not use execute_sql against the fetched dataset_id or s3object. Then query prod.analytics.market_level_anomalies for B6 on that same date using current columns metro_market and cp_score. Compare only if both data sources are accessible; if one side is empty, say exactly which side is empty. Finish with the answer; do not ask a follow-up.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 2,
+  "max_elapsed_seconds": 430,
+  "data_result_reflected": true,
+  "required_tools": [
+    "fetch_s3",
+    "run_python",
+    "execute_sql"
+  ],
+  "forbidden_tools": [
+    "bash",
+    "write_file"
+  ],
+  "fail_on_tool_error_types": [
+    "AccessDenied",
+    "NoSuchBucket",
+    "FileNotFoundError",
+    "WorkspaceDatasetNotSqlRelation"
+  ],
+  "max_tool_errors": 0,
+  "answer_contains": [
+    "B6"
+  ],
+  "answer_not_contains": [
+    "no discrepancy",
+    "agree",
+    "couldn't be fetched",
+    "missing bucket",
+    "market_code",
+    "anomaly_type",
+    "would you like me",
+    "do you want me"
+  ]
+}
+```
+
+### 18. agent_knows_available_datasources
+
+- Mode: `default`
+- Thread ID: `smoke-meta-datasources`
+
+Question:
+
+```text
+What data sources and databases can you connect to? Give me a complete summary of what's available, which tools access each, and any known limitations (e.g. what production resources you cannot reach).
+```
+
+Assertions:
+
+```json
+{
+  "answer_contains": [
+    "Redshift",
+    "MySQL",
+    "S3"
+  ],
+  "max_elapsed_seconds": 90,
+  "answer_not_contains": [
+    "I can also",
+    "let me know",
+    "if you want"
+  ],
+  "no_followup_offer": true,
+  "max_answer_chars": 3400,
+  "max_bullets": 14
+}
+```
+
+### 19. agent_knows_data_freshness
+
+- Mode: `default`
+- Thread ID: `smoke-meta-freshness`
+
+Question:
+
+```text
+What is today's date, and how fresh is the data in the analytics tables? Check the actual latest sales_date available in prod.analytics.market_level_anomalies using execute_sql.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 1,
+  "max_elapsed_seconds": 300,
+  "data_result_reflected": true,
+  "required_tools": [
+    "execute_sql"
+  ],
+  "answer_contains": [
+    "sales_date",
+    "2026"
+  ]
+}
+```
+
+### 20. agent_knows_monitoring_schema
+
+- Mode: `default`
+- Thread ID: `smoke-meta-monitoring`
+
+Question:
+
+```text
+What tables are in the prod.monitoring schema? Which ones are most useful for debugging PriceEye collection issues and why? Use search_kb to look this up. This is a bounded KB lookup; do not run SQL, Glue, inspect_table, bash, or read_file. Keep the full table list compact, then rank at most the top 5 useful tables. Do not add honorable mentions.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 1,
+  "max_elapsed_seconds": 240,
+  "max_tool_errors": 0,
+  "required_tools": [
+    "search_kb"
+  ],
+  "forbidden_tools": [
+    "execute_sql",
+    "inspect_table",
+    "glue_get_table",
+    "bash",
+    "read_file"
+  ],
+  "answer_contains": [
+    "provider_combined_audit"
+  ],
+  "answer_not_contains": [
+    "Honorable mentions"
+  ],
+  "no_followup_offer": true,
+  "evidence_line_present": true,
+  "max_answer_chars": 2600,
+  "max_bullets": 21,
+  "answer_not_regex": [
+    "3\\.\\s*`prod\\.monitoring\\.provider_combined_audit`",
+    "4\\.\\s*`prod\\.monitoring\\.combined_audit`"
+  ]
+}
+```
+
+### 21. agent_knows_own_tools
+
+- Mode: `default`
+- Thread ID: `smoke-meta-tools`
+
+Question:
+
+```text
+What investigation tools do you have available? List each one, what it does, and give a concrete example of when you'd use it over the others.
+```
+
+Assertions:
+
+```json
+{
+  "answer_contains": [
+    "execute_sql",
+    "fetch_s3"
+  ],
+  "max_elapsed_seconds": 90,
+  "answer_not_contains": [
+    "I can also",
+    "let me know",
+    "if you want"
+  ],
+  "no_followup_offer": true,
+  "max_answer_chars": 2800,
+  "max_bullets": 16
+}
+```
+
+### 22. python_trend_plot
+
+- Mode: `default`
+- Thread ID: `smoke-python-trend-plot`
+
+Question:
+
+```text
+Use Python to generate a synthetic time-series dataset of 90 days of daily 'collection request counts' with a realistic upward trend plus noise, then plot it with a trend line overlaid. Save the plot and publish it as an image card.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 1,
+  "max_elapsed_seconds": 300,
+  "published_image_ok": true,
+  "answer_contains": [
+    "chart",
+    "trend",
+    "collection request"
+  ],
+  "answer_regex": [
+    "90[- ]?days?|90-day"
+  ],
+  "evidence_line_present": true
+}
+```
+
+### 23. python_sql_then_plot
+
+- Mode: `default`
+- Thread ID: `smoke-python-sql-plot`
+
+Question:
+
+```text
+Query prod.monitoring.provider_combined_audit for today and get the top 10 providers by request count. Then use Python to plot a horizontal bar chart of the results and publish it as an image card.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 2,
+  "max_elapsed_seconds": 320,
+  "data_result_reflected": true,
+  "published_image_ok": true,
+  "required_tools": [
+    "execute_sql"
+  ],
+  "answer_contains": [
+    "chart",
+    "provider"
+  ],
+  "evidence_line_present": true
+}
+```
+
+### 24. combined_audit_response_discrepancy
+
+- Mode: `default`
+- Thread ID: `smoke-combined-audit-response-discrepancy`
+
+Question:
+
+```text
+Bounded one-id audit discrepancy smoke check. Use execute_sql exactly twice and no other tools. First query prod.monitoring.combined_audit for id = 295456212487587859 and sales_date = 20260307, selecting only id, customer, customersitecode, providercode, sitecode, response_status, response_timestamp, issue_source, issue_reason, retry_response_status, retry_response_timestamp, combined_lastupdated, sales_date with LIMIT 5. Second query prod.monitoring.provider_combined_audit for the same id and sales_date, selecting only id, providercode, sitecode, response_statuses, response_timestamp, issue_sources, issue_reasons, retry_providers, retry_sites, retry_response_statuses, sales_date with LIMIT 5. Compare the returned rows and answer whether the two monitoring tables agree about response/no-response state. Do not inspect schemas or broaden the investigation.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 1,
+  "max_tool_calls": 2,
+  "max_elapsed_seconds": 360,
+  "max_tool_errors": 0,
+  "data_result_reflected": true,
+  "required_tools": [
+    "execute_sql"
+  ],
+  "forbidden_tools": [
+    "bash",
+    "fetch_s3",
+    "run_python"
+  ],
+  "answer_contains": [
+    "295456212487587859",
+    "response"
+  ],
+  "answer_not_contains": [
+    "would you like me",
+    "do you want me"
+  ]
+}
+```
+
+### 25. customer_monitoring_recent_days
+
+- Mode: `default`
+- Thread ID: `smoke-customer-monitoring-recent-days`
+
+Question:
+
+```text
+Bounded customer monitoring smoke check. Treat misspellings like 'cusotmer' as customer. Use execute_sql exactly twice and no other tools. First find MAX(sales_date) for customer = 'AS' in prod.monitoring.combined_audit. Second query only that sales_date and customer = 'AS', grouping by customersitecode, response_status, issue_source, issue_reason, with COUNT(DISTINCT id) AS request_count and SUM(COALESCE(response_itinerarycount, 0)) AS itinerary_count; order by request_count desc and LIMIT 15. Summarize what happened for AS on that latest available partition. Do not compare additional days.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 2,
+  "max_tool_calls": 2,
+  "max_elapsed_seconds": 360,
+  "max_tool_errors": 0,
+  "data_result_reflected": true,
+  "required_tools": [
+    "execute_sql"
+  ],
+  "answer_contains": [
+    "AS",
+    "customer"
+  ],
+  "answer_not_contains": [
+    "cusotmer",
+    "would you like me"
+  ]
+}
+```
+
+### 26. top_requesters_monitoring
+
+- Mode: `default`
+- Thread ID: `smoke-top-requesters-monitoring`
+
+Question:
+
+```text
+Bounded top-requesters smoke check. Use execute_sql exactly twice and no other tools. First query SELECT MAX(sales_date) AS sales_date FROM prod.monitoring.combined_audit. Second query only that returned sales_date literal in prod.monitoring.combined_audit, grouping by customer and customersitecode with COUNT(DISTINCT id) AS distinct_request_count. Return the top 10 rows by distinct_request_count. Select customer and customersitecode as separate columns; do not use CONCAT, string concatenation, or a CTE in the second query. Answer who made the most requests and name the sales_date used. Do not inspect schemas, do not use inputrequestid_count, and do not broaden beyond the latest partition.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 2,
+  "max_tool_calls": 2,
+  "max_elapsed_seconds": 300,
+  "max_tool_errors": 0,
+  "data_result_reflected": true,
+  "required_tools": [
+    "execute_sql"
+  ],
+  "answer_contains": [
+    "request",
+    "sales_date"
+  ],
+  "answer_not_contains": [
+    "would you like me"
+  ]
+}
+```
+
+### 27. success_rate_customer_site_anomalies
+
+- Mode: `master`
+- Thread ID: `smoke-success-rate-customer-site-anomalies`
+
+Question:
+
+```text
+Run a bounded prod monitoring anomaly check for customer|customersitecode success percentage over the latest four available sales_date partitions in prod.monitoring.combined_audit. Define success percent from response_status values that indicate success divided by total distinct ids, compare each latest-day customer|customersitecode against its prior three-day baseline, and list significant drops with latest total requests. Use execute_sql only and no more than four calls.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 1,
+  "max_elapsed_seconds": 420,
+  "max_tool_errors": 0,
+  "data_result_reflected": true,
+  "required_tools": [
+    "execute_sql"
+  ],
+  "forbidden_tools": [
+    "run_python"
+  ],
+  "answer_contains": [
+    "success",
+    "customer"
+  ],
+  "answer_not_contains": [
+    "would you like me"
+  ]
+}
+```
+
+### 28. provider_performance_day_over_day
+
+- Mode: `master`
+- Thread ID: `smoke-provider-performance-dod`
+
+Question:
+
+```text
+Check prod.monitoring.provider_combined_audit for provider anomalies by comparing the latest available sales_date to the previous available sales_date. Look for significant drops in success percent and request volume by providercode|sitecode. Use response_status for success, count distinct id for request volume, and include issue_sources/issue_reasons for context. Use Redshift-compatible SUM(CASE WHEN ...) expressions, do not use FILTER aggregates, and do not name any CTE raw. Use execute_sql only and no more than four calls.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 2,
+  "max_elapsed_seconds": 420,
+  "max_tool_errors": 0,
+  "data_result_reflected": true,
+  "required_tools": [
+    "execute_sql"
+  ],
+  "answer_contains": [
+    "provider",
+    "success"
+  ],
+  "answer_not_contains": [
+    "would you like me"
+  ]
+}
+```
+
+### 29. request_issue_increase_provider_and_customer
+
+- Mode: `master`
+- Thread ID: `smoke-request-issue-increase`
+
+Question:
+
+```text
+Check prod.monitoring.combined_audit for issue_source='request' and determine whether request-related issues show an unusual increase on the latest available sales_date. Break it down both by providercode|sitecode and by customer|customersitecode, comparing the latest date against the prior seven available sales_date partitions. The provider column is providercode, not provider. Use Redshift-compatible SUM(CASE WHEN ...) expressions and no more than four execute_sql calls.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 1,
+  "max_elapsed_seconds": 420,
+  "max_tool_errors": 0,
+  "data_result_reflected": true,
+  "required_tools": [
+    "execute_sql"
+  ],
+  "answer_contains": [
+    "request",
+    "issue"
+  ],
+  "answer_not_contains": [
+    "would you like me"
+  ]
+}
+```
+
+### 30. aa_cache_rates_sitecode_four_weeks_chart
+
+- Mode: `master`
+- Thread ID: `smoke-aa-cache-rates-sitecode-chart`
+
+Question:
+
+```text
+What are the cache rates for provider AA, broken down by sitecode, over the latest four complete weeks available in prod.monitoring.provider_combined_audit? Use execute_sql for daily cache_count and total_count by sales_date and sitecode where filterreason indicates Cache. Use Redshift-compatible SUM(CASE WHEN filterreason ILIKE '%Cache%' THEN 1 ELSE 0 END), not FILTER aggregates. Then use Python to render a line chart in chat showing both nominal cached count and cache percent. Publish the chart as an image card and include a compact data summary.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 2,
+  "max_elapsed_seconds": 420,
+  "max_tool_errors": 0,
+  "data_result_reflected": true,
+  "published_image_ok": true,
+  "required_tools": [
+    "execute_sql"
+  ],
+  "answer_contains": [
+    "AA",
+    "cache",
+    "sitecode"
+  ],
+  "evidence_line_present": true
+}
+```
+
+### 31. cache_metrics_code_explanation
+
+- Mode: `master`
+- Thread ID: `smoke-cache-metrics-code-explanation`
+
+Question:
+
+```text
+Explain how the cache metrics work inside the data science repo. Use search_kb first, then inspect the actual code only for the key implementation files. Include the relevant class/function names and give the specific line of code or expression that identifies cache hits. Keep the answer concise with a Source line.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 2,
+  "max_elapsed_seconds": 360,
+  "max_tool_errors": 0,
+  "required_tools": [
+    "search_kb"
+  ],
+  "answer_contains": [
+    "cache",
+    "line"
+  ],
+  "source_reference_present": true,
+  "evidence_line_present": true,
+  "no_followup_offer": true,
+  "max_answer_chars": 3500
+}
+```
+
+### 32. impact_score_code_lookup
+
+- Mode: `master`
+- Thread ID: `smoke-impact-score-code-lookup`
+
+Question:
+
+```text
+How are anomaly impact scores calculated? Use search_kb first, then inspect the actual analytics code only for the key file that computes impact_score or cp_score. Give the formula or exact expression and the source file path. Do not run SQL.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 2,
+  "max_elapsed_seconds": 360,
+  "max_tool_errors": 0,
+  "required_tools": [
+    "search_kb"
+  ],
+  "forbidden_tools": [
+    "execute_sql"
+  ],
+  "answer_contains": [
+    "impact",
+    "score"
+  ],
+  "source_reference_present": true,
+  "evidence_line_present": true,
+  "no_followup_offer": true
+}
+```
+
+### 33. priceeye_daily_report_with_plots
+
+- Mode: `master`
+- Thread ID: `smoke-priceeye-daily-report-plots`
+
+Question:
+
+```text
+Give me a daily PriceEye report for the latest available production data, covering all customers at a high level. Use execute_sql for monitoring and analytics freshness, top customers/providers by volume, success percent, top issue reasons, and top anomaly markets; then use Python to render at least one summary chart in chat. Keep the report deep enough to include trends but bounded to no more than six SQL calls.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 2,
+  "max_elapsed_seconds": 520,
+  "max_tool_errors": 0,
+  "data_result_reflected": true,
+  "published_image_ok": true,
+  "required_tools": [
+    "execute_sql"
+  ],
+  "answer_contains": [
+    "PriceEye",
+    "report"
+  ],
+  "evidence_line_present": true
+}
+```
+
+### 34. priceeye_pdf_report_artifact
+
+- Mode: `master`
+- Thread ID: `smoke-priceeye-pdf-report`
+
+Question:
+
+```text
+Create a PDF daily PriceEye report artifact for the latest available production data. Use execute_sql to gather a bounded all-customer summary from monitoring and analytics, use Python to create charts if useful, write the PDF to the workspace, and return the file path. Do not ask a follow-up.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 2,
+  "max_elapsed_seconds": 620,
+  "max_tool_errors": 0,
+  "data_result_reflected": true,
+  "required_tools": [
+    "execute_sql"
+  ],
+  "answer_contains": [
+    ".pdf",
+    "PriceEye"
+  ],
+  "answer_not_contains": [
+    "would you like me",
+    "do you want me"
+  ]
+}
+```
+
+### 35. active_roundtrip_requests_file
+
+- Mode: `master`
+- Thread ID: `smoke-active-roundtrip-requests-file`
+
+Question:
+
+```text
+Make a downloadable file of active round-trip requests from input request data. Use execute_sql against the appropriate production input/request monitoring table to find active UA API RT requests, and also include BA round-trip requests that go to provider BA if available. Write a CSV artifact in the workspace and return its path plus row count. Keep SQL bounded and read-only.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 2,
+  "max_elapsed_seconds": 500,
+  "max_tool_errors": 0,
+  "data_result_reflected": true,
+  "required_tools": [
+    "execute_sql"
+  ],
+  "answer_contains": [
+    ".csv",
+    "RT"
+  ],
+  "answer_not_contains": [
+    "would you like me"
+  ]
+}
+```
+
+### 36. s3_delivery_file_size_reference_aa_b5
+
+- Mode: `master`
+- Thread ID: `smoke-s3-delivery-file-size-aa-b5`
+- Requires AWS credentials: `true`
+
+Question:
+
+```text
+Examine delivered file sizes for reference AA_B5 over the latest seven visible days under s3://s3-atp-3victors-3vprod-use1-priceeye-aa/web/2026/03/. The folder has day/hour subfolders. Use list_s3 only for S3 discovery, filter paths for AA_B5 or AA/AA_Web_Default keys that correspond to the reference if the reference is not in the filename, and report counts, total bytes, smallest/largest objects, and any zero-byte or suspiciously small files. Do not download full objects.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 1,
+  "max_elapsed_seconds": 260,
+  "max_tool_errors": 0,
+  "required_tools": [
+    "list_s3"
+  ],
+  "forbidden_tools": [
+    "fetch_s3",
+    "execute_sql"
+  ],
+  "answer_contains": [
+    "AA_B5",
+    "bytes"
+  ],
+  "answer_not_contains": [
+    "would you like me"
+  ]
+}
+```
+
+### 37. ql2_retry_origin_timeline
+
+- Mode: `master`
+- Thread ID: `smoke-ql2-retry-origin-timeline`
+
+Question:
+
+```text
+Investigate retries sent to provider QL2. Use prod.monitoring.provider_combined_audit and focus on sitecategory='subRetry1'. Pick a small sample of QL2 retry ids from the latest available sales_date, then use id to find related main rows and determine the original provider/site. Show a timeline for a few ids and say whether any appear to originate from AI|XP main requests. Use at most five execute_sql calls.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 2,
+  "max_elapsed_seconds": 480,
+  "max_tool_errors": 0,
+  "data_result_reflected": true,
+  "required_tools": [
+    "execute_sql"
+  ],
+  "answer_contains": [
+    "QL2",
+    "subRetry1"
+  ],
+  "answer_not_contains": [
+    "inputrequestid is definitely",
+    "would you like me"
+  ]
+}
+```
+
+### 38. aa_ai_xp_timeout_requested_markets
+
+- Mode: `master`
+- Thread ID: `smoke-aa-ai-xp-timeout-markets`
+
+Question:
+
+```text
+For customer AA and customersitecode XP, list a few AI|XP main requests that timed out or had issue_reason indicating timeout on the latest available sales_date in prod.monitoring.combined_audit. Include origin, destination, maxstopcabin, departdate, returndate, triptype, id, issue_reason, and response_status. Timeouts may have response_status null, so key off issue_reason as well as status. Use execute_sql only.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 2,
+  "max_elapsed_seconds": 360,
+  "max_tool_errors": 0,
+  "data_result_reflected": true,
+  "required_tools": [
+    "execute_sql"
+  ],
+  "answer_contains": [
+    "AA",
+    "XP",
+    "timeout"
+  ],
+  "answer_not_contains": [
+    "would you like me"
+  ]
+}
+```
+
+### 39. aa_core_rt_volume_drop_breakdown
+
+- Mode: `master`
+- Thread ID: `smoke-aa-core-rt-volume-drop`
+
+Question:
+
+```text
+AA says the volume in their AA_Core_RT profile is about half of expected today. Investigate customer='AA', collection name/reference AA_CORE_RT or AA_Core_RT, and data asks from DL, UA, and AA. Use prod.monitoring.combined_audit, compare the latest available sales_date to the previous available sales_date, break down by customersitecode, providercode, market/O&D, response status, packager_recordcount, and delivery counts where available. Explain why volume is lower and whether WN shows a similar issue. Use at most six execute_sql calls.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 2,
+  "max_elapsed_seconds": 620,
+  "max_tool_errors": 0,
+  "data_result_reflected": true,
+  "required_tools": [
+    "execute_sql"
+  ],
+  "answer_contains": [
+    "AA_Core_RT",
+    "volume"
+  ],
+  "answer_not_contains": [
+    "would you like me"
+  ]
+}
+```
+
+### 40. autoscheduler_import_rate_capacity_logic
+
+- Mode: `master`
+- Thread ID: `smoke-autoscheduler-import-rate-capacity`
+
+Question:
+
+```text
+How is the auto-scheduler using import rates, retry rates, cache rates, and capacity rates? Use search_kb first, then inspect the priceeye-scheduling code for the classes that allocate requests by hour. Explain how shared cache behavior can assign a cache rate to a later provider even if an earlier customer's requests seeded the cache, and cite real class names and source files.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 2,
+  "max_elapsed_seconds": 420,
+  "max_tool_errors": 0,
+  "required_tools": [
+    "search_kb"
+  ],
+  "answer_contains": [
+    "import",
+    "cache",
+    "capacity"
+  ],
+  "source_reference_present": true,
+  "evidence_line_present": true,
+  "no_followup_offer": true,
+  "max_answer_chars": 4200
+}
+```
+
+### 41. autoscheduler_dashboard_dataflow
+
+- Mode: `master`
+- Thread ID: `smoke-autoscheduler-dashboard-dataflow`
+
+Question:
+
+```text
+For the autoscheduler comparison dashboard, determine whether files on S3 are created from a Redshift connection or whether the EC2 visual reads converted output from S3 directly. Use search_kb and targeted code/config inspection only. Name the jobs, buckets/prefixes, and entry points you find. Do not run SQL.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 1,
+  "max_elapsed_seconds": 360,
+  "max_tool_errors": 0,
+  "required_tools": [
+    "search_kb"
+  ],
+  "forbidden_tools": [
+    "execute_sql"
+  ],
+  "answer_contains": [
+    "S3",
+    "dashboard"
+  ],
+  "source_reference_present": true,
+  "evidence_line_present": true,
+  "no_followup_offer": true
+}
+```
+
+### 42. customer_delivery_date_semantics
+
+- Mode: `master`
+- Thread ID: `smoke-customer-delivery-date-semantics`
+
+Question:
+
+```text
+In ds-priceeye-analytics, explain what customer_delivery_date means in priceeye_audits and whether it differs from customer_observation_time / customer_observation_date. Use search_kb first, then inspect the relevant transform/schema code and cite the exact source files. Do not run SQL.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 2,
+  "max_elapsed_seconds": 360,
+  "max_tool_errors": 0,
+  "required_tools": [
+    "search_kb"
+  ],
+  "forbidden_tools": [
+    "execute_sql"
+  ],
+  "answer_contains": [
+    "customer_delivery_date",
+    "customer_observation"
+  ],
+  "source_reference_present": true,
+  "evidence_line_present": true,
+  "no_followup_offer": true
+}
+```
+
+### 43. priceeye_pipeline_visualization_pdf
+
+- Mode: `master`
+- Thread ID: `smoke-priceeye-pipeline-visualization-pdf`
+
+Question:
+
+```text
+Create a PDF visualization of the PriceEye analytics pipeline. Use search_kb and the pipeline graph tools or targeted code/config inspection to identify the major jobs, tables, and S3 outputs, render a knowledge graph or flow diagram, write it as a PDF artifact in the workspace, and return the file path.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 2,
+  "max_elapsed_seconds": 620,
+  "max_tool_errors": 0,
+  "required_tools": [
+    "search_kb"
+  ],
+  "answer_contains": [
+    ".pdf",
+    "pipeline"
+  ],
+  "source_reference_present": true,
+  "evidence_line_present": true
+}
+```
+
+### 44. auto_scheduler_codebase_lookup
+
+- Mode: `default`
+- Thread ID: `smoke-auto-scheduler-code`
+
+Question:
+
+```text
+How does the auto-scheduler work in priceeye-scheduling? Look it up in the knowledge base and then check the actual codebase to show me the real class names and entry points. Keep verification targeted: after KB, confirm the repo and read only the key entrypoint/orchestrator/worker/persistence files needed to answer. Do not inspect tests, wrapper modules, adjacent submodules, or lineage unless the targeted files are missing. Answer in one direct sentence plus 5-8 non-nested bullets and a Source line.
+```
+
+Assertions:
+
+```json
+{
+  "min_tool_calls": 2,
+  "max_elapsed_seconds": 300,
+  "max_tool_errors": 0,
+  "fail_on_tool_error_types": [
+    "GraphEmpty",
+    "ToolTimeout",
+    "GuardrailBlocked",
+    "ToolError"
+  ],
+  "required_tools": [
+    "search_kb"
+  ],
+  "answer_contains": [
+    "auto"
+  ],
+  "no_followup_offer": true,
+  "source_reference_present": true,
+  "evidence_line_present": true,
+  "max_answer_chars": 3500,
+  "max_bullets": 10
+}
+```

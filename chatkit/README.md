@@ -71,7 +71,7 @@ Direct script usage (more control):
 
 ```bash
 backend/scripts/verify_investigation.sh --help
-backend/scripts/verify_investigation.sh --profile 3VDEV --model gpt-5.4-mini --max-turns 40
+backend/scripts/verify_investigation.sh --profile 3VDEV --model gpt-5-mini --max-turns 40
 backend/scripts/verify_investigation.sh --scenarios top_site_issues,market_anomalies_distribution
 backend/scripts/verify_investigation.sh --profile 3VDEV --model gpt-5.5 --skip-unit
 ```
