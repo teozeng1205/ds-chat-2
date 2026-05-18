@@ -6,7 +6,7 @@ Runs test cases through the actual agentic loop using Runner.run().
 Usage:
     cd chatkit/backend
     eval "$(assume 3VDEV)"
-    .venv/bin/python scripts/smoke_e2e.py --profile 3VDEV --model gpt-5-mini
+    .venv/bin/python scripts/smoke_e2e.py --profile 3VDEV --model gpt-5.4-mini
 """
 
 from __future__ import annotations
@@ -1086,7 +1086,7 @@ async def run_all(args: argparse.Namespace) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run E2E smoke tests for DS Chat investigation agent.")
     parser.add_argument("--profile", default="3VDEV", help="Credential profile for assume (default: 3VDEV)")
-    parser.add_argument("--model", default="gpt-5-mini", help="Model to use for the agent (default: gpt-5-mini)")
+    parser.add_argument("--model", default="gpt-5.4-mini", help="Model to use for the agent (default: gpt-5.4-mini)")
     parser.add_argument("--max-turns", type=int, default=100, help="Max agentic turns per case (default: 100)")
     parser.add_argument(
         "--case-timeout-seconds",
