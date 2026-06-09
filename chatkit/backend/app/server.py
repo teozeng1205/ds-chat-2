@@ -15,6 +15,7 @@ from chatkit.types import (
     AudioInput,
     ThreadMetadata,
     ThreadStreamEvent,
+    ThreadUpdatedEvent,
     TranscriptionResult,
     UserMessageItem,
     UserMessageTagContent,
@@ -68,6 +69,24 @@ def _extract_attachment_snippet(attachment: Attachment) -> str | None:
     if len(decoded) > MAX_ATTACHMENT_SNIPPET_CHARS:
         return f"{decoded[:MAX_ATTACHMENT_SNIPPET_CHARS]}...(truncated)"
     return decoded
+
+
+# Thread-title summary: a short, model-generated label so the history list shows
+# what each past chat was about instead of an untitled row.
+TITLE_MODEL = "gpt-5.4-mini"
+MAX_TITLE_CHARS = 70
+
+
+def _extract_user_text(item: UserMessageItem | None) -> str:
+    """Flatten a user message's text parts into one whitespace-normalized string."""
+    if item is None:
+        return ""
+    parts: list[str] = []
+    for content in getattr(item, "content", None) or []:
+        text = getattr(content, "text", None)
+        if isinstance(text, str) and text.strip():
+            parts.append(text.strip())
+    return " ".join(" ".join(parts).split()).strip()
 
 
 class DSChatThreadItemConverter(ThreadItemConverter):
@@ -181,6 +200,53 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
 
         return {"model": model, "turn_count": turn_count}
 
+    async def _summarize_title(self, user_text: str) -> str:
+        """Generate a concise chat title from the first user message.
+
+        Best-effort: a tiny model call, falling back to the truncated message so
+        a thread always gets a readable history label even if the call fails.
+        """
+        snippet = user_text[:1500]
+        try:
+            from openai import AsyncOpenAI
+
+            client = AsyncOpenAI()
+            resp = await client.responses.create(
+                model=TITLE_MODEL,
+                instructions=(
+                    "Write a concise 3-6 word title summarizing the user's request "
+                    "for a chat history list. Return ONLY the title — no quotes, no "
+                    "trailing punctuation, no markdown."
+                ),
+                input=snippet,
+                max_output_tokens=200,
+                reasoning={"effort": "none"},
+            )
+            title = " ".join((getattr(resp, "output_text", "") or "").split()).strip().strip('"').strip()
+            if title:
+                return title[:MAX_TITLE_CHARS]
+        except Exception as exc:  # noqa: BLE001 — never block the turn on titling
+            log.warning("thread title model call failed: %s", exc)
+        clean = " ".join(snippet.split())
+        return (clean[: MAX_TITLE_CHARS - 1] + "…") if len(clean) > MAX_TITLE_CHARS else clean
+
+    async def _ensure_thread_title(
+        self, thread: ThreadMetadata, item: UserMessageItem | None, context: dict[str, Any]
+    ) -> AsyncIterator[ThreadStreamEvent]:
+        """On the first turn, set a summary title and stream a live thread update
+        so the history list shows what the chat is about."""
+        if getattr(thread, "title", None):
+            return
+        user_text = _extract_user_text(item)
+        if not user_text:
+            return
+        title = await self._summarize_title(user_text)
+        if not title:
+            return
+        thread.title = title
+        await self.store.save_thread(thread, context)
+        yield ThreadUpdatedEvent(thread=self._to_thread_response(thread))
+
     async def respond(
         self,
         thread: ThreadMetadata,
@@ -222,6 +288,13 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
         compatible_result = _StreamingResultCompatWrapper(result)
         async for event in stream_agent_response(agent_context, compatible_result):
             yield event
+
+        # Give the thread a summary title (history list) on the first turn.
+        try:
+            async for title_event in self._ensure_thread_title(thread, item, context):
+                yield title_event
+        except Exception as exc:  # noqa: BLE001
+            log.warning("thread title generation failed for %s: %s", thread.id, exc)
 
         try:
             cleanup_thread_workspace(thread.id, mode="ephemeral_manifest")
