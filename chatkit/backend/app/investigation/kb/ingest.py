@@ -598,6 +598,7 @@ def build_kb(store: KnowledgeStore, *, force: bool = False) -> dict[str, Any]:
         *KNOWLEDGE_ROOT.glob("*.json"),
         *KNOWLEDGE_ROOT.glob("*.yaml"),
         *DOCS_ROOT.glob("*.md"),
+        *(DOCS_ROOT / "workflows").glob("*.md"),
         *SKILLS_ROOT.glob("*.md"),
     ]
     if E2E_CASES_PATH.exists():

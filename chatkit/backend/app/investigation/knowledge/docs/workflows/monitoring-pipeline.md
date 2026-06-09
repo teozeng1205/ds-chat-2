@@ -46,6 +46,7 @@ Full set (17 tables; column counts from the live snapshot), ordered by pipeline 
 | 1a dedup (×9) | `deduped_provider_request_audit`, `…_detail`, `…_response_audit`, `…_retry_audit`, `…_cache_loader_audit`, `…_global_filter_audit_summary`, `…_enrichment_audit`, `…_packager_audit`, `…_delivery_audit` | sales_date | `/v1/<name>/` |
 | 1b combined | `combined_audit` (`prod.monitoring.combined_audit`) | sales_date | `/v1/combined_audit/YYYY/MM/DD/` |
 | 1c provider rollup | `provider_combined_audit` (`prod.monitoring.provider_combined_audit`) | sales_date | bucket `s3-…-provider-monitor` `/v1/provider-combined-audit/YYYY/MM/DD/` |
+| 1d refined | `refined_collection_run_audit` (`prod.monitoring.refined_collection_run_audit`) | — (verify live) | `/v1/refined_collection_run_audit/` |
 
 - **Dedup logic** (`source/combined-audits/deduped-audits/src/unload-deduped-*.py`): `SELECT <business cols>,
   COUNT(*) AS occurrences … GROUP BY <business cols>` over a 1–3 day `sales_date` window, hour-bounded by
@@ -60,6 +61,11 @@ Full set (17 tables; column counts from the live snapshot), ordered by pipeline 
   `issue_sources` / `issue_reasons` and **`inputrequestid_count = regexp_count(input_request_ids,'|')+1`**
   (use `SUM(inputrequestid_count)`, never `COUNT(DISTINCT inputrequestid)`). Joins
   `local.federated_metadata.airportlocation_extra`/`citylocation_extra` for origin/destination geo.
+- **`refined_collection_run_audit`** (`prod.monitoring.refined_collection_run_audit`; S3
+  `…-deduped-datasets/v1/refined_collection_run_audit`): a refined collection-run audit emitted alongside the
+  deduped tables. It is the **completed-collection signal the DCO trigger reads** to launch the analytics
+  pipeline (see `anomalies-pipeline.md` → `dco-v2-spark-trigger`). The KB snapshot did not capture its
+  columns/partition — run `inspect_table` for the live schema.
 
 **Orchestration:** Step Function `unload-monitoring-step-function.asl.json` — Parallel dedup batches →
 combined_audit (today + yesterday) → verify/refresh views → provider + customer rollups. **Trigger:**
