@@ -261,7 +261,10 @@ def build_agent(model: str, *, include_web_search: bool = True) -> Agent[Any]:
     return Agent(
         model=OpenAIResponsesModel(model=model, openai_client=AsyncOpenAI()),
         model_settings=ModelSettings(
-            reasoning=Reasoning(effort="medium"),
+            # summary="auto" streams reasoning-summary text, which ChatKit renders
+            # as live "Thinking" workflow tasks — without it, long multi-tool turns
+            # show nothing between the final answer and look stuck.
+            reasoning=Reasoning(effort="medium", summary="auto"),
             verbosity="medium",
         ),
         name="DS Chat Agent",

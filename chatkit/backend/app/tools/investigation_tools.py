@@ -13,7 +13,7 @@ from typing import Any
 
 from agents import RunContextWrapper, function_tool
 from chatkit.agents import AgentContext
-from chatkit.types import AttachmentCreateParams, ProgressUpdateEvent
+from chatkit.types import AttachmentCreateParams, CustomTask, ProgressUpdateEvent
 from chatkit.widgets import Card
 
 from ..attachment_store import LocalDiskAttachmentStore, default_attachment_dir
@@ -84,6 +84,30 @@ def _workspace_dataset_sql_error(query: str) -> dict[str, Any] | None:
 
 async def _stream_progress(ctx: RunContextWrapper[AgentContext], icon: str, text: str) -> None:
     await ctx.context.stream(ProgressUpdateEvent(icon=icon, text=text))
+
+
+async def _trace_tool(
+    ctx: RunContextWrapper[AgentContext],
+    *,
+    title: str,
+    content: str | None = None,
+    icon: str | None = None,
+) -> None:
+    """Append a persistent CustomTask to the turn's workflow so the tool call —
+    and the exact SQL/code it ran — stays visible in the thread (and history),
+    not just as a transient progress line. Never breaks a tool over a trace.
+    """
+    body = content.strip() if content else None
+    if body and len(body) > 2000:
+        body = body[:2000] + "\n… (truncated)"
+    for kwargs in ({"icon": icon}, {}):  # retry without icon if the name is invalid
+        try:
+            await ctx.context.add_workflow_task(
+                CustomTask(title=title[:200], content=body, status_indicator="complete", **kwargs)  # type: ignore[arg-type]
+            )
+            return
+        except Exception:
+            continue
 
 
 def _path_allowed_for_publish(path: Path) -> bool:
@@ -352,6 +376,12 @@ async def execute_sql(
                     "(e.g., adjust LIMIT) to force a fresh run."
                 ),
             })
+            await _trace_tool(
+                ctx,
+                title=f"Ran SQL (cached) · {cache_payload.get('row_count')} rows",
+                content=query,
+                icon="search",
+            )
             return cache_payload
 
         # ── Fresh execution ─────────────────────────────────────
@@ -374,6 +404,12 @@ async def execute_sql(
         except Exception as exc:  # noqa: BLE001
             log.debug("query cache write failed: %s", exc)
 
+        await _trace_tool(
+            ctx,
+            title=f"Ran SQL · {datasource or 'auto'} · {result.get('row_count')} rows ({elapsed:.1f}s)",
+            content=query,
+            icon="search",
+        )
         return result
     except Exception as exc:
         log.exception("execute_sql failed")
@@ -407,6 +443,12 @@ async def fetch_s3(
         await _stream_progress(
             ctx, "check-circle",
             f"S3 fetch complete: {result.get('row_count')} rows, {len(result.get('s3_keys', []))} files in {elapsed:.1f}s.",
+        )
+        await _trace_tool(
+            ctx,
+            title=f"Fetched S3 · {bucket} · {result.get('row_count')} rows",
+            content=f"s3://{bucket}/{key_or_prefix}",
+            icon="search",
         )
         return result
     except Exception as exc:
@@ -443,6 +485,12 @@ async def list_s3(
             "check-circle",
             f"S3 list complete: {result.get('object_count')} keys.",
         )
+        await _trace_tool(
+            ctx,
+            title=f"Listed S3 · {bucket} · {result.get('object_count')} objects",
+            content=f"s3://{bucket}/{prefix}".rstrip("/"),
+            icon="search",
+        )
         return result
     except Exception as exc:
         log.exception("list_s3 failed")
@@ -478,6 +526,7 @@ async def run_python(
             "check-circle",
             f"Python complete in {elapsed:.1f}s; created {len(result.get('created_datasets', []))} datasets.",
         )
+        await _trace_tool(ctx, title="Ran Python", content=code, icon="square-code")
         return result
     except Exception as exc:
         log.exception("run_python failed")
@@ -507,6 +556,11 @@ async def inspect_table(
         await _stream_progress(
             ctx, "check-circle",
             f"Table inspection complete: {len(result.get('columns', []))} columns.",
+        )
+        await _trace_tool(
+            ctx,
+            title=f"Inspected {table_name} · {len(result.get('columns', []))} cols",
+            icon="search",
         )
         return result
     except Exception as exc:
@@ -540,6 +594,12 @@ async def search_kb(
             f"KB V2 search complete: {len(result.get('items', []))} items, "
             f"{len(result.get('tables', []))} tables, {len(result.get('lineage', []))} lineage edges.",
         )
+        await _trace_tool(
+            ctx,
+            title=f"Searched KB · {len(result.get('items', []))} items",
+            content=query,
+            icon="book-open",
+        )
         return result
     except Exception as exc:
         log.exception("search_kb failed")
@@ -570,6 +630,7 @@ async def resolve_codes(
             ctx, "check-circle",
             f"Resolved: providers={len(result.get('providers', []))}, sites={len(result.get('sites', []))}, customers={len(result.get('customers', []))}.",
         )
+        await _trace_tool(ctx, title="Resolved codes", content=text, icon="agent")
         return result
     except Exception as exc:
         log.exception("resolve_codes failed")
