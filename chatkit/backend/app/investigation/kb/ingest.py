@@ -144,21 +144,32 @@ def _ingest_docs() -> tuple[list[KnowledgeItem], list[KnowledgeChunk]]:
             i, c = _chunk_markdown(path, kind=kind, item_type=item_type)
             items.extend(i)
             chunks.extend(c)
+    # Tier A (overview) + cross-cutting topic docs live in the docs/ root.
+    # Per-repo docs were retired to docs/repos/ and are intentionally NOT indexed
+    # (the non-recursive glob skips subdirectories); they remain on disk for
+    # Tier C (live ~/git/ + repo exploration) reference.
     if DOCS_ROOT.exists():
         for md in sorted(DOCS_ROOT.glob("*.md")):
             i, c = _chunk_markdown(md, kind="doc", item_type="doc")
             items.extend(i)
             chunks.extend(c)
-    overview_path = DOCS_ROOT / "priceeye_system.md"
+        # Tier B — one doc per process/workflow.
+        workflows_root = DOCS_ROOT / "workflows"
+        if workflows_root.exists():
+            for md in sorted(workflows_root.glob("*.md")):
+                i, c = _chunk_markdown(md, kind="workflow", item_type="doc")
+                items.extend(i)
+                chunks.extend(c)
+    overview_path = DOCS_ROOT / "priceeye_overview.md"
     if overview_path.exists():
         overview_text = overview_path.read_text(encoding="utf-8", errors="replace")
-        start = overview_text.find("## Data Flow Overview")
-        end = overview_text.find("## Processes & Their Tables")
+        start = overview_text.find("## 2. The end-to-end data flow")
+        end = overview_text.find("## 5. Orchestration")
         overview = overview_text[start:end].strip() if start >= 0 and end > start else overview_text[:4500].strip()
         item_id = "doc_overview:priceeye"
         text = (
-            "How does PriceEye work? PriceEye system overview, architecture, data flow, "
-            "indexed documentation, source file docs/priceeye_system.md.\n\n"
+            "How does PriceEye work? PriceEye system overview, architecture, end-to-end "
+            "data flow, indexed documentation, source file docs/priceeye_overview.md.\n\n"
             f"{overview[:4200]}"
         )
         items.append(
@@ -166,9 +177,9 @@ def _ingest_docs() -> tuple[list[KnowledgeItem], list[KnowledgeChunk]]:
                 id=item_id,
                 type="doc",
                 name="priceeye_system_overview",
-                title="PriceEye system overview",
-                summary="Documentation hint for how PriceEye works from docs/priceeye_system.md.",
-                source_path="docs/priceeye_system.md",
+                title="PriceEye end-to-end system overview",
+                summary="Tier A overview of how PriceEye works from docs/priceeye_overview.md.",
+                source_path="docs/priceeye_overview.md",
                 metadata=_source_metadata("doc_hint", path=overview_path, extra={"format": "markdown", "overview": True}),
                 confidence=0.35,
             )
@@ -179,9 +190,9 @@ def _ingest_docs() -> tuple[list[KnowledgeItem], list[KnowledgeChunk]]:
                 item_id=item_id,
                 kind="doc_overview",
                 text=text,
-                source_path="docs/priceeye_system.md",
-                heading="Data Flow Overview",
-                citation="docs/priceeye_system.md#Data Flow Overview",
+                source_path="docs/priceeye_overview.md",
+                heading="End-to-End Data Flow",
+                citation="docs/priceeye_overview.md#End-to-End Data Flow",
                 metadata=_source_metadata("doc_hint", path=overview_path, extra={"format": "markdown", "overview": True}),
                 confidence=0.35,
             )

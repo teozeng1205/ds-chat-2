@@ -25,6 +25,16 @@ except Exception:  # pragma: no cover
 from .workspace import WorkspaceManager
 
 
+class PartitionFilterRequired(ValueError):
+    """Raised when a query targets a partitioned table without a partition predicate.
+
+    The table-query protocol hard-gates partitioned tables: a query that omits a
+    predicate on a known partition key is rejected before execution instead of
+    silently full-scanning. The message lists the missing key(s) so the agent can
+    immediately retry with a valid predicate (or aggregate with GROUP BY).
+    """
+
+
 class SqlGuard:
     """Minimal guardrails for read-only SQL with row clamp."""
 
@@ -332,4 +342,4 @@ class OperatorRuntime:
         }
 
 
-__all__ = ["OperatorRuntime", "PartitionGuard", "SqlGuard"]
+__all__ = ["OperatorRuntime", "PartitionFilterRequired", "PartitionGuard", "SqlGuard"]

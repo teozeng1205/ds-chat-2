@@ -17,11 +17,19 @@ def _seed_kb_tree(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
     skills_root.mkdir(parents=True)
     tests_root.mkdir(parents=True)
 
-    (docs_root / "priceeye_system.md").write_text(
-        "# PriceEye System\n\n## Data Flow Overview\npriceeye-v2 -> ds-priceeye-analytics -> monitoring.\n\n## Processes & Their Tables\n\n## Provider Issues\nUse provider monitoring tables for collection issue debugging.\n",
+    (docs_root / "priceeye_overview.md").write_text(
+        "# PriceEye Overview\n\n## 2. The end-to-end data flow\npriceeye-v2 -> ds-priceeye-analytics -> monitoring.\n\n## 5. Orchestration and ordering\nStep Functions order the jobs.\n\n## Provider Issues\nUse provider monitoring tables for collection issue debugging.\n",
         encoding="utf-8",
     )
-    (docs_root / "old.md").write_text("# Legacy Thing\nlegacy only content\n", encoding="utf-8")
+    # Tier B — one doc per process/workflow.
+    (docs_root / "workflows").mkdir()
+    (docs_root / "workflows" / "market-level-anomalies.md").write_text(
+        "# Workflow: Market-Level Anomalies\n\nTrigger: Step Functions. Writes prod.analytics.market_level_anomalies_v3.\n",
+        encoding="utf-8",
+    )
+    # Per-repo docs are retired to repos/ and must NOT be indexed.
+    (docs_root / "repos").mkdir()
+    (docs_root / "repos" / "old.md").write_text("# Legacy Thing\nlegacy only content\n", encoding="utf-8")
     (knowledge_root / "tables.md").write_text("# Tables\nprod.monitoring.provider_combined_audit\n", encoding="utf-8")
     (knowledge_root / "sql_best_practices.md").write_text("# SQL\nFilter by sales_date.\n", encoding="utf-8")
     (knowledge_root / "common_codes.json").write_text(
@@ -106,10 +114,18 @@ def test_kb_v2_ingests_typed_resources_and_filters_legacy(tmp_path: Path, monkey
     assert "prod.monitoring.combined_audit" in schema_hits[0]["chunk"]["text"]
     overview_hits = store.search_chunks("how does priceeye work overview documentation source file", top_k=3)
     overview_doc = next(hit for hit in overview_hits if hit["item"]["id"] == "doc_overview:priceeye")
-    assert "docs/priceeye_system.md" in overview_doc["chunk"]["text"]
+    assert "docs/priceeye_overview.md" in overview_doc["chunk"]["text"]
     assert overview_doc["item"]["source_type"] == "doc_hint"
     assert overview_doc["item"]["requires_verification"] is True
+    # Tier B workflow docs are indexed and searchable.
+    workflow_hits = store.search_chunks("market level anomalies workflow step functions", top_k=5)
+    assert any("market_level_anomalies" in hit["chunk"]["text"].lower() for hit in workflow_hits)
+    # Retired per-repo docs (under repos/) are NOT indexed.
     assert not any("legacy" in hit["chunk"]["text"].lower() for hit in hits)
+    assert not any(
+        "legacy only content" in hit["chunk"]["text"].lower()
+        for hit in store.search_chunks("legacy only content", top_k=10)
+    )
     store.close()
 
 

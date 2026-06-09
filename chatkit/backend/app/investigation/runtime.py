@@ -19,7 +19,7 @@ import pandas as pd
 from .catalog import LocalCodeCatalog
 from .datasources import DatasourceRegistry, datasource_for_table
 from .entity_resolution import EntityResolver
-from .executor import OperatorRuntime, PartitionGuard, SqlGuard
+from .executor import OperatorRuntime, PartitionFilterRequired, PartitionGuard, SqlGuard
 from .kb import KnowledgeRetriever
 from .workspace import WorkspaceManager
 
@@ -191,8 +191,19 @@ class InvestigationRuntime:
         effective_datasource = datasource or datasource_for_table(query)
         validated_query = self.guard.validate(query)
 
-        # Partition guard warnings — Glue catalog first, static map fallback.
+        # Partition gate — HARD. Glue catalog first, static map fallback.
+        # A query on a table with KNOWN partition keys that omits a predicate on
+        # any of them is rejected before execution (no silent full scan). Tables
+        # with no resolvable partition keys are unaffected and run normally.
         partition_warnings = _partition_check(validated_query)
+        if partition_warnings:
+            raise PartitionFilterRequired(
+                "Query blocked: missing required partition filter(s). "
+                + " ".join(partition_warnings)
+                + " Re-run with the partition predicate (e.g. WHERE sales_date = YYYYMMDD"
+                " [AND customer = 'XX']). To scan more than one partition, aggregate"
+                " with GROUP BY <partition_key> instead of returning raw rows."
+            )
 
         started = time.time()
         frame = self.registry.execute_sql(effective_datasource, validated_query)

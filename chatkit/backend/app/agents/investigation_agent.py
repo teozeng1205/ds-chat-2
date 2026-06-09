@@ -153,8 +153,9 @@ Use `resolve_codes` to resolve natural language names (e.g. "JetBlue" -> B6, "Am
         """## SQL Rules (Enforced)
 
 - **Read-only:** SELECT/WITH only. No INSERT, UPDATE, DELETE, DROP.
-- **ALWAYS filter by partition columns.** For tables partitioned by sales_date, include `WHERE sales_date = YYYYMMDD`. For tables partitioned by customer, include `AND customer = 'XX'`. Missing partition filters cause full table scans and will generate warnings.
-- **Use LIMIT** for exploration (200-1000 rows). Remove LIMIT only when you need full aggregation.
+- **Partition filter is a HARD REQUIREMENT (enforced — query is BLOCKED otherwise).** Any query on a partitioned table that omits a predicate on its partition key(s) is *rejected before execution* with an error naming the missing key(s) — it does not run. For tables partitioned by sales_date include `WHERE sales_date = YYYYMMDD`; for tables also partitioned by customer include `AND customer = 'XX'`. If you get a "Query blocked: missing required partition filter" error, add the named predicate and retry.
+- **Multi-partition scans → use GROUP BY.** When you genuinely need more than one partition (a date range, or all customers), do not return raw rows — aggregate with `GROUP BY <partition_key> + measures` (e.g. `SELECT sales_date, COUNT(*) ... WHERE sales_date BETWEEN ... GROUP BY sales_date`). This keeps scans bounded and the result interpretable.
+- **A LIMIT is always applied.** The system appends `LIMIT 1000` when you omit one and clamps any LIMIT to 120,000 rows. Keep an explicit small LIMIT (200-1000) for exploration; for full aggregates, rely on GROUP BY rather than dumping raw rows.
 - **Use fully qualified table names** (schema.table or catalog.schema.table).
 - **DEFAULT TO `prod.*` TABLES.** Always prefer the `prod.*` version of any table unless the user explicitly asks for dev, local, or staging data. Never silently fall back to `local.*` without telling the user.
 - **Table namespace tiers — know which to use:**
@@ -186,6 +187,13 @@ Use `resolve_codes` to resolve natural language names (e.g. "JetBlue" -> B6, "Am
 
         # ── Domain knowledge lookup ──
         """## Domain Knowledge Lookup
+
+**Knowledge is tiered — consult in order A → B → C:**
+- **Tier A — one end-to-end overview** (`docs/priceeye_overview.md`, indexed; returned by `search_kb` for "how does PriceEye work"): the canonical system narrative, connectors, and data flow. Start here for big-picture / "how does it all fit" questions.
+- **Tier B — per-process workflow docs** (`docs/workflows/*.md`, indexed): each defines one process — its trigger, ordered steps, the tables/buckets it reads and writes, the job that runs it, and health/debugging signals. Use these for "how does <process> work" or "why is <table> stale/empty".
+- **Tier C — live code** (`~/git/`): if A and B do not answer, explore the repos directly with `bash`/`grep`/`read_file`/`git`. This is the last resort, not the default — do not shell-crawl when a workflow doc already answers.
+
+Per-repo doc files were retired; do not expect one indexed doc per repo. Prefer the overview + workflow docs, then go to the repo source.
 
 **Route knowledge questions as follows:**
 

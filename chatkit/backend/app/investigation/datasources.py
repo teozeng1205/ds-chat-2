@@ -52,6 +52,46 @@ class TableRef:
     table: str
 
 
+class _ConnectionPool:
+    """Tiny thread-safe pool of reusable datasource connectors.
+
+    The ds-threevictors connectors open a real DB connection in __init__ (and
+    read properties / Secrets Manager), so constructing one per query is the
+    dominant query cost. This pool reuses warm connectors and only creates new
+    ones when all are checked out — eliminating the per-query reconnect storm
+    while staying thread-safe (each in-flight query holds its own connector).
+    """
+
+    def __init__(self, factory: Any, max_idle: int = 5) -> None:
+        self._factory = factory
+        self._max_idle = max_idle
+        self._idle: list[Any] = []
+        self._lock = threading.Lock()
+
+    def acquire(self) -> Any:
+        with self._lock:
+            if self._idle:
+                return self._idle.pop()
+        return self._factory()
+
+    def release(self, connector: Any, *, broken: bool = False) -> None:
+        if broken:
+            self._close(connector)
+            return
+        with self._lock:
+            if len(self._idle) < self._max_idle:
+                self._idle.append(connector)
+                return
+        self._close(connector)
+
+    @staticmethod
+    def _close(connector: Any) -> None:
+        try:
+            connector.close()
+        except Exception:  # noqa: BLE001 — best-effort cleanup
+            pass
+
+
 # Canonical datasource routing table
 _TABLE_ROUTING: list[tuple[str, str]] = [
     ("priceeye.", "mysql_priceeye"),
@@ -87,6 +127,8 @@ class DatasourceRegistry:
         self._cred_lock = threading.Lock()
         self._creds_ready = False
         self._s3 = s3_util.S3Util() if s3_util else None
+        self._pools: dict[str, _ConnectionPool] = {}
+        self._pool_lock = threading.Lock()
 
     @staticmethod
     def parse_table_name(table_name: str) -> tuple[str, str, str]:
@@ -204,14 +246,20 @@ class DatasourceRegistry:
 
     @staticmethod
     def _query_df(connector: Any, query: str) -> pd.DataFrame:
-        with connector.get_connection().cursor() as cursor:
+        conn = connector.get_connection()
+        with conn.cursor() as cursor:
             cursor.execute(query)
             columns = [desc[0] for desc in cursor.description] if cursor.description else []
             rows = cursor.fetchall() or []
+        # End the implicit read transaction so the next query on this pooled
+        # connection sees a fresh snapshot (not a pinned REPEATABLE-READ view).
+        try:
+            conn.rollback()
+        except Exception:  # noqa: BLE001 — autocommit drivers make this a no-op
+            pass
         return pd.DataFrame(rows, columns=columns)
 
-    def _connector(self, datasource: str) -> Any:
-        self.ensure_credentials()
+    def _build_connector(self, datasource: str) -> Any:
         if redshift_connector is None or mysql_connector is None:
             raise DatasourceDependencyError("ds-threevictors is not installed in this environment")
         if datasource == "redshift_core":
@@ -222,11 +270,35 @@ class DatasourceRegistry:
             return PriceEyeMySQLReader()
         raise ValueError(f"Unsupported datasource: {datasource}")
 
+    def _pool_for(self, datasource: str) -> _ConnectionPool:
+        with self._pool_lock:
+            pool = self._pools.get(datasource)
+            if pool is None:
+                pool = _ConnectionPool(lambda ds=datasource: self._build_connector(ds))
+                self._pools[datasource] = pool
+            return pool
+
     def execute_sql(self, datasource: str, query: str) -> pd.DataFrame:
         if self._DANGEROUS_SQL.search(query):
             raise ValueError("Only read-only SQL is supported")
-        connector = self._connector(datasource)
-        return self._query_df(connector, query)
+        self.ensure_credentials()
+        pool = self._pool_for(datasource)
+        # Two attempts: a pooled connector may be stale (idle timeout). On any
+        # failure we discard that connector and retry once with a fresh one;
+        # read-only SELECTs are safe to re-run.
+        last_exc: Exception | None = None
+        for _ in range(2):
+            connector = pool.acquire()
+            try:
+                frame = self._query_df(connector, query)
+            except Exception as exc:  # noqa: BLE001
+                pool.release(connector, broken=True)
+                last_exc = exc
+                continue
+            pool.release(connector)
+            return frame
+        assert last_exc is not None
+        raise last_exc
 
     def inspect_table_metadata(self, table_name: str, datasource: str) -> dict[str, Any]:
         table_ref = self._table_ref(table_name)

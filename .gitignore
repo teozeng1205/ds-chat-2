@@ -27,3 +27,5 @@ chatkit/backend/app/investigation/knowledge/docs/*.md
 !chatkit/backend/app/investigation/knowledge/docs/README.md
 !chatkit/backend/app/investigation/knowledge/docs/s3_buckets.md
 !chatkit/backend/app/investigation/knowledge/docs/investigation_patterns.md
+# Tier A — canonical end-to-end overview (authored, indexed by the KB)
+!chatkit/backend/app/investigation/knowledge/docs/priceeye_overview.md
