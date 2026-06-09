@@ -160,16 +160,16 @@ def _ingest_docs() -> tuple[list[KnowledgeItem], list[KnowledgeChunk]]:
                 i, c = _chunk_markdown(md, kind="workflow", item_type="doc")
                 items.extend(i)
                 chunks.extend(c)
-    overview_path = DOCS_ROOT / "priceeye_overview.md"
+    overview_path = DOCS_ROOT / "priceeye_system.md"
     if overview_path.exists():
         overview_text = overview_path.read_text(encoding="utf-8", errors="replace")
-        start = overview_text.find("## 2. The end-to-end data flow")
-        end = overview_text.find("## 5. Orchestration")
+        start = overview_text.find("## 1. What PriceEye is")
+        end = overview_text.find("## 4. Connectors")
         overview = overview_text[start:end].strip() if start >= 0 and end > start else overview_text[:4500].strip()
         item_id = "doc_overview:priceeye"
         text = (
             "How does PriceEye work? PriceEye system overview, architecture, end-to-end "
-            "data flow, indexed documentation, source file docs/priceeye_overview.md.\n\n"
+            "data flow, indexed documentation, source file docs/priceeye_system.md.\n\n"
             f"{overview[:4200]}"
         )
         items.append(
@@ -178,8 +178,8 @@ def _ingest_docs() -> tuple[list[KnowledgeItem], list[KnowledgeChunk]]:
                 type="doc",
                 name="priceeye_system_overview",
                 title="PriceEye end-to-end system overview",
-                summary="Tier A overview of how PriceEye works from docs/priceeye_overview.md.",
-                source_path="docs/priceeye_overview.md",
+                summary="Tier A overview of how PriceEye works from docs/priceeye_system.md.",
+                source_path="docs/priceeye_system.md",
                 metadata=_source_metadata("doc_hint", path=overview_path, extra={"format": "markdown", "overview": True}),
                 confidence=0.35,
             )
@@ -190,9 +190,9 @@ def _ingest_docs() -> tuple[list[KnowledgeItem], list[KnowledgeChunk]]:
                 item_id=item_id,
                 kind="doc_overview",
                 text=text,
-                source_path="docs/priceeye_overview.md",
+                source_path="docs/priceeye_system.md",
                 heading="End-to-End Data Flow",
-                citation="docs/priceeye_overview.md#End-to-End Data Flow",
+                citation="docs/priceeye_system.md#End-to-End Data Flow",
                 metadata=_source_metadata("doc_hint", path=overview_path, extra={"format": "markdown", "overview": True}),
                 confidence=0.35,
             )

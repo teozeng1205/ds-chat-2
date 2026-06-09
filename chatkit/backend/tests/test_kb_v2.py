@@ -17,8 +17,8 @@ def _seed_kb_tree(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
     skills_root.mkdir(parents=True)
     tests_root.mkdir(parents=True)
 
-    (docs_root / "priceeye_overview.md").write_text(
-        "# PriceEye Overview\n\n## 2. The end-to-end data flow\npriceeye-v2 -> ds-priceeye-analytics -> monitoring.\n\n## 5. Orchestration and ordering\nStep Functions order the jobs.\n\n## Provider Issues\nUse provider monitoring tables for collection issue debugging.\n",
+    (docs_root / "priceeye_system.md").write_text(
+        "# PriceEye System\n\n## 1. What PriceEye is\npriceeye-v2 -> ds-priceeye-analytics -> monitoring.\n\n## 4. Connectors\nredshift_analytics, redshift_core, mysql_priceeye.\n\n## Provider Issues\nUse provider monitoring tables for collection issue debugging.\n",
         encoding="utf-8",
     )
     # Tier B — one doc per process/workflow.
@@ -114,7 +114,7 @@ def test_kb_v2_ingests_typed_resources_and_filters_legacy(tmp_path: Path, monkey
     assert "prod.monitoring.combined_audit" in schema_hits[0]["chunk"]["text"]
     overview_hits = store.search_chunks("how does priceeye work overview documentation source file", top_k=3)
     overview_doc = next(hit for hit in overview_hits if hit["item"]["id"] == "doc_overview:priceeye")
-    assert "docs/priceeye_overview.md" in overview_doc["chunk"]["text"]
+    assert "docs/priceeye_system.md" in overview_doc["chunk"]["text"]
     assert overview_doc["item"]["source_type"] == "doc_hint"
     assert overview_doc["item"]["requires_verification"] is True
     # Tier B workflow docs are indexed and searchable.

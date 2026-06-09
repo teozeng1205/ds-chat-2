@@ -189,8 +189,8 @@ Use `resolve_codes` to resolve natural language names (e.g. "JetBlue" -> B6, "Am
         """## Domain Knowledge Lookup
 
 **Knowledge is tiered — consult in order A → B → C:**
-- **Tier A — one end-to-end overview** (`docs/priceeye_overview.md`, indexed; returned by `search_kb` for "how does PriceEye work"): the canonical system narrative, connectors, and data flow. Start here for big-picture / "how does it all fit" questions.
-- **Tier B — per-process workflow docs** (`docs/workflows/*.md`, indexed): each defines one process — its trigger, ordered steps, the tables/buckets it reads and writes, the job that runs it, and health/debugging signals. Use these for "how does <process> work" or "why is <table> stale/empty".
+- **Tier A — one end-to-end overview** (`docs/priceeye_system.md`, indexed; returned by `search_kb` for "how does PriceEye work"): the canonical system narrative, repos, connectors, data flow, and the key-table index. Start here for big-picture / "how does it all fit" questions.
+- **Tier B — per-process workflow docs** (`docs/workflows/*.md`, indexed): `anomalies-pipeline.md` (common output → DCO → competitive position → market/segment analysis → market/segment anomalies → alerts) and `monitoring-pipeline.md` (combined_audit / provider_combined_audit → customer/billing → site-metrics). Each gives the exact tables, partition keys, **S3 buckets/prefixes**, producing repo/module, triggers, and health/debugging signals. Use these for "how does <process> work", "what S3 bucket/table does <stage> use", or "why is <table> stale/empty".
 - **Tier C — live code** (`~/git/`): if A and B do not answer, explore the repos directly with `bash`/`grep`/`read_file`/`git`. This is the last resort, not the default — do not shell-crawl when a workflow doc already answers.
 
 Per-repo doc files were retired; do not expect one indexed doc per repo. Prefer the overview + workflow docs, then go to the repo source.
@@ -319,10 +319,11 @@ process mappings:
         # ── S3 data reference (indexed in KB, not inlined here) ──
         """## S3 Data Reference
 
-The full S3 bucket + prefix catalog (one entry per known purpose:
-collection anomalies, DCO, anomaly datasets v4/v3, competitive
-position, pe-common-output, etc.) plus the Redshift → S3-mirror lookup
-are indexed in the KB as `s3_buckets.md`. **Call `search_kb` for bucket
+The S3 buckets + prefixes for each pipeline stage (pe-common-output, DCO,
+competitive-position, anomaly-datasets, deduped-datasets, provider-monitor,
+customer-monitor, billing, sitemetrics, etc.) live in the workflow docs
+`docs/workflows/anomalies-pipeline.md` and `docs/workflows/monitoring-pipeline.md`
+and the key-table index in `docs/priceeye_system.md`. **Call `search_kb` for bucket
 / prefix questions** — do not list buckets from memory, you will
 hallucinate names that don't exist. Examples:
 

@@ -25,7 +25,6 @@ chatkit/backend/app/.data/
 chatkit/backend/app/investigation/knowledge/docs/*.md
 # Authored reference docs — keep these in version control
 !chatkit/backend/app/investigation/knowledge/docs/README.md
-!chatkit/backend/app/investigation/knowledge/docs/s3_buckets.md
-!chatkit/backend/app/investigation/knowledge/docs/investigation_patterns.md
-# Tier A — canonical end-to-end overview (authored, indexed by the KB)
-!chatkit/backend/app/investigation/knowledge/docs/priceeye_overview.md
+# Tier A — canonical end-to-end system overview (authored, discovered from repos, indexed by the KB)
+!chatkit/backend/app/investigation/knowledge/docs/priceeye_system.md
+# Tier B workflow docs live under docs/workflows/ (not matched by docs/*.md, so tracked normally)
