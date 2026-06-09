@@ -13,7 +13,7 @@ from typing import Any
 
 from agents import RunContextWrapper, function_tool
 from chatkit.agents import AgentContext
-from chatkit.types import AttachmentCreateParams, CustomTask, ProgressUpdateEvent
+from chatkit.types import AttachmentCreateParams, ProgressUpdateEvent
 from chatkit.widgets import Card
 
 from ..attachment_store import LocalDiskAttachmentStore, default_attachment_dir
@@ -24,6 +24,9 @@ from ._common import (
     TIMEOUT_S3_FETCH,
     TIMEOUT_SHORT_NET,
     tool_error,
+    trace_begin,
+    trace_done,
+    trace_finish,
 )
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
@@ -86,28 +89,8 @@ async def _stream_progress(ctx: RunContextWrapper[AgentContext], icon: str, text
     await ctx.context.stream(ProgressUpdateEvent(icon=icon, text=text))
 
 
-async def _trace_tool(
-    ctx: RunContextWrapper[AgentContext],
-    *,
-    title: str,
-    content: str | None = None,
-    icon: str | None = None,
-) -> None:
-    """Append a persistent CustomTask to the turn's workflow so the tool call —
-    and the exact SQL/code it ran — stays visible in the thread (and history),
-    not just as a transient progress line. Never breaks a tool over a trace.
-    """
-    body = content.strip() if content else None
-    if body and len(body) > 2000:
-        body = body[:2000] + "\n… (truncated)"
-    for kwargs in ({"icon": icon}, {}):  # retry without icon if the name is invalid
-        try:
-            await ctx.context.add_workflow_task(
-                CustomTask(title=title[:200], content=body, status_indicator="complete", **kwargs)  # type: ignore[arg-type]
-            )
-            return
-        except Exception:
-            continue
+# Tool-call trace helpers (trace_begin / trace_finish / trace_done) live in
+# app.tools._common so both the data tools and the shell tools share them.
 
 
 def _path_allowed_for_publish(path: Path) -> bool:
@@ -376,7 +359,7 @@ async def execute_sql(
                     "(e.g., adjust LIMIT) to force a fresh run."
                 ),
             })
-            await _trace_tool(
+            await trace_done(
                 ctx,
                 title=f"Ran SQL (cached) · {cache_payload.get('row_count')} rows",
                 content=query,
@@ -386,6 +369,9 @@ async def execute_sql(
 
         # ── Fresh execution ─────────────────────────────────────
         await _stream_progress(ctx, "clock", f"Running SQL on {datasource or 'auto-detected datasource'}.")
+        trace_idx = await trace_begin(
+            ctx, title=f"Running SQL · {datasource or 'auto'}…", content=query, icon="search"
+        )
         t0 = time.monotonic()
         result = runtime.execute_sql(thread_id=thread_id, run_id=run_id, query=query, datasource=datasource)
         elapsed = time.monotonic() - t0
@@ -404,8 +390,9 @@ async def execute_sql(
         except Exception as exc:  # noqa: BLE001
             log.debug("query cache write failed: %s", exc)
 
-        await _trace_tool(
+        await trace_finish(
             ctx,
+            trace_idx,
             title=f"Ran SQL · {datasource or 'auto'} · {result.get('row_count')} rows ({elapsed:.1f}s)",
             content=query,
             icon="search",
@@ -437,6 +424,9 @@ async def fetch_s3(
         thread_id = _thread_id(ctx)
         run_id = _get_or_create_run_id(thread_id)
         await _stream_progress(ctx, "clock", f"Fetching S3 data from {bucket}.")
+        trace_idx = await trace_begin(
+            ctx, title=f"Fetching S3 · {bucket}…", content=f"s3://{bucket}/{key_or_prefix}", icon="search"
+        )
         t0 = time.monotonic()
         result = runtime.fetch_s3(thread_id=thread_id, run_id=run_id, bucket=bucket, key_or_prefix=key_or_prefix)
         elapsed = time.monotonic() - t0
@@ -444,8 +434,9 @@ async def fetch_s3(
             ctx, "check-circle",
             f"S3 fetch complete: {result.get('row_count')} rows, {len(result.get('s3_keys', []))} files in {elapsed:.1f}s.",
         )
-        await _trace_tool(
+        await trace_finish(
             ctx,
+            trace_idx,
             title=f"Fetched S3 · {bucket} · {result.get('row_count')} rows",
             content=f"s3://{bucket}/{key_or_prefix}",
             icon="search",
@@ -485,7 +476,7 @@ async def list_s3(
             "check-circle",
             f"S3 list complete: {result.get('object_count')} keys.",
         )
-        await _trace_tool(
+        await trace_done(
             ctx,
             title=f"Listed S3 · {bucket} · {result.get('object_count')} objects",
             content=f"s3://{bucket}/{prefix}".rstrip("/"),
@@ -518,6 +509,7 @@ async def run_python(
         thread_id = _thread_id(ctx)
         run_id = _get_or_create_run_id(thread_id)
         await _stream_progress(ctx, "square-code", "Running Python analysis on saved datasets.")
+        trace_idx = await trace_begin(ctx, title="Running Python…", content=code, icon="square-code")
         t0 = time.monotonic()
         result = runtime.run_python(thread_id=thread_id, run_id=run_id, code=code)
         elapsed = time.monotonic() - t0
@@ -526,7 +518,7 @@ async def run_python(
             "check-circle",
             f"Python complete in {elapsed:.1f}s; created {len(result.get('created_datasets', []))} datasets.",
         )
-        await _trace_tool(ctx, title="Ran Python", content=code, icon="square-code")
+        await trace_finish(ctx, trace_idx, title="Ran Python", content=code, icon="square-code")
         return result
     except Exception as exc:
         log.exception("run_python failed")
@@ -557,7 +549,7 @@ async def inspect_table(
             ctx, "check-circle",
             f"Table inspection complete: {len(result.get('columns', []))} columns.",
         )
-        await _trace_tool(
+        await trace_done(
             ctx,
             title=f"Inspected {table_name} · {len(result.get('columns', []))} cols",
             icon="search",
@@ -594,7 +586,7 @@ async def search_kb(
             f"KB V2 search complete: {len(result.get('items', []))} items, "
             f"{len(result.get('tables', []))} tables, {len(result.get('lineage', []))} lineage edges.",
         )
-        await _trace_tool(
+        await trace_done(
             ctx,
             title=f"Searched KB · {len(result.get('items', []))} items",
             content=query,
@@ -630,7 +622,7 @@ async def resolve_codes(
             ctx, "check-circle",
             f"Resolved: providers={len(result.get('providers', []))}, sites={len(result.get('sites', []))}, customers={len(result.get('customers', []))}.",
         )
-        await _trace_tool(ctx, title="Resolved codes", content=text, icon="agent")
+        await trace_done(ctx, title="Resolved codes", content=text, icon="agent")
         return result
     except Exception as exc:
         log.exception("resolve_codes failed")

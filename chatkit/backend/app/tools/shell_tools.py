@@ -25,6 +25,9 @@ from ._common import (
     TIMEOUT_LONG_SHELL,
     TIMEOUT_SHORT_NET,
     tool_error,
+    trace_begin,
+    trace_done,
+    trace_finish,
 )
 from .guardrails import classify_path_write, classify_shell_command
 
@@ -89,6 +92,7 @@ async def bash(
         )
 
     await _stream_progress(ctx, "square-code", f"$ {command[:80]}")
+    trace_idx = await trace_begin(ctx, title=f"$ {command[:80]}", content=command, icon="square-code")
 
     shell = await get_session(thread_id)
 
@@ -183,6 +187,9 @@ async def bash(
 
     if not exit_ok:
         output += "\n[Non-zero exit detected. Review output, fix command, and retry.]"
+    await trace_finish(
+        ctx, trace_idx, title=f"$ {command[:60]}{elapsed_str}", content=command, icon="square-code"
+    )
     return output
 
 
@@ -406,6 +413,7 @@ async def edit_file(
             hit_line = insert_line + 1
         context = _context_window(new_lines, hit_line, radius=3)
         delta = len(new_content) - len(old_content)
+        await trace_done(ctx, title=f"Edited {path}", content=str(path), icon="square-code")
         return f"OK: edited {path} ({delta:+d} chars)\n---\n{context}"
     except Exception as exc:
         return f"Error editing {file_path}: {exc}"
@@ -476,6 +484,7 @@ async def write_file(
         path.write_text(content, encoding="utf-8")
 
         action = "overwrote" if existed else "wrote"
+        await trace_done(ctx, title=f"Wrote {path}", content=str(path), icon="square-code")
         return f"OK: {action} {path} ({len(content)} chars)"
     except Exception as exc:
         return f"Error writing {file_path}: {exc}"
@@ -517,6 +526,7 @@ async def git(
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
         output = stdout.decode(errors="replace") + stderr.decode(errors="replace")
+        await trace_done(ctx, title=f"git {args[:60]}", content=f"git {args}", icon="square-code")
         return output.strip() or "(no output)"
     except asyncio.TimeoutError:
         return "Error: git command timed out after 30s"
