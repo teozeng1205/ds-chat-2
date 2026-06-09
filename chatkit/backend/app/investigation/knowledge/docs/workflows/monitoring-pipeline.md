@@ -4,12 +4,40 @@
 Glue `monitoring_db` table defs live in `priceeye-v2/source/priceeye-deploy/yaml/glue-monitoring.yaml`.
 Bucket/Glue names show prod form (`-3vprod-`).
 
-## Upstream source
+## Upstream source — `prod.priceeye_audits.*` (raw collection audits)
 
-`prod.priceeye_audits.*` (raw audit tables: `provider_request_audit[_detail]`, `provider_response_audit`,
-`retry_audit`, `cache_loader_audit`, `global_filter_audit_summary`, `enrichment_audit`, `packager_audit`,
-`delivery_combiner_audit`) — Core Redshift external schema over Glue `priceeye_audits_db_link`. Written by
-priceeye-v2 `persist-audit-data-redshift`. (Table names in `priceeye-v2/.../database/util/AuditTables.java`.)
+The raw audit trail written by the **priceeye-v2** crawl (`persist-audit-data-redshift` Lambda).
+External schema `priceeye_audits` is defined over Glue `priceeye_audits_db_link` on **both** the core and
+analytics clusters (`3v-build-deploy/databases/sql/prod-{core,analytics}-redshift.sql`); the agent's default
+routing reads them via **redshift_analytics** as `prod.priceeye_audits.<table>` (`local.priceeye_audits.*` are
+dev copies — don't default to them). Canonical names: `priceeye-v2/source/database-util/.../AuditTables.java`.
+
+Full set (17 tables; column counts from the live snapshot), ordered by pipeline phase:
+
+| Table | cols | Captures |
+|---|---|---|
+| `scheduler_audit` | 7 | collection-run scheduling |
+| `collection_run_audit` | 10 | collection-run lifecycle |
+| `collection_completion_audit` | 4 | collection-completion markers |
+| `provider_request_audit` | 25 | per provider request (core request fact) |
+| `provider_request_audit_detail` | 12 | per-request detail rows (joined into combined_audit) |
+| `provider_response_audit` | 8 | provider responses |
+| `retry_audit` | 7 | request retries |
+| `cache_audit` | 4 | cache usage |
+| `cache_loader_audit` | 4 | cache loading |
+| `tpfc_cache_audit` | 5 | TPFC cache |
+| `global_filter_audit` | 11 | global-filter decisions |
+| `global_filter_audit_summary` | 5 | global-filter summary |
+| `enrichment_audit` | 39 | enrichment step (widest audit table) |
+| `packager_audit` | 14 | result packaging |
+| `delivery_scheduler_audit` | 7 | delivery scheduling |
+| `delivery_audit` | 10 | delivery |
+| `delivery_combiner_audit` | 15 | delivery combiner |
+
+`AuditTables.AUDIT_TABLE_NAMES` enumerates 15 of these (the persisted set); `collection_run_audit` and
+`collection_completion_audit` also exist live. The dedup stage (Pipeline 1 below) consumes
+`provider_request_audit[_detail]`, `provider_response_audit`, `retry_audit`, `cache_loader_audit`,
+`global_filter_audit_summary`, `enrichment_audit`, `packager_audit`, and `delivery_combiner_audit`.
 
 ## Pipeline 1 — Internal monitoring (dedup + join)  ·  repo `ds-internal-monitoring`
 
