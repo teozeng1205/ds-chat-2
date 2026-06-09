@@ -53,7 +53,22 @@ function ChatKitCore({
         void name;
         void data;
       },
-      theme,
+      theme: {
+        colorScheme: theme,
+        radius: "round" as const,
+        density: "normal" as const,
+        typography: {
+          baseSize: 15 as const,
+          fontFamily:
+            'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+          fontFamilyMono:
+            'ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace',
+        },
+        color: {
+          accent: { primary: "#6366f1", level: 1 as const },
+          grayscale: { hue: 245, tint: 1 as const },
+        },
+      },
       threadItemActions: { retry: true },
       header: {
         leftAction: {
@@ -62,7 +77,7 @@ function ChatKitCore({
         },
       },
       history: {
-        enabled: false,
+        enabled: true,
       },
       startScreen: {
         greeting: "Welcome to 3Vchat, Chat about Anything",

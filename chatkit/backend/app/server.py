@@ -24,7 +24,7 @@ from .attachment_store import LocalDiskAttachmentStore, default_attachment_dir
 from .agents.ds_agent import build_agent
 from .investigation.runtime import cleanup_thread_workspace
 from .investigation.shell_session import close_session
-from .thread_store import InMemoryStore
+from .sqlite_thread_store import SqliteThreadStore
 
 
 MAX_RECENT_ITEMS = 50
@@ -134,7 +134,10 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
     """Server implementation for active in-process conversations."""
 
     def __init__(self) -> None:
-        self.store = InMemoryStore(max_items_per_thread=MAX_RECENT_ITEMS)
+        # Persistent store so the history panel can list/reopen past threads.
+        # Full thread history is retained; the agent context is bounded by the
+        # MAX_RECENT_ITEMS limit on the load_thread_items query, not by trimming.
+        self.store = SqliteThreadStore()
         self.local_attachment_store = LocalDiskAttachmentStore(default_attachment_dir())
         super().__init__(self.store, attachment_store=self.local_attachment_store)
 
