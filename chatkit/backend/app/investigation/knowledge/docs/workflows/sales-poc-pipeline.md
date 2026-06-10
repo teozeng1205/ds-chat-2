@@ -37,6 +37,24 @@ concrete carrier input requests.
 → Glue **`sales_poc.input_requests_v1`** (21 cols; `input_requests_v2` = 23 cols). These are the
 "input files" PriceEye later collects against.
 
+### Building segments FROM an input file (used in market-level analysis)
+`populate_segment_data(carrier_code, input_df)` (called from `create_carrier_input.py:417`, defined in
+`populate_segment_data.py`) **derives the sales_poc config from the input file itself** and cross-products it
+into segment definitions:
+1. Clears the carrier's existing `segment` / `region` / `geography` / `geography_entry` / `date_range` /
+   `cabin_group` rows (all keyed by `customer = <carrier_code>`).
+2. From `input_df`: builds `geography` (+`geography_entry`) from the distinct origin/destination
+   `*_country_code`s; builds `region` from the distinct origin→destination country pairs (`"{orig}-{dest}"`);
+   builds `date_range` and `cabin_group`.
+3. Builds **`sales_poc.segment`** as the cross-product **region × date_range × cabin_group** (× "All Carriers"),
+   naming each `"{regionName} | {dateRangeName} | All Carriers | {cabinGroupName}"`, inserting
+   `segmentName, customer, regionId, dateRangeId, carrierGroupId, cabinGroupId`.
+
+So segments are **built from the input file**, not hand-authored. These segment definitions
+(`sales_poc.segment` / `analytics.segment`) drive the downstream **market-/segment-level analysis** and are read
+by the alerts `palerts-generator` (`SELECT segmentId, segmentName FROM analytics.segment WHERE customer = …`,
+`ds-priceeye-analytics/source/04-Alerts/palerts-generator/src/dao/priceeye_reader.py`).
+
 ## Stage 2 — Market data  ·  `sales-poc-market-generator`
 
 Entry: `src/main.py`. Produces **`sales_poc.market_data_v1/v2`** and
