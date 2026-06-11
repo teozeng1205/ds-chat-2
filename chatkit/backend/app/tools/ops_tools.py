@@ -10,6 +10,7 @@ All tools are read-only. No mutate-the-cloud operation appears here.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -65,8 +66,9 @@ async def sfn_list_executions(
                 "error_type": "MissingStateMachineArn",
             }
         await _stream(ctx, "clock", f"Listing SFN executions for {state_machine_arn.rsplit(':', 1)[-1]}.")
-        executions = oc.sfn_list_executions(
-            state_machine_arn, status_filter=status_filter, max_results=max_results
+        executions = await asyncio.to_thread(
+            oc.sfn_list_executions,
+            state_machine_arn, status_filter=status_filter, max_results=max_results,
         )
         await _stream(ctx, "check-circle", f"Found {len(executions)} executions.")
         return {"ok": True, "executions": executions}
@@ -85,7 +87,7 @@ async def sfn_describe_execution(
     """
     try:
         await _stream(ctx, "clock", "Describing SFN execution.")
-        detail = oc.sfn_describe_execution(execution_arn)
+        detail = await asyncio.to_thread(oc.sfn_describe_execution, execution_arn)
         if detail is None:
             return {"ok": False, "error": "execution not found", "error_type": "NotFound"}
         await _stream(ctx, "check-circle", f"Execution {detail.get('status')}.")
@@ -107,7 +109,7 @@ async def sfn_get_execution_history(
     """
     try:
         await _stream(ctx, "clock", "Fetching SFN execution history.")
-        events = oc.sfn_get_execution_history(execution_arn, max_results=max_results)
+        events = await asyncio.to_thread(oc.sfn_get_execution_history, execution_arn, max_results=max_results)
         failed = [e for e in events if "Failed" in (e.get("type") or "")]
         await _stream(ctx, "check-circle", f"{len(events)} events, {len(failed)} failure events.")
         return {"ok": True, "events": events, "failure_count": len(failed)}
@@ -133,7 +135,9 @@ async def lambda_get_last_errors(
     try:
         await _stream(ctx, "clock", f"Scanning last {lookback_hours}h of errors for Lambda {function_name}.")
         lookback = max(60, lookback_hours * 3600)
-        events = oc.lambda_get_last_errors(function_name, lookback_seconds=lookback, max_events=max_events)
+        events = await asyncio.to_thread(
+            oc.lambda_get_last_errors, function_name, lookback_seconds=lookback, max_events=max_events
+        )
         await _stream(ctx, "check-circle", f"Found {len(events)} error events.")
         return {"ok": True, "function": function_name, "events": events, "lookback_hours": lookback_hours}
     except Exception as exc:
@@ -159,7 +163,8 @@ async def logs_insights_query(
     """
     try:
         await _stream(ctx, "clock", f"Running Logs Insights on {log_group}.")
-        result = oc.logs_insights_query(
+        result = await asyncio.to_thread(
+            oc.logs_insights_query,
             log_group, query,
             since_seconds=since_seconds, max_results=max_results, timeout_s=timeout_s,
         )
@@ -185,7 +190,7 @@ async def ecs_describe_tasks(
     """
     try:
         await _stream(ctx, "clock", f"Listing ECS tasks on {cluster}.")
-        tasks = oc.ecs_describe_tasks(cluster, max_tasks=max_tasks)
+        tasks = await asyncio.to_thread(oc.ecs_describe_tasks, cluster, max_tasks=max_tasks)
         await _stream(ctx, "check-circle", f"{len(tasks)} running tasks.")
         return {"ok": True, "cluster": cluster, "tasks": tasks}
     except Exception as exc:
@@ -205,7 +210,7 @@ async def ecs_list_stopped_reasons(
     """
     try:
         await _stream(ctx, "clock", f"Scanning stopped ECS tasks on {cluster}{'/' + service if service else ''}.")
-        stopped = oc.ecs_list_stopped_reasons(cluster, service=service, max_tasks=max_tasks)
+        stopped = await asyncio.to_thread(oc.ecs_list_stopped_reasons, cluster, service=service, max_tasks=max_tasks)
         await _stream(ctx, "check-circle", f"{len(stopped)} stopped tasks.")
         return {"ok": True, "cluster": cluster, "service": service, "stopped": stopped}
     except Exception as exc:
@@ -229,7 +234,8 @@ async def cloudwatch_alarms(
     try:
         state_label = state_value or "ANY"
         await _stream(ctx, "clock", f"Listing CloudWatch alarms (state={state_label}).")
-        alarms = oc.cloudwatch_alarms(
+        alarms = await asyncio.to_thread(
+            oc.cloudwatch_alarms,
             state_value=state_value, name_prefix=name_prefix, max_results=max_results,
         )
         await _stream(ctx, "check-circle", f"{len(alarms)} alarms.")
@@ -253,7 +259,7 @@ async def eventbridge_describe_rule(
     """
     try:
         await _stream(ctx, "clock", f"Describing EventBridge rule {name}.")
-        rule = oc.eventbridge_describe_rule(name, event_bus_name=event_bus_name)
+        rule = await asyncio.to_thread(oc.eventbridge_describe_rule, name, event_bus_name=event_bus_name)
         if rule is None:
             return {"ok": False, "error": "rule not found", "error_type": "NotFound"}
         await _stream(ctx, "check-circle", f"Rule {rule.get('state')}, {len(rule.get('targets') or [])} target(s).")

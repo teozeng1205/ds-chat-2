@@ -13,6 +13,12 @@ import numpy as np
 import pandas as pd
 
 try:
+    import matplotlib
+    # Force the non-interactive Agg backend: figures are saved to files, never
+    # displayed, and run_python now executes on a worker thread (see the tool
+    # wrappers). GUI backends like macOS's must run on the main thread and would
+    # raise off-thread; Agg is thread-safe and correct for headless rendering.
+    matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 except Exception:  # pragma: no cover
     plt = None

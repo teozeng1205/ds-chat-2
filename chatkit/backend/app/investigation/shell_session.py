@@ -28,7 +28,15 @@ _VENV_ACTIVATE = _BACKEND_ROOT / ".venv" / "bin" / "activate"
 
 # PROMPT_COMMAND emits sentinel + CWD after every command; PS1 is cleared to
 # avoid extra noise. Using printf to avoid `echo` portability issues.
+#
+# AWS metadata fast-fail: with no static creds in env, the AWS CLI falls back to
+# the EC2 instance-metadata endpoint (169.254.169.254), which on a laptop hangs
+# for minutes — making `aws ...` calls in the shell appear stuck. Cap it to a
+# single ~1s attempt so `aws` errors immediately instead of hanging. Real creds
+# are seeded into the process env before the shell spawns (see start()).
 _INIT_CMD = (
+    'export AWS_METADATA_SERVICE_NUM_ATTEMPTS=1 AWS_METADATA_SERVICE_TIMEOUT=1; '
+    'export AWS_REGION="${AWS_REGION:-us-east-1}" AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-east-1}"; '
     f'[ -f "{_VENV_ACTIVATE}" ] && source "{_VENV_ACTIVATE}"; '
     f'PROMPT_COMMAND=\'printf "{SENTINEL}:%s\\n" "$(pwd)"\'; '
     f'PS1=""\n'
@@ -51,6 +59,16 @@ class PersistentShell:
         self.last_cwd: str = str(self._start_dir)
 
     async def start(self) -> None:
+        # Seed 3VDEV credentials into the process env BEFORE spawning bash, so the
+        # shell inherits working AWS creds (idempotent + cached). Without this the
+        # shell's `aws` calls find no creds and hang on the IMDS fallback.
+        try:
+            from .runtime import get_runtime
+
+            get_runtime().registry.ensure_credentials()
+        except Exception:  # noqa: BLE001 — never block shell startup on cred bootstrap
+            pass
+
         master_fd, slave_fd = pty.openpty()
         # Non-blocking reads on master so we can poll without blocking
         flags = fcntl.fcntl(master_fd, fcntl.F_GETFL)

@@ -11,6 +11,7 @@ These unlock two capabilities:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -66,7 +67,7 @@ async def glue_get_table(
                 "partition_keys": [],
             }
         catalog = get_default_catalog()
-        t = catalog.get_table(database, name)
+        t = await asyncio.to_thread(catalog.get_table, database, name)
         if t is None:
             await _stream(ctx, "circle-x", "Table not found.")
             return {"ok": False, "error": "table not found", "error_type": "NotFound"}
@@ -111,7 +112,9 @@ async def glue_get_partitions(
     try:
         await _stream(ctx, "clock", f"Fetching partitions for {database}.{name}.")
         catalog = get_default_catalog()
-        parts = catalog.get_partitions(database, name, expression=expression, max_results=max_results)
+        parts = await asyncio.to_thread(
+            catalog.get_partitions, database, name, expression=expression, max_results=max_results
+        )
         await _stream(ctx, "check-circle", f"{len(parts)} partitions.")
         return {
             "ok": True,
@@ -147,7 +150,7 @@ async def quicksight_list_dashboards(
     """
     try:
         await _stream(ctx, "clock", "Listing QuickSight dashboards.")
-        dashboards = qs.list_dashboards(name_substring=name_substring, max_results=max_results)
+        dashboards = await asyncio.to_thread(qs.list_dashboards, name_substring=name_substring, max_results=max_results)
         await _stream(ctx, "check-circle", f"{len(dashboards)} dashboards.")
         return {"ok": True, "dashboards": dashboards}
     except Exception as exc:
@@ -170,7 +173,8 @@ async def quicksight_get_embed_url(
     """
     try:
         await _stream(ctx, "clock", f"Generating embed URL for dashboard {dashboard_id}.")
-        result = qs.generate_anonymous_embed_url(
+        result = await asyncio.to_thread(
+            qs.generate_anonymous_embed_url,
             dashboard_id,
             session_lifetime_minutes=session_lifetime_minutes,
             allowed_domain=allowed_domain,

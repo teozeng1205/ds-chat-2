@@ -8,7 +8,12 @@ tier: high
 ## AWS CLI (read-only investigation)
 
 `aws` CLI is available in every `bash()` call. Avoid mutating ops (s3 rm, delete-*, put-*).
-Region: `us-east-1`. Check identity: `aws sts get-caller-identity`.
+Region: `us-east-1`. **3VDEV credentials are already loaded into the shell environment** —
+run your read-only `aws` command directly. Do **not** start by running
+`aws sts get-caller-identity`, and never dump credentials with `env | grep AWS`
+(it wastes a turn and prints secrets into the chat). The identity is always
+3VDEV (account `590183652635`); only run `aws sts get-caller-identity` if a
+command actually returns an auth/credentials error and you need to confirm.
 
 Resource names (Lambda functions, SFN state machines, ECS clusters, alarm names):
 use `search_kb("aws infrastructure")` or `search_kb("lambda functions priceeye")` —
