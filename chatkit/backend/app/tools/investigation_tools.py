@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 import mimetypes
@@ -18,6 +19,7 @@ from chatkit.widgets import Card
 
 from ..attachment_store import LocalDiskAttachmentStore, default_attachment_dir
 from ..investigation.runtime import cleanup_thread_workspace, get_runtime
+from .widgets import result_table_card
 from ._common import (
     TIMEOUT_DB_QUERY,
     TIMEOUT_FAST,
@@ -87,6 +89,36 @@ def _workspace_dataset_sql_error(query: str) -> dict[str, Any] | None:
 
 async def _stream_progress(ctx: RunContextWrapper[AgentContext], icon: str, text: str) -> None:
     await ctx.context.stream(ProgressUpdateEvent(icon=icon, text=text))
+
+
+async def _stream_result_table(
+    ctx: RunContextWrapper[AgentContext],
+    result: dict[str, Any],
+    *,
+    title: str,
+    subtitle: str | None = None,
+) -> None:
+    """Render a query/S3 preview as a polished table widget (best-effort).
+
+    Only fires when the result carries `columns` + non-empty `preview` rows;
+    silently skips otherwise so it never breaks a turn.
+    """
+    try:
+        columns = result.get("columns") or []
+        preview = result.get("preview") or []
+        if not columns or not preview:
+            return
+        card = result_table_card(
+            columns=columns,
+            rows=preview,
+            row_count=int(result.get("row_count") or len(preview)),
+            title=title,
+            column_types=result.get("column_types") or {},
+            subtitle=subtitle,
+        )
+        await ctx.context.stream_widget(card)
+    except Exception as exc:  # noqa: BLE001 — widget publishing is best-effort
+        log.debug("result table widget failed: %s", exc)
 
 
 # Tool-call trace helpers (trace_begin / trace_finish / trace_done) live in
@@ -365,6 +397,12 @@ async def execute_sql(
                 content=query,
                 icon="search",
             )
+            await _stream_result_table(
+                ctx,
+                cache_payload,
+                title="Query results",
+                subtitle=f"{datasource or 'auto'} · cached",
+            )
             return cache_payload
 
         # ── Fresh execution ─────────────────────────────────────
@@ -373,7 +411,9 @@ async def execute_sql(
             ctx, title=f"Running SQL · {datasource or 'auto'}…", content=query, icon="search"
         )
         t0 = time.monotonic()
-        result = runtime.execute_sql(thread_id=thread_id, run_id=run_id, query=query, datasource=datasource)
+        result = await asyncio.to_thread(
+            runtime.execute_sql, thread_id=thread_id, run_id=run_id, query=query, datasource=datasource
+        )
         elapsed = time.monotonic() - t0
         await _stream_progress(
             ctx, "check-circle",
@@ -397,6 +437,13 @@ async def execute_sql(
             content=query,
             icon="search",
         )
+        if isinstance(result, dict) and result.get("ok", True):
+            await _stream_result_table(
+                ctx,
+                result,
+                title="Query results",
+                subtitle=f"{datasource or 'auto'} · {elapsed:.1f}s",
+            )
         return result
     except Exception as exc:
         log.exception("execute_sql failed")
@@ -428,7 +475,9 @@ async def fetch_s3(
             ctx, title=f"Fetching S3 · {bucket}…", content=f"s3://{bucket}/{key_or_prefix}", icon="search"
         )
         t0 = time.monotonic()
-        result = runtime.fetch_s3(thread_id=thread_id, run_id=run_id, bucket=bucket, key_or_prefix=key_or_prefix)
+        result = await asyncio.to_thread(
+            runtime.fetch_s3, thread_id=thread_id, run_id=run_id, bucket=bucket, key_or_prefix=key_or_prefix
+        )
         elapsed = time.monotonic() - t0
         await _stream_progress(
             ctx, "check-circle",
@@ -441,6 +490,13 @@ async def fetch_s3(
             content=f"s3://{bucket}/{key_or_prefix}",
             icon="search",
         )
+        if isinstance(result, dict) and result.get("ok", True):
+            await _stream_result_table(
+                ctx,
+                result,
+                title="S3 data preview",
+                subtitle=f"{bucket} · {elapsed:.1f}s",
+            )
         return result
     except Exception as exc:
         log.exception("fetch_s3 failed")
@@ -470,7 +526,7 @@ async def list_s3(
     try:
         runtime = get_runtime()
         await _stream_progress(ctx, "clock", f"Listing S3 objects in {bucket}.")
-        result = runtime.list_s3(bucket=bucket, prefix=prefix, max_keys=max_keys)
+        result = await asyncio.to_thread(runtime.list_s3, bucket=bucket, prefix=prefix, max_keys=max_keys)
         await _stream_progress(
             ctx,
             "check-circle",
@@ -511,7 +567,7 @@ async def run_python(
         await _stream_progress(ctx, "square-code", "Running Python analysis on saved datasets.")
         trace_idx = await trace_begin(ctx, title="Running Python…", content=code, icon="square-code")
         t0 = time.monotonic()
-        result = runtime.run_python(thread_id=thread_id, run_id=run_id, code=code)
+        result = await asyncio.to_thread(runtime.run_python, thread_id=thread_id, run_id=run_id, code=code)
         elapsed = time.monotonic() - t0
         await _stream_progress(
             ctx,
@@ -544,7 +600,7 @@ async def inspect_table(
     try:
         await _stream_progress(ctx, "search", f"Inspecting table {table_name}.")
         runtime = get_runtime()
-        result = runtime.inspect_table(table_name=table_name, datasource=datasource)
+        result = await asyncio.to_thread(runtime.inspect_table, table_name=table_name, datasource=datasource)
         await _stream_progress(
             ctx, "check-circle",
             f"Table inspection complete: {len(result.get('columns', []))} columns.",
@@ -579,7 +635,7 @@ async def search_kb(
     try:
         await _stream_progress(ctx, "search", f"Searching KB for: {query}")
         runtime = get_runtime()
-        result = runtime.search_kb(query=query)
+        result = await asyncio.to_thread(runtime.search_kb, query=query)
 
         await _stream_progress(
             ctx, "check-circle",

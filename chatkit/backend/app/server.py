@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, AsyncIterator, Optional
@@ -199,6 +201,33 @@ class StarterChatServer(ChatKitServer[dict[str, Any]]):
                         break
 
         return {"model": model, "turn_count": turn_count}
+
+    async def add_feedback(
+        self,
+        thread_id: str,
+        item_ids: list[str],
+        feedback: str,
+        context: dict[str, Any],
+    ) -> None:
+        """Persist thumbs up/down feedback so it can seed evals over time.
+
+        Appends one JSONL record per feedback event to ``app/.data/feedback.jsonl``.
+        Best-effort: never raise from a feedback submission.
+        """
+        try:
+            record = {
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "thread_id": thread_id,
+                "item_ids": list(item_ids),
+                "feedback": feedback,
+            }
+            path = Path(__file__).parent / ".data" / "feedback.jsonl"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record) + "\n")
+            log.info("feedback %s for thread=%s items=%s", feedback, thread_id, item_ids)
+        except Exception as exc:  # noqa: BLE001 — feedback must never break a turn
+            log.warning("failed to persist feedback for thread %s: %s", thread_id, exc)
 
     async def _summarize_title(self, user_text: str) -> str:
         """Generate a concise chat title from the first user message.

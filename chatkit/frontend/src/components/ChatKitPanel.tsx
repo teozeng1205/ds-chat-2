@@ -13,17 +13,20 @@ const THEME_STORAGE_KEY = "ds-chat:theme";
 
 type Theme = "dark" | "light";
 type WidgetAction = { type: string; payload?: Record<string, unknown> };
-type WidgetActionItem = { id: string; widget: Widgets.Card | Widgets.ListView };
+type WidgetActionItem = { id: string; widget: Widgets.Card | Widgets.ListView | Widgets.BasicRoot };
 
 // Inner component is keyed by theme so useChatKit remounts cleanly on theme change.
 function ChatKitCore({
   theme,
+  initialThreadId,
   onThreadChange,
   onWidgetAction,
   chatkitApiRef,
   onToggleTheme,
+  onShare,
 }: {
   theme: Theme;
+  initialThreadId: string | null;
   onThreadChange: (args: { threadId: string | null }) => void;
   onWidgetAction: (action: WidgetAction, widgetItem: WidgetActionItem) => Promise<void>;
   chatkitApiRef: MutableRefObject<Pick<
@@ -31,6 +34,7 @@ function ChatKitCore({
     "sendCustomAction" | "sendUserMessage" | "setComposerValue"
   > | null>;
   onToggleTheme: () => void;
+  onShare: () => void;
 }) {
   const chatkitOptions = useMemo(
     () => ({
@@ -39,6 +43,9 @@ function ChatKitCore({
         domainKey: CHATKIT_API_DOMAIN_KEY,
         uploadStrategy: { type: "two_phase" as const },
       },
+      // Restore a thread shared via ?thread=<id> (or the active thread across a
+      // theme-driven remount). Only read at mount; navigation is internal after.
+      initialThread: initialThreadId,
       onResponseStart: () => {
         void 0;
       },
@@ -69,11 +76,15 @@ function ChatKitCore({
           grayscale: { hue: 245, tint: 1 as const },
         },
       },
-      threadItemActions: { retry: true },
+      threadItemActions: { retry: true, feedback: true },
       header: {
         leftAction: {
-          icon: theme === "dark" ? "light-mode" : "dark-mode",
+          icon: theme === "dark" ? ("light-mode" as const) : ("dark-mode" as const),
           onClick: onToggleTheme,
+        },
+        rightAction: {
+          icon: "share" as const,
+          onClick: onShare,
         },
       },
       history: {
@@ -151,7 +162,7 @@ function ChatKitCore({
         ],
       },
     }),
-    [onThreadChange, onWidgetAction, theme, onToggleTheme],
+    [initialThreadId, onThreadChange, onWidgetAction, theme, onToggleTheme, onShare],
   );
 
   const chatkit = useChatKit(chatkitOptions);
@@ -166,7 +177,15 @@ export function ChatKitPanel() {
     return (window.localStorage.getItem(THEME_STORAGE_KEY) as Theme | null) ?? "light";
   });
 
-  const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
+  // Deep-link: a thread shared as ?thread=<id> is restored on first load.
+  const [initialThreadId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("thread");
+  });
+
+  const [currentThreadId, setCurrentThreadId] = useState<string | null>(initialThreadId);
+  const threadIdRef = useRef<string | null>(initialThreadId);
+  const [toast, setToast] = useState<string | null>(null);
 
   const chatkitApiRef = useRef<
     Pick<UseChatKitReturn, "sendCustomAction" | "sendUserMessage" | "setComposerValue"> | null
@@ -174,7 +193,40 @@ export function ChatKitPanel() {
 
   const onThreadChange = useCallback(({ threadId }: { threadId: string | null }) => {
     setCurrentThreadId(threadId);
+    threadIdRef.current = threadId;
+    // Keep the address bar in sync so the Share button always reflects the
+    // open thread and a page reload restores it.
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (threadId) {
+        url.searchParams.set("thread", threadId);
+      } else {
+        url.searchParams.delete("thread");
+      }
+      window.history.replaceState(null, "", url.toString());
+    }
   }, []);
+
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(null), 2400);
+  }, []);
+
+  const onShare = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const threadId = threadIdRef.current;
+    if (!threadId) {
+      showToast("Start a chat first to get a shareable link");
+      return;
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.set("thread", threadId);
+    const link = url.toString();
+    navigator.clipboard
+      .writeText(link)
+      .then(() => showToast("Link copied to clipboard"))
+      .catch(() => showToast("Copy failed — copy from the address bar"));
+  }, [showToast]);
 
   const onWidgetAction = useCallback(async (action: WidgetAction, widgetItem: WidgetActionItem) => {
     const api = chatkitApiRef.current;
@@ -249,11 +301,27 @@ export function ChatKitPanel() {
       <ChatKitCore
         key={theme}
         theme={theme}
+        initialThreadId={currentThreadId ?? initialThreadId}
         onThreadChange={onThreadChange}
         onWidgetAction={onWidgetAction}
         chatkitApiRef={chatkitApiRef}
         onToggleTheme={onToggleTheme}
+        onShare={onShare}
       />
+      {toast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={[
+            "pointer-events-none absolute bottom-6 left-1/2 z-50 -translate-x-1/2",
+            "rounded-full px-4 py-2 text-xs font-medium shadow-lg ring-1 backdrop-blur",
+            "bg-slate-900/90 text-white ring-white/10",
+            "dark:bg-white/90 dark:text-slate-900 dark:ring-black/10",
+          ].join(" ")}
+        >
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
